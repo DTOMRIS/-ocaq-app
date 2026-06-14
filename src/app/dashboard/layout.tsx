@@ -8,8 +8,12 @@ const NAV_ITEMS = [
   { href: "/dashboard/promosyonlar", label: "Promosyonlar", icon: "🎁" },
   { href: "/dashboard/menu", label: "Menyu", icon: "🍽️" },
   { href: "/vardiya-checklist", label: "Vardiya Checklist", icon: "✅" },
-  { href: "/admin/promosyonlar", label: "Admin: Promolar", icon: "⚙️" },
-  { href: "/admin/menu", label: "Admin: Menyu", icon: "⚙️" },
+  { href: "/dashboard/takvim", label: "Vardiya Təqvimi", icon: "📅" },
+  { href: "/dashboard/komanda", label: "Komanda", icon: "👥" },
+  { href: "/dashboard/bildirisler", label: "Bildirişlər", icon: "🔔" },
+  { href: "/admin/promosyonlar/yeni", label: "Promo Yarat", icon: "➕" },
+  { href: "/admin/menu/yeni", label: "Məhsul Əlavə Et", icon: "➕" },
+  { href: "/admin/personel/yeni", label: "Əməkdaş Əlavə Et", icon: "➕" },
 ];
 
 export default function DashboardLayout({
