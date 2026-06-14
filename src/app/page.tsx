@@ -260,7 +260,7 @@ export default function Home() {
 
                   {/* Submit */}
                   <Link
-                    href="/vardiya-checklist"
+                    href="/dashboard"
                     className="block w-full py-3.5 bg-[var(--ocaq-red)] text-white font-bold rounded-xl text-center text-sm shadow-sm hover:opacity-90 hover:shadow-lg hover:shadow-rose-200/50 transition-all duration-300"
                   >
                     Daxil ol
