@@ -5,20 +5,24 @@ import Link from "next/link";
 
 const SLIDES = [
   {
-    url: "https://images.unsplash.com/photo-1600565193348-f74bd3c7ccdf?w=1200&q=80",
-    alt: "Restoran mutfağı — şef hazırlık yapır",
+    url: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=1400&q=85",
+    alt: "Profesyonal şef — alovlu tavada yemək hazırlayır",
   },
   {
-    url: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80",
-    alt: "Restoran salonu — servis hazırlığı",
+    url: "https://images.unsplash.com/photo-1428515613728-6b4607e44363?w=1400&q=85",
+    alt: "İstiqanlı restoran mətbəxi — komanda iş başında",
   },
   {
-    url: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=1200&q=80",
-    alt: "Şef yemek hazırlayır",
+    url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1400&q=85",
+    alt: "Premium restoran salonu — axşam atmosferi",
   },
   {
-    url: "https://images.unsplash.com/photo-1581299894007-aaa50297cf16?w=1200&q=80",
-    alt: "Restoran komandası",
+    url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1400&q=85",
+    alt: "Gözəl təqdim olunmuş yemək — kulinariya sənəti",
+  },
+  {
+    url: "https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=1400&q=85",
+    alt: "Restoran masası — mükəmməl servis hazırlığı",
   },
 ];
 
@@ -136,15 +140,15 @@ export default function Home() {
         </div>
 
         {/* Content area */}
-        <div className="flex-1 flex flex-col justify-center px-6 lg:px-12 pb-6 overflow-y-auto">
-          <div className="max-w-md mx-auto w-full lg:mx-0">
+        <div className="flex-1 flex flex-col justify-center px-6 lg:px-16 xl:px-24 pb-6 overflow-y-auto">
+          <div className="max-w-md mx-auto w-full">
             {!selectedRole ? (
               <>
                 {/* === STEP 1: Role Selection === */}
-                <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-2">
+                <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-2 text-center">
                   Xoş gəldiniz,
                 </h1>
-                <p className="text-slate-500 text-base mb-8">
+                <p className="text-slate-500 text-base mb-8 text-center">
                   Başlamaq üçün rolunuzu seçin:
                 </p>
 
@@ -270,7 +274,7 @@ export default function Home() {
             )}
 
             {/* Security notice */}
-            <p className="mt-8 text-xs text-slate-400 text-center lg:text-left">
+            <p className="mt-8 text-xs text-slate-400 text-center">
               Daxil olaraq{" "}
               <a href="#" className="underline hover:text-slate-600">
                 Təhlükəsizlik Siyasəti
