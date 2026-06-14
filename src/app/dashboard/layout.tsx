@@ -4,16 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Ana Səhifə", icon: "🏠" },
-  { href: "/dashboard/promosyonlar", label: "Promosyonlar", icon: "🎁" },
-  { href: "/dashboard/menu", label: "Menyu", icon: "🍽️" },
-  { href: "/vardiya-checklist", label: "Vardiya Checklist", icon: "✅" },
-  { href: "/dashboard/takvim", label: "Vardiya Təqvimi", icon: "📅" },
-  { href: "/dashboard/komanda", label: "Komanda", icon: "👥" },
-  { href: "/dashboard/bildirisler", label: "Bildirişlər", icon: "🔔" },
-  { href: "/admin/promosyonlar/yeni", label: "Promo Yarat", icon: "➕" },
-  { href: "/admin/menu/yeni", label: "Məhsul Əlavə Et", icon: "➕" },
-  { href: "/admin/personel/yeni", label: "Əməkdaş Əlavə Et", icon: "➕" },
+  { href: "/dashboard", label: "Ana Səhifə", icon: "🏠", section: "main" },
+  { href: "/dashboard/promosyonlar", label: "Promosyonlar", icon: "🎁", section: "main" },
+  { href: "/dashboard/menu", label: "Menyu", icon: "🍽️", section: "main" },
+  { href: "/vardiya-checklist", label: "Vardiya Checklist", icon: "✅", section: "ops" },
+  { href: "/dashboard/kasa", label: "Kasa Raporu", icon: "💰", section: "ops" },
+  { href: "/dashboard/takvim", label: "Vardiya Təqvimi", icon: "📅", section: "ops" },
+  { href: "/dashboard/ekipman", label: "Ekipman", icon: "🔧", section: "ops" },
+  { href: "/dashboard/logbook", label: "Logbook", icon: "📓", section: "ops" },
+  { href: "/dashboard/komanda", label: "Komanda", icon: "👥", section: "team" },
+  { href: "/dashboard/bildirisler", label: "Bildirişlər", icon: "🔔", section: "team" },
+  { href: "/admin/filiallar", label: "Filiallar", icon: "🏪", section: "admin" },
+  { href: "/admin/promosyonlar/yeni", label: "Promo Yarat", icon: "➕", section: "admin" },
+  { href: "/admin/menu/yeni", label: "Məhsul Əlavə", icon: "➕", section: "admin" },
+  { href: "/admin/personel/yeni", label: "Əməkdaş Əlavə", icon: "➕", section: "admin" },
 ];
 
 export default function DashboardLayout({
@@ -35,22 +39,35 @@ export default function DashboardLayout({
             OCAQ
           </span>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const active = pathname === item.href;
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {(["main", "ops", "team", "admin"] as const).map((section) => {
+            const sectionLabels = { main: "", ops: "Operasiya", team: "Komanda", admin: "Admin" };
+            const items = NAV_ITEMS.filter((i) => i.section === section);
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  active
-                    ? "bg-rose-50 text-[var(--ocaq-red)]"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <span className="text-lg">{item.icon}</span>
-                {item.label}
-              </Link>
+              <div key={section}>
+                {sectionLabels[section] && (
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 pt-4 pb-1">
+                    {sectionLabels[section]}
+                  </p>
+                )}
+                {items.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                        active
+                          ? "bg-rose-50 text-[var(--ocaq-red)]"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="text-base">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
