@@ -81,8 +81,8 @@ export default function HaccpPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">HACCP Günlük Kontrol</h1>
-          <p className="text-sm text-slate-500">Qida Təhlükəsizliyi — Gündəlik CCP Yoxlaması</p>
+          <h1 className="text-2xl font-bold text-slate-900">Qida Təhlükəsizliyi</h1>
+          <p className="text-sm text-slate-500">Food Safety — Gündəlik HACCP/CCP Yoxlaması</p>
         </div>
         <div className={`text-sm font-bold px-3 py-1.5 rounded-full ${
           criticalPct === 100 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
