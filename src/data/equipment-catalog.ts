@@ -231,6 +231,103 @@ export const EQUIPMENT_CATALOG: EquipmentType[] = [
     ],
   },
 
+  // ═══ İÇKİ / SU SİSTEMLƏRİ ═══
+  {
+    id: "kola-premix",
+    name: "Kola / İçki Premix Aparatı",
+    category: "İçki / Su",
+    icon: "🥤",
+    maintenance: [
+      { id: "cp1", task: "Sirop hattı bağlantı yoxlaması (sızdırmazlıq)", freq: "daily" },
+      { id: "cp2", task: "Nozzle / çıxış başlığı təmizliyi", freq: "daily" },
+      { id: "cp3", task: "Sirop BIB (bag-in-box) səviyyə yoxlaması", freq: "daily" },
+      { id: "cp4", task: "Brix kalibrasiyası (sirop/su nisbəti)", freq: "weekly" },
+      { id: "cp5", task: "Karbonasiya səviyyəsi yoxlaması", freq: "weekly" },
+      { id: "cp6", task: "Damcı qabı təmizliyi", freq: "daily" },
+      { id: "cp7", task: "Sirop xətti tam flush təmizliyi", freq: "monthly" },
+      { id: "cp8", task: "Diffuzer (karbonator) yoxlaması", freq: "monthly" },
+      { id: "cp9", task: "BIB bağlantı adaptoru (coupler) dəyişdirmə", freq: "annual" },
+    ],
+  },
+  {
+    id: "co2-sistemi",
+    name: "CO₂ Qaz Sistemi (Karbonasiya)",
+    category: "İçki / Su",
+    icon: "💨",
+    maintenance: [
+      { id: "co1", task: "CO₂ balon təzyiq yoxlaması (manometr)", freq: "daily" },
+      { id: "co2", task: "CO₂ balon səviyyəsi — tükənmə təxmini", freq: "weekly" },
+      { id: "co3", task: "Bağlantı xətlərində qaz kaçaq testi (sabun köpüyü)", freq: "monthly", critical: true },
+      { id: "co4", task: "Regülyator (basınc azaldıcı) işləmə testi", freq: "monthly" },
+      { id: "co5", task: "CO₂ otaq ventilyasiya yoxlaması (boğulma riski!)", freq: "monthly", critical: true },
+      { id: "co6", task: "Balon zəncir/qayış fiksasiyası yoxlaması", freq: "monthly", critical: true },
+      { id: "co7", task: "Balon hidrostatik test tarixi yoxlaması", freq: "biannual", critical: true },
+    ],
+  },
+  {
+    id: "su-filtresi-icecek",
+    name: "Su Filtresi — İçki / Kola Sistemi",
+    category: "İçki / Su",
+    icon: "💧",
+    maintenance: [
+      { id: "sf1", task: "Su axın sürəti yoxlaması (zəifləyibsə filtr dolub)", freq: "weekly" },
+      { id: "sf2", task: "Filtr kartrici dəyişdirmə", freq: "quarterly" },
+      { id: "sf3", task: "Su keyfiyyəti testi (bulanıqlıq, dad, qoxu)", freq: "monthly" },
+      { id: "sf4", task: "Əks yuma (backwash) — əgər sistem dəstəkləyirsə", freq: "monthly" },
+    ],
+  },
+  {
+    id: "su-filtresi-restoran",
+    name: "Su Filtresi — Restoran Əsas (Mətbəx + Müştəri)",
+    category: "İçki / Su",
+    icon: "🚰",
+    maintenance: [
+      { id: "sr1", task: "Su dadı / qoxu yoxlaması", freq: "daily" },
+      { id: "sr2", task: "Filtr basınc fərqi yoxlaması (manometr)", freq: "weekly" },
+      { id: "sr3", task: "Ön filtr (sediment) dəyişdirmə", freq: "quarterly" },
+      { id: "sr4", task: "Aktiv karbon filtr dəyişdirmə", freq: "biannual" },
+      { id: "sr5", task: "UV lampa dəyişdirmə (əgər varsa)", freq: "annual" },
+      { id: "sr6", task: "Su analizi laboratoriyaya göndərmə", freq: "biannual", critical: true },
+    ],
+  },
+  {
+    id: "su-isidici",
+    name: "Termosifon / Su Qızdırıcısı",
+    category: "İçki / Su",
+    icon: "🔥",
+    maintenance: [
+      { id: "si1", task: "İşləmə yoxlaması + temperatur", freq: "monthly" },
+      { id: "si2", task: "Anod çubuğu yoxlaması (korroziya)", freq: "annual" },
+      { id: "si3", task: "Kireç (limescale) təmizliyi", freq: "annual" },
+      { id: "si4", task: "Təhlükəsizlik klapanı testi", freq: "biannual", critical: true },
+    ],
+  },
+
+  // ═══ YUYUCU / GİGİYENA ═══
+  {
+    id: "el-yuma-stansiya",
+    name: "Əl Yuma Stansiyası",
+    category: "Gigiyena",
+    icon: "🧼",
+    maintenance: [
+      { id: "ey1", task: "Sabun dispenser doluluğu", freq: "daily" },
+      { id: "ey2", task: "Qurutma kağız / hava quruducu işləməsi", freq: "daily" },
+      { id: "ey3", task: "Su temperaturu yoxlaması (ılıq olmalı)", freq: "weekly" },
+      { id: "ey4", task: "Sifon / drenaj təmizliyi", freq: "monthly" },
+    ],
+  },
+  {
+    id: "dezenfeksiyon-stansiya",
+    name: "Dezinfeksiya Stansiyası (Sanitizer)",
+    category: "Gigiyena",
+    icon: "🧴",
+    maintenance: [
+      { id: "ds1", task: "Konsentrasiya yoxlaması (ppm test şeridi)", freq: "daily", critical: true },
+      { id: "ds2", task: "Məhlul dəyişdirmə", freq: "daily" },
+      { id: "ds3", task: "Qab / konteyner təmizliyi", freq: "weekly" },
+    ],
+  },
+
   // ═══ KLİMA / HVAC ═══
   {
     id: "klima-kaset",
@@ -359,6 +456,66 @@ export const EQUIPMENT_CATALOG: EquipmentType[] = [
       { id: "tr1", task: "Kalibrasiya yoxlaması (bilinen çəki ilə)", freq: "weekly" },
       { id: "tr2", task: "Təmizlik", freq: "biweekly" },
       { id: "tr3", task: "Pil dəyişdirmə", freq: "quarterly" },
+    ],
+  },
+  {
+    id: "dondurma-makinesi",
+    name: "Dondurma / Milkshake Makinesi",
+    category: "Ümumi",
+    icon: "🍦",
+    maintenance: [
+      { id: "dm1", task: "Gündəlik sökülüb yuyulma + sanitize", freq: "daily", critical: true },
+      { id: "dm2", task: "Mix hazne təmizliyi", freq: "daily" },
+      { id: "dm3", task: "Kondenser təmizliyi", freq: "biweekly" },
+      { id: "dm4", task: "Contalar yoxlaması + dəyişdirmə", freq: "monthly" },
+      { id: "dm5", task: "Beater (çalkalayıcı) aşınma yoxlaması", freq: "quarterly" },
+    ],
+  },
+  {
+    id: "corba-kazani",
+    name: "Şorba / Sos Kazanı (Benmari)",
+    category: "Ümumi",
+    icon: "🍲",
+    maintenance: [
+      { id: "ck1", task: "Temperatur yoxlaması (63°C+ saxlama)", freq: "daily", critical: true },
+      { id: "ck2", task: "Su səviyyəsi yoxlaması", freq: "daily" },
+      { id: "ck3", task: "Termostat kalibrasiyası", freq: "monthly" },
+      { id: "ck4", task: "Kireç təmizliyi", freq: "monthly" },
+    ],
+  },
+  {
+    id: "vakuum-makinesi",
+    name: "Vakuum Paketləmə Makinesi",
+    category: "Ümumi",
+    icon: "📦",
+    maintenance: [
+      { id: "vm1", task: "Möhürləmə çubuğu təmizliyi", freq: "daily" },
+      { id: "vm2", task: "Vakuum pompası yağ səviyyəsi", freq: "weekly" },
+      { id: "vm3", task: "Vakuum pompası yağ dəyişdirmə", freq: "quarterly" },
+      { id: "vm4", task: "Contalar yoxlaması", freq: "monthly" },
+    ],
+  },
+  {
+    id: "et-kiyma-makinesi",
+    name: "Ət Kıyma / Doğrama Makinesi",
+    category: "Ümumi",
+    icon: "🥩",
+    maintenance: [
+      { id: "ek1", task: "Sökülüb yuyulma + sanitize", freq: "daily", critical: true },
+      { id: "ek2", task: "Bıçaq itiliyi yoxlaması", freq: "weekly" },
+      { id: "ek3", task: "Motor yağlama", freq: "monthly" },
+      { id: "ek4", task: "Güvənlik qoruyucu yoxlaması", freq: "monthly", critical: true },
+    ],
+  },
+  {
+    id: "lcd-menu-ekrani",
+    name: "LCD Menyu Ekranı / Digital Signage",
+    category: "Ümumi",
+    icon: "📺",
+    maintenance: [
+      { id: "lcd1", task: "Ekran təmizliyi", freq: "weekly" },
+      { id: "lcd2", task: "Kabel bağlantı yoxlaması", freq: "monthly" },
+      { id: "lcd3", task: "Media player yenidən başlatma", freq: "monthly" },
     ],
   },
 ];
