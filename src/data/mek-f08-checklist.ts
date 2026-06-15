@@ -209,15 +209,33 @@ export const MEK_F08_SECTIONS: ChecklistSection[] = [
       { id: "s16", label: "İçki dolabının təmizlənməsi və yoxlanması" },
       {
         id: "s17",
-        label: "Dönər ocaqlarının təmizlənməsi",
+        label: "Dönər ocaqları təmizləndi (ət dönər + toyuq dönər ayrı-ayrı)",
         requiresPhoto: true,
+      },
+      {
+        id: "s17b",
+        label: "Ət dönər — çiy baton taxıldı, çəkisi qeyd edildi (kq)",
+        temperatureField: true,
+      },
+      {
+        id: "s17c",
+        label: "Toyuq dönər — çiy baton taxıldı, çəkisi qeyd edildi (kq)",
+        temperatureField: true,
+      },
+      {
+        id: "s17d",
+        label: "Dünəndən qalan bişmiş dönər yoxlanıldı (SİT + temperatur)",
       },
       { id: "s18", label: "Bütün qabların təmizlənməsi" },
       { id: "s19", label: "Fritözün (qızartma tavasının) təmizlənməsi" },
       {
         id: "s20",
-        label:
-          "Dönər ocaqlarını açın və temperaturunun düzgün sazlandığından əmin olun",
+        label: "Dönər ocaqları açıldı — ət ocağı temperatur düzgün",
+        temperatureField: true,
+      },
+      {
+        id: "s20b",
+        label: "Dönər ocaqları açıldı — toyuq ocağı temperatur düzgün",
         temperatureField: true,
       },
     ],

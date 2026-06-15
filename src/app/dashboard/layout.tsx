@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/menu", label: "Menyu", icon: "🍽️", section: "main" },
   { href: "/dashboard/vardiya-checklist", label: "Vardiya Checklist", icon: "✅", section: "ops" },
   { href: "/dashboard/haccp", label: "Qida Təhlükəsizliyi", icon: "🛡️", section: "ops" },
+  { href: "/dashboard/fire", label: "İtki / Fire", icon: "🔥", section: "ops" },
   { href: "/dashboard/kasa", label: "Kasa Raporu", icon: "💰", section: "ops" },
   { href: "/dashboard/takvim", label: "Vardiya Təqvimi", icon: "📅", section: "ops" },
   { href: "/dashboard/ekipman", label: "Ekipman", icon: "🔧", section: "ops" },
