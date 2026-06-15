@@ -383,6 +383,30 @@ export const EQUIPMENT_CATALOG: EquipmentType[] = [
     ],
   },
 
+  // ═══ TEMPERATUR / HACCP ALƏTLƏR ═══
+  {
+    id: "pyrometer",
+    name: "Pyrometr / Termometr (İğnə tipli)",
+    category: "HACCP Alətlər",
+    icon: "🌡️",
+    maintenance: [
+      { id: "py1", task: "Buz-su testi ilə kalibrasiya (0°C ±0.5°C)", freq: "daily", critical: true },
+      { id: "py2", task: "Batareya yoxlaması", freq: "monthly" },
+      { id: "py3", task: "Kalibrasiya sertifikatı yeniləmə (firma)", freq: "annual" },
+    ],
+  },
+  {
+    id: "temperatur-loggeri",
+    name: "Temperatur Loggeri (Avtomatik Qeyd)",
+    category: "HACCP Alətlər",
+    icon: "📟",
+    maintenance: [
+      { id: "tl1", task: "Sensor doğruluğu yoxlaması (pyrometr ilə tutuşdurma)", freq: "weekly" },
+      { id: "tl2", task: "Batareya / enerji yoxlaması", freq: "monthly" },
+      { id: "tl3", task: "Data yükləmə / yedəkləmə", freq: "weekly" },
+    ],
+  },
+
   // ═══ GAZ TƏHLÜKƏSİZLİK ═══
   {
     id: "gaz-detektoru",
