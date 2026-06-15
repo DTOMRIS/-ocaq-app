@@ -40,6 +40,16 @@ export default function KasaPage() {
   const [cashOut, setCashOut] = useState("");
   const [bankDeposit, setBankDeposit] = useState("");
 
+  // Delivery platformları
+  const [wolt, setWolt] = useState("");
+  const [bolt, setBolt] = useState("");
+  const [yango, setYango] = useState("");
+
+  // İkram + Rehberlik
+  const [ikramTotal, setIkramTotal] = useState("");
+  const [ikramNote, setIkramNote] = useState("");
+  const [rehberlikNote, setRehberlikNote] = useState("");
+
   const noteTotal = useMemo(
     () =>
       BANKNOTES.reduce(
@@ -179,6 +189,63 @@ export default function KasaPage() {
               className="w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30" />
           </div>
         </div>
+      </div>
+
+      {/* Delivery Platformları */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+        <h2 className="font-bold text-slate-900 mb-3">🛵 Delivery Platformları</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#00B4D8] mr-1" />Wolt (₼)
+            </label>
+            <input type="number" step="0.01" value={wolt} onChange={(e) => setWolt(e.target.value)} placeholder="0.00"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#34D399] mr-1" />Bolt Food (₼)
+            </label>
+            <input type="number" step="0.01" value={bolt} onChange={(e) => setBolt(e.target.value)} placeholder="0.00"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#FF4B4B] mr-1" />Yango (₼)
+            </label>
+            <input type="number" step="0.01" value={yango} onChange={(e) => setYango(e.target.value)} placeholder="0.00"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30" />
+          </div>
+        </div>
+        <p className="text-right text-xs text-slate-400 mt-2">
+          Delivery cəm: {((parseFloat(wolt) || 0) + (parseFloat(bolt) || 0) + (parseFloat(yango) || 0)).toFixed(2)} ₼
+        </p>
+      </div>
+
+      {/* İkram */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+        <h2 className="font-bold text-slate-900 mb-3">🍽️ İkram Qeydləri</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">İkram Tutarı (₼)</label>
+            <input type="number" step="0.01" value={ikramTotal} onChange={(e) => setIkramTotal(e.target.value)} placeholder="0.00"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30" />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-slate-600 mb-1">İkram Səbəbi</label>
+            <input type="text" value={ikramNote} onChange={(e) => setIkramNote(e.target.value)} placeholder="Məs: Sahibin qonağı, müştəri şikayəti kompensasiyası..."
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30" />
+          </div>
+        </div>
+      </div>
+
+      {/* Rehberlik / Xüsusi Qeydlər */}
+      <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5 mb-4">
+        <h2 className="font-bold text-slate-900 mb-3">📌 Rehberlik / Xüsusi Qeydlər</h2>
+        <textarea value={rehberlikNote} onChange={(e) => setRehberlikNote(e.target.value)} rows={3}
+          placeholder="Məs: Sahib ödəmədi — çeki mərkəzə göndər. Müştəri 45 nömrəli masa hesabı imzaladı — şirkət hesabına yaz. VIP qonaq gəldi — ikram edildi..."
+          className="w-full px-3 py-2.5 border border-amber-300 rounded-xl bg-white text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-300/50 resize-none" />
+        <p className="text-[10px] text-amber-600 mt-2">Bu qeydlər mühasibata və baş ofisə göndəriləcək</p>
       </div>
 
       {/* Result Card */}

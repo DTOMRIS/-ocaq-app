@@ -5,7 +5,10 @@ import { useState } from "react";
 const DAYS = ["B.e.", "Ç.a.", "Ç.", "C.a.", "C.", "Ş.", "B."];
 const SHIFTS = ["Sabah (08-16)", "Axşam (16-00)"];
 
-const STAFF = [
+const ROLES = ["Aşpaz", "Ofisiant", "Barmen", "Kassir", "Təmizlikçi", "Sürücü"];
+const AVATARS: Record<string, string> = { Aşpaz: "👨‍🍳", Ofisiant: "👩‍🍳", Barmen: "🧑‍🍳", Kassir: "👩‍💼", Təmizlikçi: "🧹", Sürücü: "🚗" };
+
+const INITIAL_STAFF = [
   { id: "1", name: "Əli Həsənov", role: "Aşpaz", avatar: "👨‍🍳" },
   { id: "2", name: "Leyla Məmmədova", role: "Ofisiant", avatar: "👩‍🍳" },
   { id: "3", name: "Orxan Kazımov", role: "Barmen", avatar: "🧑‍🍳" },
@@ -17,7 +20,24 @@ const STAFF = [
 type ScheduleMap = Record<string, string>;
 
 export default function TakvimPage() {
+  const [staff, setStaff] = useState(INITIAL_STAFF);
   const [schedule, setSchedule] = useState<ScheduleMap>({});
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newRole, setNewRole] = useState("Aşpaz");
+
+  const addStaff = () => {
+    if (!newName.trim()) return;
+    const person = {
+      id: String(Date.now()),
+      name: newName.trim(),
+      role: newRole,
+      avatar: AVATARS[newRole] || "👤",
+    };
+    setStaff((prev) => [...prev, person]);
+    setNewName("");
+    setShowAddForm(false);
+  };
   const [week] = useState(() => {
     const now = new Date();
     const mon = new Date(now);
@@ -57,7 +77,33 @@ export default function TakvimPage() {
             {week[6].toLocaleDateString("az-AZ", { day: "numeric", month: "long", year: "numeric" })}
           </p>
         </div>
+        <button onClick={() => setShowAddForm(!showAddForm)}
+          className="px-4 py-2 bg-[var(--ocaq-red)] text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity">
+          {showAddForm ? "✕ Bağla" : "+ Əməkdaş Əlavə"}
+        </button>
       </div>
+
+      {/* Add staff form */}
+      {showAddForm && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-4 flex gap-3 items-end">
+          <div className="flex-1">
+            <label className="block text-xs font-semibold text-slate-900 mb-1">Ad Soyad</label>
+            <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Yeni əməkdaş adı"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30" />
+          </div>
+          <div className="w-40">
+            <label className="block text-xs font-semibold text-slate-900 mb-1">Vəzifə</label>
+            <select value={newRole} onChange={(e) => setNewRole(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30">
+              {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <button onClick={addStaff} disabled={!newName.trim()}
+            className="px-4 py-2.5 bg-[var(--ocaq-red)] text-white text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-40 transition-opacity">
+            Əlavə Et
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
         <table className="w-full min-w-[700px]">
@@ -82,7 +128,7 @@ export default function TakvimPage() {
             </tr>
           </thead>
           <tbody>
-            {STAFF.map((person) => (
+            {staff.map((person) => (
               <tr key={person.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">

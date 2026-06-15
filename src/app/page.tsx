@@ -205,7 +205,7 @@ export default function Home() {
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    window.location.href = "/vardiya-checklist";
+                    window.location.href = "/dashboard/vardiya-checklist";
                   }}
                   className="space-y-4"
                 >

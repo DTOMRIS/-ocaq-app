@@ -46,7 +46,7 @@ export default function DashboardPage() {
             desc: "Məhsulları göstər, qiymətləri yoxla",
           },
           {
-            href: "/vardiya-checklist",
+            href: "/dashboard/vardiya-checklist",
             icon: "✅",
             title: "Vardiya Checklist",
             desc: "MƏK F 08 — Açılış / Kapanış",

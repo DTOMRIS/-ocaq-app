@@ -19,10 +19,15 @@ interface Ticket {
 }
 
 const EQUIPMENT_LIST = [
-  "Fritöz 1", "Fritöz 2", "Dönər Ocağı 1", "Dönər Ocağı 2",
-  "Toster", "Soyuducu (Walk-in)", "Vitrin Soyuducu", "İçki Dolabı",
-  "Kondisioner", "Hava Pərdəsi", "Kassa POS", "LCD Ekran",
-  "Yuyucu Maşın", "Davlumbaz", "Tərəzi",
+  "Dönər Ocağı 1", "Dönər Ocağı 2", "Dönər Ocağı 3",
+  "Pizza Fırını", "Hamur Yoğurma Maşını", "Hamur Açma Maşını",
+  "Pizza Dilimleme Maşını", "Pizza Tezgahı (Soğutucu)",
+  "Fritöz 1", "Fritöz 2", "Toster", "Flat Grill",
+  "Soyuducu (Walk-in)", "Vitrin Soyuducu", "İçki Dolabı",
+  "Dondurma Maşını", "Şok Soyuducu",
+  "Davlumbaz", "Kondisioner", "Hava Pərdəsi",
+  "Kassa POS 1", "Kassa POS 2", "Barkod Oxuyucu",
+  "LCD Ekran", "Yuyucu Maşın", "Tərəzi", "Ət Doğrama Maşını",
 ];
 
 const INITIAL_TICKETS: Ticket[] = [
@@ -171,6 +176,50 @@ export default function EkipmanPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Planlı Bakım Təqvimi */}
+      <h2 className="text-lg font-bold text-slate-900 mt-8 mb-3">📅 Planlı Bakım Təqvimi</h2>
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50">
+              <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600">Ekipman</th>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600">İş</th>
+              <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-600">Tezlik</th>
+              <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-600">Son Edilib</th>
+              <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-600">Növbəti</th>
+              <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-600">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { equip: "Fritöz 1", task: "Yağ dəyişdirmə", freq: "Həftəlik", last: "2026-06-10", next: "2026-06-17", ok: true },
+              { equip: "Fritöz 2", task: "Yağ dəyişdirmə", freq: "Həftəlik", last: "2026-06-08", next: "2026-06-15", ok: false },
+              { equip: "Dönər Ocağı 1", task: "Brülör təmizliyi", freq: "Aylıq", last: "2026-05-20", next: "2026-06-20", ok: true },
+              { equip: "Dönər Ocağı 2", task: "Brülör təmizliyi", freq: "Aylıq", last: "2026-05-25", next: "2026-06-25", ok: true },
+              { equip: "Pizza Fırını", task: "Daş təmizliyi + kalibrasiya", freq: "Həftəlik", last: "2026-06-12", next: "2026-06-19", ok: true },
+              { equip: "Hamur Yoğurma", task: "Çəngəl yoxlaması + yağlama", freq: "Aylıq", last: "2026-05-15", next: "2026-06-15", ok: false },
+              { equip: "Davlumbaz", task: "Filtr dəyişdirmə", freq: "3 Aylıq", last: "2026-04-01", next: "2026-07-01", ok: true },
+              { equip: "Kondisioner", task: "Filtr təmizliyi", freq: "Aylıq", last: "2026-06-01", next: "2026-07-01", ok: true },
+              { equip: "Soyuducu (Walk-in)", task: "Temperatur kalibrasiyası", freq: "Həftəlik", last: "2026-06-13", next: "2026-06-20", ok: true },
+              { equip: "Flat Grill", task: "Termostat yoxlaması", freq: "Aylıq", last: "2026-05-28", next: "2026-06-28", ok: true },
+            ].map((pm, idx) => (
+              <tr key={idx} className={`border-b border-slate-50 ${!pm.ok ? "bg-red-50/50" : ""}`}>
+                <td className="px-4 py-2.5 font-medium text-slate-900">{pm.equip}</td>
+                <td className="px-4 py-2.5 text-slate-600">{pm.task}</td>
+                <td className="px-4 py-2.5 text-center text-xs text-slate-500">{pm.freq}</td>
+                <td className="px-4 py-2.5 text-center text-xs text-slate-500">{pm.last}</td>
+                <td className="px-4 py-2.5 text-center text-xs font-medium text-slate-700">{pm.next}</td>
+                <td className="px-4 py-2.5 text-center">
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${pm.ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                    {pm.ok ? "Vaxtında" : "GECİKİR"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
