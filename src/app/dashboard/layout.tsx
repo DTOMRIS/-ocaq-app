@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/takvim", label: "Vardiya Təqvimi", icon: "📅", section: "ops" },
   { href: "/dashboard/ekipman", label: "Ekipman", icon: "🔧", section: "ops" },
   { href: "/dashboard/logbook", label: "Logbook", icon: "📓", section: "ops" },
+  { href: "/dashboard/hr", label: "İnsan Resursları", icon: "📋", section: "team" },
   { href: "/dashboard/komanda", label: "Komanda", icon: "👥", section: "team" },
   { href: "/dashboard/bildirisler", label: "Bildirişlər", icon: "🔔", section: "team" },
   { href: "/admin/filiallar", label: "Filiallar", icon: "🏪", section: "admin" },
