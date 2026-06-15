@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/admin/filiallar", label: "Filiallar", icon: "🏪", section: "admin" },
   { href: "/admin/promosyonlar/yeni", label: "Promo Yarat", icon: "➕", section: "admin" },
   { href: "/admin/menu/yeni", label: "Məhsul Əlavə", icon: "➕", section: "admin" },
+  { href: "/admin/ekipman", label: "Ekipman Tanımlama", icon: "🔧", section: "admin" },
   { href: "/admin/personel/yeni", label: "Əməkdaş Əlavə", icon: "➕", section: "admin" },
   { href: "/admin/ayarlar", label: "Rapor Ayarları", icon: "⚙️", section: "admin" },
 ];
