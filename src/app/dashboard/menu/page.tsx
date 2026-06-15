@@ -3,7 +3,7 @@ import Link from "next/link";
 const MENU_ITEMS = [
   { id: "1", name: "Ət Dönər Lavaş 300qr", category: "Əsas Yeməklər", price: 8.5, image: "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=400&q=80", active: true, featured: true },
   { id: "2", name: "Toyuq Dönər Çörək 200qr", category: "Əsas Yeməklər", price: 6.0, image: "https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=400&q=80", active: true, featured: false },
-  { id: "3", name: "Ajdaha Dönər Ət Lavaş", category: "Əsas Yeməklər", price: 12.0, image: "https://images.unsplash.com/photo-1529006557810-274b9b2fc783?w=400&q=80", active: true, featured: true },
+  { id: "3", name: "Shaurma No.1 Ət Lavaş", category: "Əsas Yeməklər", price: 12.0, image: "https://images.unsplash.com/photo-1529006557810-274b9b2fc783?w=400&q=80", active: true, featured: true },
   { id: "4", name: "Mercimək Şorbası", category: "Şorba", price: 3.5, image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400&q=80", active: true, featured: false },
   { id: "5", name: "Ayran 250ml", category: "İçkilər", price: 1.5, image: "https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=400&q=80", active: true, featured: false },
   { id: "6", name: "Baklava Porsiyon", category: "Desertlər", price: 4.0, image: "https://images.unsplash.com/photo-1519676867240-f03562e64548?w=400&q=80", active: false, featured: false },

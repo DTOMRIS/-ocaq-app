@@ -1,6 +1,6 @@
 /**
  * MƏK F 08 — Gün Başladıqda, Növbə Dəyişdikdə və Gün Bitdikdə Ediləcəklər
- * Mənbə: Əjdaha MMC, Rev.01, 02.03.2017
+ * Mənbə: Shaurma No.1, Rev.01, 02.03.2017
  * Seed data — gələcəkdə DB-dən gələcək.
  */
 
@@ -108,25 +108,38 @@ export const MEK_F08_SECTIONS: ChecklistSection[] = [
       },
       {
         id: "c7",
-        label:
-          "Masaların və bibər, duz qabı, yağ təmizliyinin, səliqəsinin yoxlanması",
+        label: "Masaların sabitliyinin yoxlanması — sallanan masa varsa tənzimləmə/təmir",
+      },
+      {
+        id: "c7b",
+        label: "Masa üstü ləvazimat: duz, bibər, salfetlik, diş çöpü qabları təmiz və doludur",
+      },
+      {
+        id: "c7c",
+        label: "Masa üstü sous/yağ qablarının təmizliyi və doluluğu (ketçup, mayonez, sirke)",
       },
       {
         id: "c8",
-        label:
-          "Stulların təmizliyinin, düzgün yerləşdirilmiş olmasının yoxlanması",
+        label: "Stulların təmizliyi, düzgün yerləşdirilməsi, sallanan/sınıq stul yoxdur",
       },
       {
         id: "c9",
         label: "Dekorların və işıqlandırmaların təmizliyinin yoxlanması",
       },
       { id: "c10", label: "Aynaların təmizliyinin yoxlanması" },
-      { id: "c11", label: "Zibil qutularının təmizliyinin yoxlanması" },
+      { id: "c11", label: "Zibil qutularının təmizliyi, torba dəyişdirilməsi" },
       {
         id: "c12",
-        label:
-          'Tualetlərin "Tualet Təmizlik Nəzarət və Təqib" formu ilə təmizlənməsi',
+        label: "Tualetlər — sabun, kağız havlu, əl quruducu işləyir, qoxu yoxdur",
         requiresPhoto: true,
+      },
+      {
+        id: "c12b",
+        label: "Tualet Təmizlik Kontrol Siyahısı asılıb və saatlıq imzalanır",
+      },
+      {
+        id: "c12c",
+        label: "Tualet döşəməsi quru, sifonlar işləyir, işıqlar tam yanır",
       },
       { id: "c13", label: "Kül qablarının təmizliyinin yoxlanması" },
     ],
@@ -206,6 +219,133 @@ export const MEK_F08_SECTIONS: ChecklistSection[] = [
         label:
           "Dönər ocaqlarını açın və temperaturunun düzgün sazlandığından əmin olun",
         temperatureField: true,
+      },
+    ],
+  },
+  {
+    id: "coffee",
+    title: "Qəhvə Stansiyası",
+    icon: "☕",
+    items: [
+      {
+        id: "cf1",
+        label: "Espresso makinesi yandırılıb, qrup kafası isınıb (15 dəq)",
+      },
+      {
+        id: "cf2",
+        label: "Backflush təmizliyi aparılıb (əvvəlki vardiyadan)",
+      },
+      {
+        id: "cf3",
+        label: "Portafiltr + səbət təmizdir, qalıq yoxdur",
+      },
+      {
+        id: "cf4",
+        label: "Buğ çubuğu (steam wand) təmizlənib, süd qalığı yoxdur",
+      },
+      {
+        id: "cf5",
+        label: "Qəhvə dəyirmanı — doz yoxlaması (±0.5qr)",
+      },
+      {
+        id: "cf6",
+        label: "Dəyirman hopper təmizdir, köhnə dən qalığı yoxdur",
+      },
+      {
+        id: "cf7",
+        label: "Süd soyuducusu yoxlanıb — süd temperaturu 2-4°C, SİT yaxşıdır",
+        temperatureField: true,
+      },
+      {
+        id: "cf8",
+        label: "Qəhvə stansiyası ətrafı təmiz, damcı tepsisi boşaldılıb",
+      },
+      {
+        id: "cf9",
+        label: "Stəkan, qaşıq, stirrer, şəkər, süd köpüyü ləvazimatı tamdır",
+      },
+    ],
+  },
+  {
+    id: "icecream",
+    title: "Dondurma Dolabı + Soyuq İçkilər",
+    icon: "🍦",
+    items: [
+      {
+        id: "ic1",
+        label: "Dondurma dolabı temperaturu yoxlanıb (-14/-18°C)",
+        temperatureField: true,
+      },
+      {
+        id: "ic2",
+        label: "Dondurma məhsullarının SİT (son istifadə tarixi) yoxlanıb",
+      },
+      {
+        id: "ic3",
+        label: "Dolabın şüşəsi təmizdir, buxar / buz yığılması yoxdur",
+      },
+      {
+        id: "ic4",
+        label: "Məhsullar düzgün sıralanıb, etiketlər görünür",
+      },
+      {
+        id: "ic5",
+        label: "İçki dolabı temperaturu yoxlanıb (2-8°C), içkilər tamamlanıb",
+        temperatureField: true,
+      },
+      {
+        id: "ic6",
+        label: "Kola/premix aparatı — nozzle təmizdir, sirop BIB səviyyəsi yaxşıdır",
+      },
+      {
+        id: "ic7",
+        label: "CO₂ balon təzyiq yoxlanıb (manometr)",
+      },
+    ],
+  },
+  {
+    id: "equipment-check",
+    title: "Avadanlıq Gündəlik Yoxlama",
+    icon: "🔧",
+    items: [
+      {
+        id: "eq1",
+        label: "Walk-in soyuducu temperatur (0-4°C) — HACCP jurnalına yazıldı",
+        temperatureField: true,
+      },
+      {
+        id: "eq2",
+        label: "Dondurucu temperatur (-18°C) — HACCP jurnalına yazıldı",
+        temperatureField: true,
+      },
+      {
+        id: "eq3",
+        label: "Posuda yuyucu maşın — su temperaturu (yaxalama ≥82°C)",
+        temperatureField: true,
+      },
+      {
+        id: "eq4",
+        label: "Əl yuma stansiyası — sabun, kağız, isti su (≥42°C) mövcuddur",
+      },
+      {
+        id: "eq5",
+        label: "Dezinfeksiya stansiyası — konsentrasiya yoxlanıb (ppm test şeridi)",
+      },
+      {
+        id: "eq6",
+        label: "Davlumbaz / ventilyasiya işləyir, normal səs çıxarır",
+      },
+      {
+        id: "eq7",
+        label: "Qaz detektörü göstəricisi yaşıl (normal) — qırmızıdırsa DƏRHAL bildiriş!",
+      },
+      {
+        id: "eq8",
+        label: "Yanğın tüpü yerindədir, manometr yaşıl zonada",
+      },
+      {
+        id: "eq9",
+        label: "Müşahidə kameraları işləyir, görüntü qeyd edir",
       },
     ],
   },

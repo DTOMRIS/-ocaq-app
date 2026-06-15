@@ -92,7 +92,7 @@ export default function VardiyaChecklistPage() {
             <h1 className="font-bold text-slate-900 text-lg leading-tight">
               Vardiya Checklist
             </h1>
-            <p className="text-xs text-slate-500">MƏK F 08 — Əjdaha MMC</p>
+            <p className="text-xs text-slate-500">MƏK F 08 — Shaurma No.1</p>
           </div>
           {/* Skor badge */}
           <div
