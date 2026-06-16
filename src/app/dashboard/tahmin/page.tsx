@@ -207,12 +207,30 @@ export default function TahminPage() {
               <label className="block text-xs font-semibold text-slate-900 mb-1">Xüsusi gün (ixtiyari)</label>
               <select value={specialDay} onChange={(e) => setSpecialDay(e.target.value)} className={inputClass}>
                 <option value="">Normal gün</option>
-                {SPECIAL_DAYS.map((s) => (
-                  <option key={s.label} value={s.label}>{s.label} (×{s.coefficient})</option>
-                ))}
+                {(["dini", "milli", "movsum", "hava", "biznes"] as const).map((cat) => {
+                  const catLabels = { dini: "🕌 Dini", milli: "🇦🇿 Milli", movsum: "📅 Mövsüm", hava: "🌦️ Hava", biznes: "🏪 Biznes" };
+                  const items = SPECIAL_DAYS.filter((s) => s.category === cat);
+                  return (
+                    <optgroup key={cat} label={catLabels[cat]}>
+                      {items.map((s) => (
+                        <option key={s.label} value={s.label}>{s.label} (×{s.coefficient})</option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
             </div>
           </div>
+
+          {/* Seçilmiş xüsusi gün qeydi */}
+          {specialDay && (() => {
+            const sd = SPECIAL_DAYS.find((s) => s.label === specialDay);
+            return sd?.note ? (
+              <div className="bg-amber-50 rounded-xl border border-amber-200 p-3 mb-4">
+                <p className="text-xs text-amber-800"><span className="font-bold">💡 Qeyd:</span> {sd.note}</p>
+              </div>
+            ) : null;
+          })()}
 
           {/* Günlük nəticə */}
           <div className="rounded-2xl border-2 bg-blue-50 border-blue-200 p-5">

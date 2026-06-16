@@ -102,34 +102,209 @@ export const DAY_COEFFICIENTS: Record<string, number> = {
   "B.":   1.13,  // Bazar — yaxşı amma Şənbədən az
 };
 
-/** Mövsüm katsayıları — ay bazında */
+/**
+ * Mövsüm katsayıları — ay bazında (Azərbaycan reallığı)
+ * Qeyd: Ramazan və Məhərrəm hicri təqvimə görə hər il dəyişir,
+ * buna görə onlar SPECIAL_DAYS-də ayrıca idarə olunur.
+ */
 export const SEASON_INDEX: Record<number, number> = {
-  1: 0.85,   // Yanvar — aşağı
-  2: 0.88,
-  3: 0.95,   // Novruz effekti
-  4: 1.00,
-  5: 1.05,
-  6: 1.10,   // Yay başlanğıc
-  7: 1.08,
-  8: 1.05,
-  9: 1.02,
-  10: 0.98,
-  11: 0.92,
-  12: 0.95,  // Yeni il effekti
+  1: 0.80,   // Yanvar — bayramdan sonra ən aşağı, insanlar evdə
+  2: 0.85,   // Fevral — hələ soyuq, hərəkət az
+  3: 1.10,   // Mart — Novruz bayramı (20-24 mart), güclü artım
+  4: 1.00,   // Aprel — normal
+  5: 1.05,   // May — hava açılır, çöl oturma başlayır
+  6: 1.15,   // İyun — yay, toy mövsümü başlayır, turizm
+  7: 1.12,   // İyul — yay pik, amma çox isti günlər var
+  8: 1.08,   // Avqust — yay davam, bəzi ailələr tətildə
+  9: 1.05,   // Sentyabr — məktəb açılır, iş həyatı normal
+  10: 1.00,  // Oktyabr — normal
+  11: 0.90,  // Noyabr — soyuyur, bayırdakı oturma bağlanır
+  12: 1.05,  // Dekabr — Yeni il hazırlığı, korporativ yeməklər
 };
 
-/** Xüsusi günlər katsayıları */
-export const SPECIAL_DAYS: { label: string; coefficient: number }[] = [
-  { label: "Novruz bayramı", coefficient: 1.40 },
-  { label: "Ramazan bayramı", coefficient: 1.35 },
-  { label: "Qurban bayramı", coefficient: 1.30 },
-  { label: "Ramazan ayı (gündüz)", coefficient: 0.70 },
-  { label: "Ramazan ayı (iftar)", coefficient: 1.50 },
-  { label: "Yeni il gecəsi", coefficient: 1.45 },
-  { label: "Valentinlər günü", coefficient: 1.25 },
-  { label: "Yağışlı gün", coefficient: 0.85 },
-  { label: "Qarlı gün", coefficient: 0.70 },
-  { label: "Çox isti gün (40°C+)", coefficient: 0.90 },
+/**
+ * Xüsusi günlər / dövrlər katsayıları — Azərbaycan reallığı
+ *
+ * KATEQORİYALAR:
+ * - Dini bayramlar (hicri təqvim — hər il ~11 gün geri çəkilir)
+ * - Milli bayramlar (sabit tarixlər)
+ * - Mövsüm hadisələri
+ * - Hava
+ * - Biznes tipi fərqi (restoran vs şadlıq sarayı vs içkili məkan)
+ */
+export interface SpecialDay {
+  label: string;
+  coefficient: number;
+  category: "dini" | "milli" | "movsum" | "hava" | "biznes";
+  note?: string;
+}
+
+export const SPECIAL_DAYS: SpecialDay[] = [
+  // ═══ DİNİ BAYRAMLAR ═══
+  {
+    label: "Ramazan ayı — gündüz (oruc vaxtı)",
+    coefficient: 0.55,
+    category: "dini",
+    note: "Gündüz satış kəskin düşür, xüsusilə nahar saatları. Fast-food/dönər %40-50 düşə bilər",
+  },
+  {
+    label: "Ramazan ayı — iftar vaxtı (axşam)",
+    coefficient: 1.60,
+    category: "dini",
+    note: "İftar proqramları, ailə yeməkləri. İftar menyusu olan restoranlar güclü artım görür",
+  },
+  {
+    label: "Ramazan bayramı (3 gün)",
+    coefficient: 1.40,
+    category: "dini",
+    note: "Bayram yeməkləri, ailə ziyarətləri, restoranlara güclü tələb",
+  },
+  {
+    label: "Qurban bayramı (3 gün)",
+    coefficient: 1.20,
+    category: "dini",
+    note: "Evdə qurban kəsilir — restoran tələbi Ramazan bayramından azdır, amma yenə artır",
+  },
+  {
+    label: "Məhərrəm ayı — ümumi",
+    coefficient: 0.85,
+    category: "dini",
+    note: "Matəm ayı. Restoranlar normal, amma şadlıq sarayları və içkili məkanlar ciddi düşür",
+  },
+  {
+    label: "Məhərrəm — şadlıq sarayı / toy məkanı",
+    coefficient: 0.20,
+    category: "dini",
+    note: "Toylar keçirilmir, şadlıq sarayları demək olar boşdur. Ən ağır düşüş bu seqmentdə",
+  },
+  {
+    label: "Məhərrəm — içkili restoran / bar",
+    coefficient: 0.50,
+    category: "dini",
+    note: "İçki satışı kəskin düşür. Bəzi müştərilər matəm səbəbiylə gəlmir",
+  },
+  {
+    label: "Aşura günü (Məhərrəmin 10-cu günü)",
+    coefficient: 0.65,
+    category: "dini",
+    note: "Ən güclü matəm günü. Bütün restoran tipləri üçün düşüş",
+  },
+
+  // ═══ MİLLİ BAYRAMLAR ═══
+  {
+    label: "Novruz bayramı (20-24 Mart, 5 gün)",
+    coefficient: 1.45,
+    category: "milli",
+    note: "Ən güclü milli bayram. Ailə yeməkləri, səməni, tonqal. Restoranlara böyük tələb",
+  },
+  {
+    label: "Yeni il gecəsi (31 Dekabr)",
+    coefficient: 1.50,
+    category: "milli",
+    note: "Korporativ yeməklər, ailə gecəsi. Əvvəlcədən rezervasiya tələb olunur",
+  },
+  {
+    label: "Yeni il tətili (1-3 Yanvar)",
+    coefficient: 0.75,
+    category: "milli",
+    note: "İnsanlar evdə, restoran trafiki aşağı. Amma turist bölgələri fərqli ola bilər",
+  },
+  {
+    label: "14 Fevral — Sevgililər Günü",
+    coefficient: 1.30,
+    category: "milli",
+    note: "Cütlük yeməkləri, xüsusi menyu. Axşam rezervasiyası dolu olur",
+  },
+  {
+    label: "8 Mart — Qadınlar Günü",
+    coefficient: 1.25,
+    category: "milli",
+    note: "Korporativ və ailə yeməkləri. Azərbaycanda güclü bayram",
+  },
+  {
+    label: "Respublika Günü (28 May)",
+    coefficient: 1.05,
+    category: "milli",
+    note: "İş günü deyil, bəzi insanlar çölə çıxır",
+  },
+
+  // ═══ MÖVSÜM HADİSƏLƏRİ ═══
+  {
+    label: "Toy mövsümü pik (İyun-Sentyabr)",
+    coefficient: 1.10,
+    category: "movsum",
+    note: "Toy hazırlığı, qonaq ağırlamaq. Catering sifarişləri artır",
+  },
+  {
+    label: "Məktəb açılışı (15 Sentyabr)",
+    coefficient: 1.05,
+    category: "movsum",
+    note: "Ailə yeməkləri, uşaq menyusu tələbi artır",
+  },
+  {
+    label: "İmtahan dövrü (May-İyun)",
+    coefficient: 0.95,
+    category: "movsum",
+    note: "Tələbə seqmenti evdə oxuyur, amma gecə kafeləri artır",
+  },
+  {
+    label: "Formula 1 Bakı (İyun)",
+    coefficient: 1.35,
+    category: "movsum",
+    note: "Turist axını. Şəhər mərkəzi restoranları üçün ən güclü həftə",
+  },
+  {
+    label: "Korporativ il sonu (Dekabr 15-30)",
+    coefficient: 1.20,
+    category: "movsum",
+    note: "Şirkət yeməkləri, komanda gecələri",
+  },
+
+  // ═══ HAVA ═══
+  {
+    label: "Yağışlı gün",
+    coefficient: 0.85,
+    category: "hava",
+    note: "Piyada trafiki düşür. Delivery artır amma oturma azalır",
+  },
+  {
+    label: "Qarlı gün",
+    coefficient: 0.65,
+    category: "hava",
+    note: "Güclü düşüş. Nəqliyyat çətinliyi, insanlar evdə",
+  },
+  {
+    label: "Çox isti gün (40°C+)",
+    coefficient: 0.85,
+    category: "hava",
+    note: "Gündüz çölə çıxmırlar. Soyuq içki + dondurma satışı artır, isti yemək azalır",
+  },
+  {
+    label: "Gözəl yaz/payız günü (20-25°C)",
+    coefficient: 1.10,
+    category: "hava",
+    note: "Çöl terası dolu, piyada trafik artır",
+  },
+
+  // ═══ BİZNES TİPİNƏ GÖRƏ ═══
+  {
+    label: "Futbol oyun günü (yerli stadion)",
+    coefficient: 1.20,
+    category: "biznes",
+    note: "Stadion yaxınlığındakı restoranlar üçün. Oyundan əvvəl və sonra pik",
+  },
+  {
+    label: "Elektrik/su kəsintisi",
+    coefficient: 0.40,
+    category: "biznes",
+    note: "Generator yoxdursa fəlakət. Varsa belə mətbəx kapasitəsi düşür",
+  },
+  {
+    label: "Rəqib qonşuda açıldı (ilk ay)",
+    coefficient: 0.80,
+    category: "biznes",
+    note: "Yeni rəqibin maraq effekti. 2-3 aydan sonra normallaşır",
+  },
 ];
 
 /**
