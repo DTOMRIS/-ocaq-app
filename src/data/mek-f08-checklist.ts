@@ -240,6 +240,145 @@ export const MEK_F08_SECTIONS: ChecklistSection[] = [
       },
     ],
   },
+  // ═══ ŞAURMA BÖLMƏSİ (Günel tələbi) ═══
+  {
+    id: "shaurma-section",
+    title: "Şaurma Bölməsi",
+    icon: "🌯",
+    items: [
+      { id: "sh1", label: "Ət dönər ocağı yandırıldı, temperatur yoxlandı", temperatureField: true },
+      { id: "sh2", label: "Toyuq dönər ocağı yandırıldı, temperatur yoxlandı", temperatureField: true },
+      { id: "sh3", label: "Lavaş / pita / çörək stoku yoxlandı, yetərli miqdardadır" },
+      { id: "sh4", label: "Souslar hazırlanıb — sarımsaqlı, acılı, ərəb, ketçup" },
+      { id: "sh5", label: "Doğranmış tərəvəzlər hazırdır — xıyar, pomidor, soğan, göyərti" },
+      {
+        id: "sh6",
+        label: "ETİKETLƏMƏ: Mayonez, pomidor, xıyar — açılma tarixi + saatı yazılıb",
+        requiresPhoto: true,
+      },
+      {
+        id: "sh7",
+        label: "ETİKETLƏMƏ: Kartof fri (hazırlanmış) — vaxt etiketi yapışdırılıb",
+      },
+      { id: "sh8", label: "Şaurma sarma stansiyası təmiz və təşkil olunub" },
+      { id: "sh9", label: "Bıçaqlar itidir, doğrama taxtaları təmiz (rəng kodlu)" },
+      { id: "sh10", label: "Qablaşdırma materialı (folqa, kağız, qutu) tam stokda" },
+    ],
+  },
+
+  // ═══ FIRIN BÖLMƏSİ (Günel tələbi) ═══
+  {
+    id: "firin-section",
+    title: "Fırın Bölməsi (Pizza / Lahmacun / Pide)",
+    icon: "🍕",
+    items: [
+      { id: "fr1", label: "Pizza fırını yandırıldı, temperatur düzgün (250-350°C)", temperatureField: true },
+      { id: "fr2", label: "Fırın daşı / kayrak təmizlənib" },
+      { id: "fr3", label: "Hamur hazırdır, porsiyalanıb (dünəndən mayalanmış yoxlanıb)" },
+      {
+        id: "fr4",
+        label: "ETİKETLƏMƏ: Pizza toppingləri — pendir, zeytin, göbələk, bibər, sosis — açılma tarixi + saatı",
+        requiresPhoto: true,
+      },
+      {
+        id: "fr5",
+        label: "ETİKETLƏMƏ: Lahmacun harcı tezgaha qoyuldu — etiketdə tarix + saat yazılıb",
+        requiresPhoto: true,
+      },
+      { id: "fr6", label: "Sous qabları (pizza sousu, ketçup) dolu və təmizdir" },
+      { id: "fr7", label: "Pizza qutuları / lahmacun kağızları stokda" },
+      { id: "fr8", label: "Pizza bıçağı / dilimleme aləti təmiz və itidi" },
+    ],
+  },
+
+  // ═══ MƏTBƏX BÖLMƏSİ (Günel tələbi) ═══
+  {
+    id: "metbex-section",
+    title: "Mətbəx Bölməsi (İsti / Soyuq)",
+    icon: "👨‍🍳",
+    items: [
+      { id: "mt1", label: "Bütün iş səthləri təmiz və dezinfeksiya olunub" },
+      { id: "mt2", label: "Soyuducu temperaturu yoxlanıb (0-4°C)", temperatureField: true },
+      { id: "mt3", label: "Dondurucu temperaturu yoxlanıb (-18°C və aşağı)", temperatureField: true },
+      { id: "mt4", label: "Mise en place tamamlanıb — bütün hazırlıqlar bitib" },
+      {
+        id: "mt5",
+        label: "ETİKETLƏMƏ: Bütün açıq məhsullar (sous, ət, tərəvəz) — tarix + saat etiketi var",
+        requiresPhoto: true,
+      },
+      { id: "mt6", label: "FIFO qaydası tətbiq olunub — köhnə məhsullar öndə" },
+      { id: "mt7", label: "SİT yoxlaması — vaxtı keçmiş məhsul tapılmadı" },
+      { id: "mt8", label: "Əl yuma stansiyası işləyir, sabun + kağız havlu var" },
+      { id: "mt9", label: "Rəng kodlu doğrama taxtaları düzgün istifadə olunur" },
+      { id: "mt10", label: "Tullantı qabları boşaldılıb, yerinə təmiz torba qoyulub" },
+    ],
+  },
+
+  // ═══ BAR BÖLMƏSİ (Günel tələbi) ═══
+  {
+    id: "bar-section",
+    title: "Bar Bölməsi (İçki / Qəhvə / Desert)",
+    icon: "🥤",
+    items: [
+      { id: "br1", label: "İçki dolabı temperaturu yoxlandı (2-8°C)", temperatureField: true },
+      { id: "br2", label: "İçki stoku yoxlandı — su, kola, çay, limonad" },
+      { id: "br3", label: "Kola/premix aparatı işləyir, nozzle təmizdir" },
+      { id: "br4", label: "CO₂ balon təzyiqi yoxlandı" },
+      { id: "br5", label: "Espresso makinesi hazırdır, qrup kafası isınıb" },
+      { id: "br6", label: "Süd soyuducusu yoxlandı — temperatur 2-4°C, SİT yaxşıdır", temperatureField: true },
+      { id: "br7", label: "Çay dəmləmə stansiyası hazırdır (stəkan, qaşıq, şəkər)" },
+      { id: "br8", label: "Dondurma dolabı yoxlandı (-14/-18°C), SİT yaxşıdır", temperatureField: true },
+      { id: "br9", label: "Bar stansiyası təmiz, damcı tepsisi boşaldılıb" },
+      { id: "br10", label: "Stəkan, fincan, qaşıq ləvazimatı tamdır" },
+    ],
+  },
+
+  // ═══ ETİKETLƏMƏ — 16:00 YENİLƏMƏ (Günel tələbi) ═══
+  {
+    id: "labeling-refresh",
+    title: "⏰ 16:00 Etiketləmə Yeniləmə & Təmizlik",
+    icon: "🏷️",
+    items: [
+      {
+        id: "lb1",
+        label: "Bütün açıq tərəvəzlər (mayonez, pomidor, xıyar) TƏMİZLƏNDİ — köhnələr atıldı",
+        requiresPhoto: true,
+      },
+      {
+        id: "lb2",
+        label: "Yeni tərəvəzlər doğranıb qoyuldu — YENİ ETİKET (tarix + saat: 16:00) yapışdırıldı",
+        requiresPhoto: true,
+      },
+      {
+        id: "lb3",
+        label: "Pizza toppingləri TƏMİZLƏNDİ — köhnələr atıldı, yeniləri qoyuldu + ETİKET",
+        requiresPhoto: true,
+      },
+      {
+        id: "lb4",
+        label: "Lahmacun harcı TƏMİZLƏNDİ — yeni harc qoyuldu + ETİKET",
+        requiresPhoto: true,
+      },
+      {
+        id: "lb5",
+        label: "Kartof fri stansiyası təmizləndi, yeni partiya hazırlandı",
+      },
+      {
+        id: "lb6",
+        label: "Sous qabları (mayonez, ketçup, sarımsaqlı) yeniləndı + ETİKET",
+      },
+      {
+        id: "lb7",
+        label: "İş səthləri tam dezinfeksiya olundu (16:00 ara təmizlik)",
+      },
+      {
+        id: "lb8",
+        label: "Soyuducu temperaturu 16:00 yoxlaması (HACCP jurnalına yazıldı)",
+        temperatureField: true,
+      },
+    ],
+  },
+
   {
     id: "coffee",
     title: "Qəhvə Stansiyası",
