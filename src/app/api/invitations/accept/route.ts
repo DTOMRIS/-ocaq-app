@@ -1,0 +1,68 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/db'
+import { invitations, users } from '@/db/schema/auth'
+import { eq, and, gt, isNull } from 'drizzle-orm'
+import bcrypt from 'bcryptjs'
+import { sendWelcomeEmail } from '@/lib/email'
+
+export async function POST(req: NextRequest) {
+  const { token, name, password } = await req.json()
+
+  if (!token || !name || !password || password.length < 8) {
+    return NextResponse.json(
+      { error: 'Məlumatlar natamamdır. Şifrə minimum 8 simvol olmalıdır.' },
+      { status: 400 }
+    )
+  }
+
+  // Token tap
+  const [invite] = await db
+    .select()
+    .from(invitations)
+    .where(
+      and(
+        eq(invitations.token, token),
+        isNull(invitations.accepted_at),
+        gt(invitations.expires_at, new Date())
+      )
+    )
+    .limit(1)
+
+  if (!invite) {
+    return NextResponse.json(
+      { error: 'Dəvət tapılmadı və ya müddəti bitib' },
+      { status: 404 }
+    )
+  }
+
+  // İstifadəçi yarat
+  const password_hash = await bcrypt.hash(password, 12)
+
+  const [newUser] = await db
+    .insert(users)
+    .values({
+      tenant_id:         invite.tenant_id,
+      email:             invite.email,
+      name,
+      password_hash,
+      role:              invite.role,
+      is_email_verified: true, // Dəvət linki = e-poçt doğrulaması
+      email_verified_at: new Date(),
+    })
+    .returning({ id: users.id })
+
+  // Dəvəti bağla
+  await db
+    .update(invitations)
+    .set({ accepted_at: new Date() })
+    .where(eq(invitations.id, invite.id))
+
+  // Hoş gəldiniz maili göndər 🎉
+  await sendWelcomeEmail({
+    email: invite.email,
+    name,
+    role: invite.role,
+  })
+
+  return NextResponse.json({ success: true, userId: newUser.id })
+}
