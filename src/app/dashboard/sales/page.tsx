@@ -31,18 +31,20 @@ export default async function SalesPage() {
   let regions: unknown[] = []
   let fetchError: string | null = null
 
+  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+
   try {
     const [brRes, tRes, dRes, rRes] = await Promise.all([
-      fetch(`${process.env.NEXTAUTH_URL}/api/branches`, {
+      fetch(`${baseUrl}/api/branches`, {
         headers: { cookie }, cache: 'no-store',
       }),
-      fetch(`${process.env.NEXTAUTH_URL}/api/sales/targets?month=${monthStart}`, {
+      fetch(`${baseUrl}/api/sales/targets?month=${monthStart}`, {
         headers: { cookie }, cache: 'no-store',
       }),
-      fetch(`${process.env.NEXTAUTH_URL}/api/sales/daily?month_start=${monthStart}&month_end=${monthEnd}`, {
+      fetch(`${baseUrl}/api/sales/daily?month_start=${monthStart}&month_end=${monthEnd}`, {
         headers: { cookie }, cache: 'no-store',
       }),
-      fetch(`${process.env.NEXTAUTH_URL}/api/regions`, {
+      fetch(`${baseUrl}/api/regions`, {
         headers: { cookie }, cache: 'no-store',
       }),
     ])

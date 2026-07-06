@@ -24,15 +24,17 @@ export default async function RegionsPage() {
   let branches: { id: string; code: string; name: string; region_id: string | null }[] = []
   let fetchError: string | null = null
 
+  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+
   try {
     const [regRes, mgrRes, brRes] = await Promise.all([
-      fetch(`${process.env.NEXTAUTH_URL}/api/regions`, {
+      fetch(`${baseUrl}/api/regions`, {
         headers: { cookie }, cache: 'no-store',
       }),
-      fetch(`${process.env.NEXTAUTH_URL}/api/users?role=region_manager`, {
+      fetch(`${baseUrl}/api/users?role=region_manager`, {
         headers: { cookie }, cache: 'no-store',
       }),
-      fetch(`${process.env.NEXTAUTH_URL}/api/branches`, {
+      fetch(`${baseUrl}/api/branches`, {
         headers: { cookie }, cache: 'no-store',
       }),
     ])
