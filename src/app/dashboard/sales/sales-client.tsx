@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -119,7 +119,13 @@ export default function SalesClient({
   // ── State ──
   const [showEntryForm, setShowEntryForm] = useState(false)
   const [showTargetForm, setShowTargetForm] = useState(false)
-  const [selectedBranch, setSelectedBranch] = useState<string>('')
+  const [selectedBranch, setSelectedBranch] = useState<string>(() => {
+    if (role === 'branch_manager') {
+      const mine = branchStats.filter(b => b.manager_id === userId)
+      return mine.length > 0 ? mine[0].id : ''
+    }
+    return ''
+  })
   const [entryDate, setEntryDate] = useState(now.toISOString().split('T')[0])
   const [entryAmount, setEntryAmount] = useState('')
   const [entryNotes, setEntryNotes] = useState('')
@@ -132,13 +138,6 @@ export default function SalesClient({
   const myBranches = role === 'branch_manager'
     ? branchStats.filter(b => b.manager_id === userId)
     : branchStats
-
-  // branch_manager auto-select
-  useEffect(() => {
-    if (role === 'branch_manager' && myBranches.length > 0 && !selectedBranch) {
-      setSelectedBranch(myBranches[0].id)
-    }
-  }, [role, myBranches, selectedBranch])
 
   // ── Region grouping (for region_manager) ──
   const myRegions = role === 'region_manager'

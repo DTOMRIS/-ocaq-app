@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 function AcceptInviteLoading() {
@@ -33,16 +33,11 @@ function AcceptInviteContent() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
 
-  const [passwordStrength, setPasswordStrength] = useState(0)
-
-  useEffect(() => {
-    let strength = 0
-    if (password.length >= 8) strength++
-    if (/[A-Z]/.test(password)) strength++
-    if (/[0-9]/.test(password)) strength++
-    if (/[^A-Za-z0-9]/.test(password)) strength++
-    setPasswordStrength(strength)
-  }, [password])
+  const passwordStrength =
+    (password.length >= 8 ? 1 : 0) +
+    (/[A-Z]/.test(password) ? 1 : 0) +
+    (/[0-9]/.test(password) ? 1 : 0) +
+    (/[^A-Za-z0-9]/.test(password) ? 1 : 0)
 
   const strengthColors = ['#ef4444', '#f97316', '#eab308', '#22c55e']
   const strengthLabels = ['Zəif', 'Orta', 'Yaxşı', 'Güclü']
