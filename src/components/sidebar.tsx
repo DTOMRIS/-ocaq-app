@@ -8,6 +8,7 @@ const NAV = [
   { href: '/dashboard/branches',   icon: '⊞', label: 'Filiallar',    roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/regions',    icon: '◉', label: 'Bölgələr',     roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/sales',      icon: '₼', label: 'Satış hədəfi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/team',       icon: '☰', label: 'Komanda',      roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/staff',      icon: '⊙', label: 'Personel',     roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/complaints', icon: '!', label: 'Şikayətlər',   roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
   { href: '/dashboard/checklists', icon: '✓', label: 'KXT yoxlama',  roles: ['*'] },

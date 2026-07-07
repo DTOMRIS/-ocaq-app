@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { invitations, users } from '@/db/schema/auth'
+import { branches } from '@/db/schema/branches'
 import { eq, and, gt, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { sendWelcomeEmail } from '@/lib/email'
@@ -56,6 +57,14 @@ export async function POST(req: NextRequest) {
     .update(invitations)
     .set({ accepted_at: new Date() })
     .where(eq(invitations.id, invite.id))
+
+  // Filial müdürü isə — filialın manager_id-ni yenilə
+  if (invite.role === 'branch_manager' && invite.branch_id) {
+    await db
+      .update(branches)
+      .set({ manager_id: newUser.id })
+      .where(eq(branches.id, invite.branch_id))
+  }
 
   // Hoş gəldiniz maili göndər 🎉
   await sendWelcomeEmail({

@@ -43,6 +43,7 @@ export const invitations = pgTable('invitations', {
   tenant_id:   uuid('tenant_id').notNull().references(() => tenants.id),
   email:       text('email').notNull(),
   role:        roleEnum('role').notNull().default('staff'),
+  branch_id:   uuid('branch_id'),                   // Filial atanması (branch_manager üçün)
   token:       text('token').notNull().unique(),    // crypto.randomBytes(32)
   invited_by:  uuid('invited_by').references(() => users.id),
   expires_at:  timestamp('expires_at').notNull(),   // +48 saat

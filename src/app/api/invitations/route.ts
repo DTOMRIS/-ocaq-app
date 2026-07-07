@@ -7,6 +7,25 @@ import { inviteRateLimit } from '@/lib/rate-limit'
 import { sendInvitationEmail } from '@/lib/email'
 import crypto from 'crypto'
 
+// GET — dəvət listini al
+export async function GET() {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (!['super_admin', 'region_manager'].includes(session.user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const list = await db
+    .select()
+    .from(invitations)
+    .where(eq(invitations.tenant_id, session.user.tenant_id))
+    .orderBy(invitations.created_at)
+
+  return NextResponse.json(list)
+}
+
+// POST — yeni dəvət göndər
 export async function POST(req: NextRequest) {
   // 1. Auth yoxla
   const session = await auth()
@@ -28,7 +47,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { email, role } = await req.json()
+  const { email, role, branch_id } = await req.json()
 
   // 4. Rol yoxlaması — öz rolundan yuxarı dəvət edə bilməz
   const roleHierarchy = ['staff', 'branch_manager', 'region_manager', 'super_admin']
@@ -62,6 +81,7 @@ export async function POST(req: NextRequest) {
     tenant_id:  session.user.tenant_id,
     email,
     role,
+    branch_id:  branch_id || null,
     token,
     invited_by: session.user.id,
     expires_at,
