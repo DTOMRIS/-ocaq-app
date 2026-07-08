@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const branchId = searchParams.get('branch_id')
 
-  let query = db
+  const query = db
     .select({
       id:            staff_profiles.id,
       user_id:       staff_profiles.user_id,
