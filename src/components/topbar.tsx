@@ -1,6 +1,7 @@
 'use client'
 
 import { signOut } from 'next-auth/react'
+import Link from 'next/link'
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin:    'Sistem Admini',
@@ -29,10 +30,10 @@ export default function Topbar({ user }: {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        {/* Ad */}
-        <span style={{ fontSize: '13px', color: '#555' }}>
+        {/* Ad — profil linki */}
+        <Link href="/dashboard/profile" style={{ fontSize: '13px', color: '#555', textDecoration: 'none' }}>
           {user.name ?? user.email}
-        </span>
+        </Link>
         {/* Avatar */}
         <div style={{
           width: '32px', height: '32px', borderRadius: '50%',
