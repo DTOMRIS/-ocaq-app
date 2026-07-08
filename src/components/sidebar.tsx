@@ -11,7 +11,7 @@ const NAV = [
   { href: '/dashboard/team',       icon: '☰', label: 'Komanda',      roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/staff',      icon: '⊙', label: 'Personel',     roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/complaints', icon: '!', label: 'Şikayətlər',   roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
-  { href: '/dashboard/checklists', icon: '✓', label: 'KXT yoxlama',  roles: ['*'] },
+  { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT yoxlama',  roles: ['*'] },
   { href: '/dashboard/reports',    icon: '≡', label: 'Hesabatlar',   roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/settings',   icon: '⚙', label: 'Parametrlər', roles: ['super_admin'] },
 ]
