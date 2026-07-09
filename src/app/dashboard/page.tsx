@@ -76,6 +76,7 @@ export default async function DashboardPage() {
   let branchCount = 0
   let staffCount = 0
   let regionalBranchIds: string[] = []
+  let myBranchesList: any[] = []
 
   try {
     if (role === 'super_admin') {
@@ -99,7 +100,7 @@ export default async function DashboardPage() {
       if (managedRegions.length > 0) {
         const regionIds = managedRegions.map(r => r.id)
         const regBranches = await db
-          .select({ id: branches.id })
+          .select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active })
           .from(branches)
           .where(
             and(
@@ -108,6 +109,7 @@ export default async function DashboardPage() {
             )
           )
         branchCount = regBranches.length
+        myBranchesList = regBranches
         regionalBranchIds = regBranches.map(b => b.id)
 
         if (regionalBranchIds.length > 0) {
@@ -125,7 +127,7 @@ export default async function DashboardPage() {
       }
     } else if (role === 'branch_manager') {
       const myBranches = await db
-        .select({ id: branches.id })
+        .select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active })
         .from(branches)
         .where(
           and(
@@ -134,6 +136,7 @@ export default async function DashboardPage() {
           )
         )
       branchCount = myBranches.length
+      myBranchesList = myBranches
       const myBranchIds = myBranches.map(b => b.id)
 
       if (myBranchIds.length > 0) {
@@ -240,6 +243,57 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Filiallarım (Yalnız menecerlər üçün) */}
+      {(role === 'branch_manager' || role === 'region_manager') && myBranchesList.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 12px' }}>
+            Filiallarım ({myBranchesList.length})
+          </h3>
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '16px',
+          }}>
+            {myBranchesList.map((br) => (
+              <div key={br.id} style={{
+                background: '#fff', borderRadius: '12px', padding: '20px',
+                border: '0.5px solid #e8e8e8',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex', flexDirection: 'column' as const, justifyContent: 'space-between',
+                minHeight: '120px'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{
+                      padding: '3px 8px', borderRadius: '6px', background: '#1A1614', color: '#F2A81D',
+                      fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px'
+                    }}>
+                      {br.code}
+                    </span>
+                    <span style={{
+                      width: '8px', height: '8px', borderRadius: '50%',
+                      background: br.is_active ? '#059669' : '#bbb'
+                    }} />
+                  </div>
+                  <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 4px' }}>
+                    {br.name}
+                  </h4>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>
+                    📍 {br.city}
+                  </p>
+                </div>
+                <a href={`/dashboard/vardiya-checklist?branch_id=${br.id}`} style={{
+                  display: 'inline-block', textAlign: 'center' as const,
+                  padding: '10px 16px', borderRadius: '8px', background: '#C8102E', color: '#fff',
+                  fontSize: '13px', fontWeight: '600', textDecoration: 'none', transition: 'opacity 0.15s'
+                }}>
+                  📋 Vardiya Checklist Başla
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Modules */}
       <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 12px' }}>

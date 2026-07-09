@@ -6,20 +6,44 @@ import { loginAction } from './actions'
 
 const SLIDES = [
   {
-    url: "https://images.unsplash.com/photo-1600565193348-f74bd3c7ccdf?w=1200&q=80",
-    alt: "Restoran mətbəxi — şef hazırlıq edir",
+    url: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=1200&q=80",
+    alt: "Profesyonal şef — alovlu tavada yemək hazırlayır",
   },
   {
-    url: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80",
-    alt: "Restoran salonu — servis hazırlığı",
+    url: "https://images.unsplash.com/photo-1428515613728-6b4607e44363?w=1200&q=80",
+    alt: "İstiqanlı restoran mətbəxi — komanda iş başında",
   },
   {
-    url: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=1200&q=80",
-    alt: "Şef yemək hazırlayır",
+    url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1200&q=80",
+    alt: "Premium restoran salonu — axşam atmosferi",
   },
   {
-    url: "https://images.unsplash.com/photo-1581299894007-aaa50297cf16?w=1200&q=80",
-    alt: "Restoran komandası",
+    url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=80",
+    alt: "Gözəl təqdim olunmuş yemək — kulinariya sənəti",
+  },
+]
+
+const ROLES = [
+  {
+    id: "staff",
+    title: "Personel",
+    desc: "Aşpaz, ofisiant, barmen və digər əməkdaşlar",
+    icon: "👤",
+    defaultEmail: "staff@ocaq.app"
+  },
+  {
+    id: "manager",
+    title: "Restoran Müdürü",
+    desc: "Filial müdürləri, növbə rəhbərləri və baş menecerlər",
+    icon: "👔",
+    defaultEmail: "manager@ocaq.app"
+  },
+  {
+    id: "admin",
+    title: "Şirkət İdarəçisi",
+    desc: "Sahiblər, operasyon direktorları və super admin",
+    icon: "🏢",
+    defaultEmail: "admin@ocaq.app"
   },
 ]
 
@@ -30,6 +54,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
   const [lang, setLang] = useState<(typeof LANGS)[number]>("AZ")
+  const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const router = useRouter()
 
   const nextSlide = useCallback(() => {
@@ -46,6 +71,8 @@ export default function LoginPage() {
       router.push('/dashboard')
     }
   }, [state, router])
+
+  const selectedRoleData = ROLES.find((r) => r.id === selectedRole)
 
   return (
     <main style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', width: '100%', background: '#fff', margin: 0, padding: 0, boxSizing: 'border-box' }}>
@@ -137,137 +164,241 @@ export default function LoginPage() {
 
         {/* Login Form area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 48px 32px' }}>
-          <div style={{ maxWidth: '400px', width: '100%' }}>
-            <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 4px' }}>
-              Portal Girişi
-            </h1>
-            <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px' }}>
-              Davam etmək üçün hesab məlumatlarınızı daxil edin
-            </p>
+          <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto' }}>
+            
+            {!selectedRole ? (
+              <>
+                {/* === STEP 1: Role Selection === */}
+                <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 4px', textAlign: 'center' }}>
+                  Xoş gəldiniz
+                </h1>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px', textAlign: 'center' }}>
+                  Başlamaq üçün rolunuzu seçin:
+                </p>
 
-            {/* Error message */}
-            {state?.error && (
-              <div style={{
-                marginBottom: '20px',
-                padding: '14px',
-                borderRadius: '12px',
-                fontSize: '13px',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                background: '#fff1f2',
-                border: '1px solid #fecdd3',
-                color: '#be123c',
-              }}>
-                <span style={{ fontSize: '16px' }}>⚠️</span>
-                {state.error}
-              </div>
-            )}
-
-            {/* Form */}
-            <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Email */}
-              <div>
-                <label htmlFor="email" style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#334155', marginBottom: '6px' }}>
-                  E-poçt
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}>📧</span>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    autoComplete="email"
-                    placeholder="admin@ocaq.app"
-                    style={{
-                      width: '100%',
-                      padding: '12px 12px 12px 40px',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      color: '#0f172a',
-                    }}
-                  />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {ROLES.map((role) => (
+                    <button
+                      key={role.id}
+                      onClick={() => setSelectedRole(role.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '16px',
+                        padding: '16px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '16px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#fff';
+                        e.currentTarget.style.borderColor = '#C8102E';
+                        e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(200, 16, 46, 0.05)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#f8fafc';
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '12px',
+                        background: '#fff',
+                        fontSize: '20px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                      }}>
+                        {role.icon}
+                      </span>
+                      <div style={{ flex: 1 }}>
+                        <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                          {role.title}
+                        </h2>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>
+                          {role.desc}
+                        </p>
+                      </div>
+                      <span style={{ color: '#94a3b8', fontSize: '16px' }}>→</span>
+                    </button>
+                  ))}
                 </div>
-              </div>
+              </>
+            ) : (
+              <>
+                {/* === STEP 2: Login Form === */}
+                <button
+                  onClick={() => setSelectedRole(null)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    color: '#64748b',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    marginBottom: '20px',
+                  }}
+                >
+                  <span>← Geri qayıt</span>
+                </button>
 
-              {/* Password */}
-              <div>
-                <label htmlFor="password" style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#334155', marginBottom: '6px' }}>
-                  Şifrə
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}>🔒</span>
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    placeholder="••••••••"
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                  <span style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    background: '#f1f5f9',
+                    fontSize: '24px'
+                  }}>
+                    {selectedRoleData?.icon}
+                  </span>
+                  <div>
+                    <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
+                      {selectedRoleData?.title}
+                    </h1>
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: '2px 0 0' }}>
+                      {selectedRoleData?.desc}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Error message */}
+                {state?.error && (
+                  <div style={{
+                    marginBottom: '20px',
+                    padding: '14px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    background: '#fff1f2',
+                    border: '1px solid #fecdd3',
+                    color: '#be123c',
+                  }}>
+                    <span>⚠️</span>
+                    {state.error}
+                  </div>
+                )}
+
+                {/* Form */}
+                <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Email */}
+                  <div>
+                    <label htmlFor="email" style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#334155', marginBottom: '6px' }}>
+                      E-poçt
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}>📧</span>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        required
+                        autoComplete="email"
+                        placeholder={selectedRoleData?.defaultEmail}
+                        style={{
+                          width: '100%',
+                          padding: '12px 12px 12px 40px',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          color: '#0f172a',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label htmlFor="password" style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#334155', marginBottom: '6px' }}>
+                      Şifrə
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}>🔒</span>
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        style={{
+                          width: '100%',
+                          padding: '12px 48px 12px 40px',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          color: '#0f172a',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '14px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#94a3b8',
+                          fontSize: '16px',
+                        }}
+                      >
+                        {showPassword ? '👁️' : '🙈'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Forgot password */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <a href="/reset-password" style={{ fontSize: '12px', color: '#64748b', textDecoration: 'none' }}>
+                      Şifrəni unutdunuz?
+                    </a>
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={isPending}
                     style={{
                       width: '100%',
-                      padding: '12px 48px 12px 40px',
-                      border: '1px solid #cbd5e1',
+                      padding: '14px',
+                      background: isPending ? '#e2e8f0' : '#C8102E',
+                      color: isPending ? '#94a3b8' : '#fff',
+                      border: 'none',
                       borderRadius: '12px',
                       fontSize: '14px',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      color: '#0f172a',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '14px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#94a3b8',
-                      fontSize: '16px',
+                      fontWeight: 600,
+                      cursor: isPending ? 'not-allowed' : 'pointer',
+                      transition: 'opacity 0.2s',
+                      boxShadow: '0 4px 6px -1px rgba(200, 16, 46, 0.1)',
                     }}
                   >
-                    {showPassword ? '👁️' : '🙈'}
+                    {isPending ? "Daxil olunur..." : "Daxil ol"}
                   </button>
-                </div>
-              </div>
-
-              {/* Forgot password */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <a href="/reset-password" style={{ fontSize: '12px', color: '#64748b', textDecoration: 'none' }}>
-                  Şifrəni unutdunuz?
-                </a>
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={isPending}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  background: isPending ? '#e2e8f0' : '#C8102E',
-                  color: isPending ? '#94a3b8' : '#fff',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: isPending ? 'not-allowed' : 'pointer',
-                  transition: 'opacity 0.2s',
-                  boxShadow: '0 4px 6px -1px rgba(200, 16, 46, 0.1)',
-                }}
-              >
-                {isPending ? "Daxil olunur..." : "Daxil ol"}
-              </button>
-            </form>
+                </form>
+              </>
+            )}
 
             {/* Security notice */}
             <p style={{ marginTop: '32px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
