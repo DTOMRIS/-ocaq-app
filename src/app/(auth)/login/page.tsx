@@ -48,71 +48,86 @@ export default function LoginPage() {
   }, [state, router])
 
   return (
-    <main className="flex-1 flex flex-col lg:flex-row min-h-screen bg-slate-900">
+    <main style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', width: '100%', background: '#fff', margin: 0, padding: 0, boxSizing: 'border-box' }}>
       {/* Left — Sliding Images */}
-      <div className="relative w-full lg:w-1/2 h-64 sm:h-80 lg:h-auto overflow-hidden bg-slate-900">
+      <div style={{ position: 'relative', width: '50%', minHeight: '100vh', overflow: 'hidden', background: '#0f172a' }}>
         {SLIDES.map((slide, idx) => (
           <div
             key={slide.url}
-            className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
-            style={{ opacity: idx === currentSlide ? 1 : 0 }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              transition: 'opacity 1s ease-in-out',
+              opacity: idx === currentSlide ? 1 : 0,
+            }}
           >
             <img
               src={slide.url}
               alt={slide.alt}
-              className="w-full h-full object-cover"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }} />
           </div>
         ))}
 
         {/* Slide dots */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+        <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px', zIndex: 10 }}>
           {SLIDES.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                idx === currentSlide
-                  ? "w-8 bg-white"
-                  : "w-1.5 bg-white/50 hover:bg-white/70"
-              }`}
+              style={{
+                height: '6px',
+                borderRadius: '9999px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                width: idx === currentSlide ? '32px' : '6px',
+                background: idx === currentSlide ? '#fff' : 'rgba(255,255,255,0.5)',
+              }}
             />
           ))}
         </div>
 
         {/* Brand overlay on image */}
-        <div className="absolute bottom-8 left-6 z-10 hidden lg:block">
-          <p className="text-white/80 text-sm font-medium">
+        <div style={{ position: 'absolute', bottom: '32px', left: '24px', zIndex: 10 }}>
+          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: 500, margin: 0 }}>
             Powered by DK Agency
           </p>
         </div>
       </div>
 
       {/* Right — Welcome + Login Form */}
-      <div className="flex-1 flex flex-col bg-white">
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', minHeight: '100vh', width: '50%' }}>
         {/* Top bar: logo + language */}
-        <div className="flex items-center justify-between px-6 py-4 lg:px-12 lg:py-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[var(--ocaq-red)] text-white text-lg font-bold">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 48px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '12px', background: '#C8102E', color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>
               O
             </div>
-            <span className="text-xl font-bold text-slate-900 tracking-tight">
+            <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a', letterSpacing: '-0.5px' }}>
               OCAQ
             </span>
           </div>
 
           {/* Language selector */}
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', borderRadius: '8px', padding: '2px' }}>
             {LANGS.map((l) => (
               <button
                 key={l}
                 onClick={() => setLang(l)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                  lang === l
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  transition: 'all 0.2s',
+                  background: lang === l ? '#fff' : 'transparent',
+                  color: lang === l ? '#0f172a' : '#64748b',
+                  boxShadow: lang === l ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                }}
               >
                 {l}
               </button>
@@ -121,38 +136,44 @@ export default function LoginPage() {
         </div>
 
         {/* Login Form area */}
-        <div className="flex-1 flex flex-col justify-center px-6 lg:px-12 pb-8">
-          <div className="max-w-md mx-auto w-full lg:mx-0">
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-1">
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 48px 32px' }}>
+          <div style={{ maxWidth: '400px', width: '100%' }}>
+            <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 4px' }}>
               Portal Girişi
             </h1>
-            <p className="text-slate-500 text-sm mb-6">
+            <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px' }}>
               Davam etmək üçün hesab məlumatlarınızı daxil edin
             </p>
 
             {/* Error message */}
             {state?.error && (
-              <div className="mb-5 p-3.5 rounded-xl text-sm font-medium flex items-center gap-2.5 bg-rose-50 border border-rose-200 text-rose-700">
-                <svg className="w-5 h-5 shrink-0 text-rose-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                </svg>
+              <div style={{
+                marginBottom: '20px',
+                padding: '14px',
+                borderRadius: '12px',
+                fontSize: '13px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                background: '#fff1f2',
+                border: '1px solid #fecdd3',
+                color: '#be123c',
+              }}>
+                <span style={{ fontSize: '16px' }}>⚠️</span>
                 {state.error}
               </div>
             )}
 
             {/* Form */}
-            <form action={formAction} className="space-y-4">
+            <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Email */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="email" style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#334155', marginBottom: '6px' }}>
                   E-poçt
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-                    </svg>
-                  </div>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}>📧</span>
                   <input
                     id="email"
                     name="email"
@@ -160,22 +181,27 @@ export default function LoginPage() {
                     required
                     autoComplete="email"
                     placeholder="admin@ocaq.app"
-                    className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30 focus:border-[var(--ocaq-red)] transition-all"
+                    style={{
+                      width: '100%',
+                      padding: '12px 12px 12px 40px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      color: '#0f172a',
+                    }}
                   />
                 </div>
               </div>
 
               {/* Password */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="password" style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#334155', marginBottom: '6px' }}>
                   Şifrə
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                    </svg>
-                  </div>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}>🔒</span>
                   <input
                     id="password"
                     name="password"
@@ -183,30 +209,40 @@ export default function LoginPage() {
                     required
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    className="w-full pl-11 pr-12 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30 focus:border-[var(--ocaq-red)] transition-all"
+                    style={{
+                      width: '100%',
+                      padding: '12px 48px 12px 40px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      color: '#0f172a',
+                    }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center cursor-pointer text-slate-400 hover:text-slate-600"
+                    style={{
+                      position: 'absolute',
+                      right: '14px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#94a3b8',
+                      fontSize: '16px',
+                    }}
                   >
-                    {showPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                      </svg>
-                    )}
+                    {showPassword ? '👁️' : '🙈'}
                   </button>
                 </div>
               </div>
 
               {/* Forgot password */}
-              <div className="flex justify-end">
-                <a href="/reset-password" className="text-xs text-slate-400 hover:text-[var(--ocaq-red)] transition-colors">
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <a href="/reset-password" style={{ fontSize: '12px', color: '#64748b', textDecoration: 'none' }}>
                   Şifrəni unutdunuz?
                 </a>
               </div>
@@ -215,36 +251,44 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isPending}
-                className="w-full py-3.5 bg-[var(--ocaq-red)] text-white font-bold rounded-xl text-center text-sm shadow-sm disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 hover:shadow-lg hover:shadow-rose-100/50 transition-all duration-300 cursor-pointer"
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: isPending ? '#e2e8f0' : '#C8102E',
+                  color: isPending ? '#94a3b8' : '#fff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: isPending ? 'not-allowed' : 'pointer',
+                  transition: 'opacity 0.2s',
+                  boxShadow: '0 4px 6px -1px rgba(200, 16, 46, 0.1)',
+                }}
               >
                 {isPending ? "Daxil olunur..." : "Daxil ol"}
               </button>
             </form>
 
             {/* Security notice */}
-            <p className="mt-8 text-xs text-slate-400 text-center lg:text-left">
-              Daxil olaraq{" "}
-              <a href="#" className="underline hover:text-slate-500">
-                Təhlükəsizlik Siyasəti
-              </a>
-              ni qəbul edirsiniz.
+            <p style={{ marginTop: '32px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
+              Daxil olaraq <a href="#" style={{ color: '#64748b', textDecoration: 'underline' }}>Təhlükəsizlik Siyasəti</a>ni qəbul edirsiniz.
             </p>
           </div>
         </div>
 
         {/* Bottom bar */}
-        <div className="px-6 lg:px-12 py-4 border-t border-slate-100 flex items-center justify-between flex-shrink-0 bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-slate-800 flex items-center justify-center">
-              <span className="text-white text-[8px] font-bold">DK</span>
+        <div style={{ padding: '16px 48px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '20px', height: '20px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>
+              <span style={{ color: '#fff', fontSize: '8px', fontWeight: 'bold' }}>DK</span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
               DK Agency — Restoran Operasyon Texnologiyaları
             </p>
           </div>
           <a
             href="#"
-            className="text-xs font-medium text-[var(--ocaq-red)] hover:underline"
+            style={{ fontSize: '12px', fontWeight: 500, color: '#C8102E', textDecoration: 'none' }}
           >
             Kömək lazımdır?
           </a>
