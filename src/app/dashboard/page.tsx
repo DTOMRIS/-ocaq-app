@@ -1,9 +1,157 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { db } from '@/db'
+import { branches } from '@/db/schema/branches'
+import { regions } from '@/db/schema/regions'
+import { staff_profiles } from '@/db/schema/staff'
+import { eq, and, inArray } from 'drizzle-orm'
 
 export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect('/login')
+
+  const role = session.user.role
+
+  // 1. Staff üçün sadələşdirilmiş görünüş
+  if (role === 'staff') {
+    return (
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 10px' }}>
+        {/* Welcome */}
+        <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a1a', margin: '0 0 6px' }}>
+            Xoş gəldiniz, {session.user.name ?? 'Əməkdaş'} 👋
+          </h2>
+          <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>
+            OCAQ Əməkdaş Portalı
+          </p>
+          <span style={{
+            display: 'inline-block', fontSize: '11px', padding: '3px 10px',
+            borderRadius: '12px', fontWeight: '600', marginTop: '10px',
+            background: '#05966915', color: '#059669',
+            border: '1px solid #05966930',
+          }}>
+            Əməkdaş
+          </span>
+        </div>
+
+        {/* Action Cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <a href="/dashboard/vardiya-checklist" style={{
+            display: 'flex', alignItems: 'center', gap: '16px',
+            background: 'linear-gradient(135deg, #1A1614 0%, #2A2422 100%)',
+            color: '#fff', padding: '24px', borderRadius: '16px',
+            textDecoration: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            transition: 'transform 0.15s ease',
+          }}>
+            <span style={{ fontSize: '32px', background: 'rgba(242,168,29,0.15)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📋</span>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: '#F2A81D' }}>KXT Yoxlama Başla</h3>
+              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>
+                Açılış, kapanış və vardiya checklistlərini doldurun.
+              </p>
+            </div>
+          </a>
+
+          <a href="/dashboard/complaints" style={{
+            display: 'flex', alignItems: 'center', gap: '16px',
+            background: '#fff', border: '1px solid #e8e8e8',
+            color: '#1a1a1a', padding: '24px', borderRadius: '16px',
+            textDecoration: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            transition: 'transform 0.15s ease',
+          }}>
+            <span style={{ fontSize: '32px', background: 'rgba(200,16,46,0.1)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🚨</span>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: '#C8102E' }}>Şikayət / İnsident Bildir</h3>
+              <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+                Kuryer, müştəri şikayətləri və ya daxili insidentləri qeyd edin.
+              </p>
+            </div>
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  // 2. Admin & Manager üçün statistika yükləmə
+  let branchCount = 0
+  let staffCount = 0
+  let regionalBranchIds: string[] = []
+
+  try {
+    if (role === 'super_admin') {
+      const allBranches = await db
+        .select({ id: branches.id })
+        .from(branches)
+        .where(eq(branches.is_archived, false))
+      branchCount = allBranches.length
+
+      const allStaff = await db
+        .select({ id: staff_profiles.id })
+        .from(staff_profiles)
+        .where(eq(staff_profiles.is_archived, false))
+      staffCount = allStaff.length
+    } else if (role === 'region_manager') {
+      const managedRegions = await db
+        .select({ id: regions.id })
+        .from(regions)
+        .where(eq(regions.manager_id, session.user.id))
+      
+      if (managedRegions.length > 0) {
+        const regionIds = managedRegions.map(r => r.id)
+        const regBranches = await db
+          .select({ id: branches.id })
+          .from(branches)
+          .where(
+            and(
+              eq(branches.is_archived, false),
+              inArray(branches.region_id, regionIds)
+            )
+          )
+        branchCount = regBranches.length
+        regionalBranchIds = regBranches.map(b => b.id)
+
+        if (regionalBranchIds.length > 0) {
+          const regStaff = await db
+            .select({ id: staff_profiles.id })
+            .from(staff_profiles)
+            .where(
+              and(
+                eq(staff_profiles.is_archived, false),
+                inArray(staff_profiles.branch_id, regionalBranchIds)
+              )
+            )
+          staffCount = regStaff.length
+        }
+      }
+    } else if (role === 'branch_manager') {
+      const myBranches = await db
+        .select({ id: branches.id })
+        .from(branches)
+        .where(
+          and(
+            eq(branches.is_archived, false),
+            eq(branches.manager_id, session.user.id)
+          )
+        )
+      branchCount = myBranches.length
+      const myBranchIds = myBranches.map(b => b.id)
+
+      if (myBranchIds.length > 0) {
+        const myStaff = await db
+          .select({ id: staff_profiles.id })
+          .from(staff_profiles)
+          .where(
+            and(
+              eq(staff_profiles.is_archived, false),
+              inArray(staff_profiles.branch_id, myBranchIds)
+            )
+          )
+        staffCount = myStaff.length
+      }
+    }
+  } catch (err) {
+    console.error("Dashboard stats query error:", err)
+  }
 
   const roleLabels: Record<string, string> = {
     super_admin:    'Süper Admin',
@@ -19,9 +167,22 @@ export default async function DashboardPage() {
     staff:          '#059669',
   }
 
-  const role = session.user.role
   const roleLabel = roleLabels[role] ?? role
   const roleColor = roleColors[role] ?? '#888'
+
+  const ALL_MODULES = [
+    { title: 'Personel İdarəetməsi', desc: 'Əməkdaş atama, profil, arşiv',     icon: '👥', href: '/dashboard/staff',  color: '#7C3AED', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
+    { title: 'Filiallar',            desc: 'Filial CRUD, müdür atama',          icon: '🏪', href: '/dashboard/branches', color: '#C8102E', soon: false, roles: ['super_admin', 'region_manager'] },
+    { title: 'Şikayət Mərkəzi',       desc: 'Wolt, Bolt və müştəri şikayətləri', icon: '!', href: '/dashboard/complaints', color: '#BE185D', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
+    { title: 'Bölgələr',             desc: 'Bölgə idarəetməsi, müdür atama',   icon: '◉', href: '/dashboard/regions',    color: '#7C3AED', soon: false, roles: ['super_admin', 'region_manager'] },
+    { title: 'Satış Hədəfi',         desc: 'Gündəlik satış, proqnoz, hədəf',   icon: '₼', href: '/dashboard/sales',      color: '#059669', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
+    { title: 'KXT Yoxlama',          desc: 'Dijital checklist, SOP uyğunluğu', icon: '📋', href: '/dashboard/vardiya-checklist', color: '#2563EB', soon: false, roles: ['*'] },
+    { title: 'KPI Dashboard',        desc: 'Performans metrikleri',             icon: '📊', href: '#', color: '#059669', soon: true, roles: ['super_admin', 'region_manager'] },
+    { title: 'Kampaniya',            desc: 'Promosyon, simülasiya',             icon: '🎯', href: '#', color: '#EA580C', soon: true, roles: ['super_admin', 'region_manager'] },
+    { title: 'Hesabatlar',           desc: 'Geriyə dönük raporlar',             icon: '📈', href: '#', color: '#BE185D', soon: true, roles: ['super_admin', 'region_manager'] },
+  ]
+
+  const visibleModules = ALL_MODULES.filter(m => m.roles.includes('*') || m.roles.includes(role))
 
   return (
     <div>
@@ -49,8 +210,8 @@ export default async function DashboardPage() {
         gap: '16px', marginBottom: '32px',
       }}>
         {[
-          { label: 'Filiallar', value: '—', icon: '🏪', color: '#C8102E' },
-          { label: 'Personel',  value: '—', icon: '👥', color: '#7C3AED' },
+          { label: 'Filiallar', value: String(branchCount), icon: '🏪', color: '#C8102E' },
+          { label: 'Personel',  value: String(staffCount), icon: '👥', color: '#7C3AED' },
           { label: 'KXT Skoru', value: '—', icon: '📋', color: '#2563EB' },
           { label: 'Kampaniya', value: '—', icon: '🎯', color: '#059669' },
         ].map((stat) => (
@@ -84,17 +245,7 @@ export default async function DashboardPage() {
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
         gap: '12px',
       }}>
-        {[
-          { title: 'Personel İdarəetməsi', desc: 'Əməkdaş atama, profil, arşiv',     icon: '👥', href: '/dashboard/staff',  color: '#7C3AED', soon: false },
-          { title: 'Filiallar',            desc: 'Filial CRUD, müdür atama',          icon: '🏪', href: '/dashboard/branches', color: '#C8102E', soon: false },
-          { title: 'Şikayət Mərkəzi',       desc: 'Wolt, Bolt və müştəri şikayətləri', icon: '!', href: '/dashboard/complaints', color: '#BE185D', soon: false },
-          { title: 'Bölgələr',             desc: 'Bölgə idarəetməsi, müdür atama',   icon: '◉', href: '/dashboard/regions',    color: '#7C3AED', soon: false },
-          { title: 'Satış Hədəfi',         desc: 'Gündəlik satış, proqnoz, hədəf',   icon: '₼', href: '/dashboard/sales',      color: '#059669', soon: false },
-          { title: 'KXT Yoxlama',          desc: 'Dijital checklist, SOP uyğunluğu', icon: '📋', href: '#', color: '#2563EB', soon: true },
-          { title: 'KPI Dashboard',        desc: 'Performans metrikleri',             icon: '📊', href: '#', color: '#059669', soon: true },
-          { title: 'Kampaniya',            desc: 'Promosyon, simülasiya',             icon: '🎯', href: '#', color: '#EA580C', soon: true },
-          { title: 'Hesabatlar',           desc: 'Geriyə dönük raporlar',             icon: '📈', href: '#', color: '#BE185D', soon: true },
-        ].map((mod) => (
+        {visibleModules.map((mod) => (
           <a key={mod.title} href={mod.soon ? undefined : mod.href} style={{
             display: 'block', background: '#fff', borderRadius: '10px', padding: '20px',
             border: '0.5px solid #e8e8e8', textDecoration: 'none',

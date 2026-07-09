@@ -53,12 +53,12 @@ export default function PromosyonlarPage() {
             Aktiv endirim və kampaniyalar
           </p>
         </div>
-        <Link
-          href="/admin/promosyonlar/yeni"
-          className="px-4 py-2 bg-[var(--ocaq-red)] text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity"
+        <button
+          onClick={() => alert("Yeni kampaniya əlavə etmək funksionallığı tezliklə aktivləşəcək")}
+          className="px-4 py-2 bg-[var(--ocaq-red)] text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
         >
           + Yeni Promo
-        </Link>
+        </button>
       </div>
 
       {/* Promo Grid — McDonald's deals style */}

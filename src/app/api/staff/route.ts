@@ -3,7 +3,9 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { staff_profiles } from '@/db/schema/staff'
 import { users, audit_logs } from '@/db/schema/auth'
-import { eq, and } from 'drizzle-orm'
+import { branches } from '@/db/schema/branches'
+import { regions } from '@/db/schema/regions'
+import { eq, and, inArray } from 'drizzle-orm'
 import { encryptOrNull } from '@/lib/encryption'
 
 // GET — personel listini al (şifrəli sahələr göndərilmir)
@@ -11,8 +13,77 @@ export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Rol yoxlaması — yalnız super_admin, region_manager və branch_manager görə bilər
+  const role = session.user.role
+  if (!['super_admin', 'region_manager', 'branch_manager'].includes(role)) {
+    return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
+  }
+
   const { searchParams } = new URL(req.url)
   const branchId = searchParams.get('branch_id')
+
+  const conditions = [
+    eq(staff_profiles.tenant_id, session.user.tenant_id),
+    eq(staff_profiles.is_archived, false),
+  ]
+
+  // Branch manager yalnız öz filialının personalını
+  if (role === 'branch_manager') {
+    const myBranches = await db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(and(
+        eq(branches.tenant_id, session.user.tenant_id),
+        eq(branches.manager_id, session.user.id),
+      ))
+    
+    if (myBranches.length === 0) {
+      return NextResponse.json([])
+    }
+    conditions.push(eq(staff_profiles.branch_id, myBranches[0].id))
+  }
+
+  // Region manager yalnız öz bölgəsinin filiallarının personalını
+  if (role === 'region_manager') {
+    const myRegions = await db
+      .select({ id: regions.id })
+      .from(regions)
+      .where(and(
+        eq(regions.tenant_id, session.user.tenant_id),
+        eq(regions.manager_id, session.user.id),
+      ))
+    
+    if (myRegions.length === 0) {
+      return NextResponse.json([])
+    }
+    
+    const regionIds = myRegions.map(r => r.id)
+    const myBranchesInRegions = await db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(and(
+        eq(branches.tenant_id, session.user.tenant_id),
+        inArray(branches.region_id, regionIds)
+      ))
+    
+    if (myBranchesInRegions.length === 0) {
+      return NextResponse.json([])
+    }
+    
+    const branchIds = myBranchesInRegions.map(b => b.id)
+    
+    if (branchId) {
+      if (!branchIds.includes(branchId)) {
+        return NextResponse.json({ error: 'Bu filial sizin bölgənizə aid deyil' }, { status: 403 })
+      }
+      conditions.push(eq(staff_profiles.branch_id, branchId))
+    } else {
+      conditions.push(inArray(staff_profiles.branch_id, branchIds))
+    }
+  } else if (role === 'super_admin' && branchId) {
+    // Super admin istənilən filialı süzgəcdən keçirə bilər
+    conditions.push(eq(staff_profiles.branch_id, branchId))
+  }
 
   const query = db
     .select({
@@ -26,7 +97,6 @@ export async function GET(req: NextRequest) {
       avatar_url:    staff_profiles.avatar_url,
       hire_date:     staff_profiles.hire_date,
       contract_type: staff_profiles.contract_type,
-      // users cədvəlindən
       name:          users.name,
       email:         users.email,
       role:          users.role,
@@ -34,13 +104,7 @@ export async function GET(req: NextRequest) {
     })
     .from(staff_profiles)
     .innerJoin(users, eq(staff_profiles.user_id, users.id))
-    .where(
-      and(
-        eq(staff_profiles.tenant_id, session.user.tenant_id),
-        eq(staff_profiles.is_archived, false),
-        ...(branchId ? [eq(staff_profiles.branch_id, branchId)] : []),
-      )
-    )
+    .where(and(...conditions))
     .orderBy(staff_profiles.employee_code)
 
   const list = await query

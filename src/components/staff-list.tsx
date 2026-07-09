@@ -25,9 +25,15 @@ interface Branch {
   name: string
 }
 
+interface Region {
+  id: string
+  name: string
+}
+
 interface StaffListProps {
   staff: Staff[]
   branches: Branch[]
+  regions: Region[]
   userRole: string
 }
 
@@ -112,11 +118,50 @@ function formatDate(dateStr: string | null): string {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function StaffList({ staff, branches, userRole: _userRole }: StaffListProps) {
+export default function StaffList({ staff, branches, regions, userRole }: StaffListProps) {
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [filteredStaff, setFilteredStaff] = useState<Staff[]>(staff)
   const [loading, setLoading] = useState<boolean>(false)
+
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('staff')
+  const [inviteBranchId, setInviteBranchId] = useState('')
+  const [inviteRegionId, setInviteRegionId] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState(false)
+
+  async function handleInviteSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setInviteError(null)
+    setInviteLoading(true)
+
+    try {
+      const res = await fetch('/api/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          role: inviteRole,
+          region_id: inviteRegionId || null,
+          branch_id: inviteBranchId || null,
+        }),
+      })
+
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error ?? `Xəta: ${res.status}`)
+      }
+
+      setInviteSuccess(true)
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Dəvət göndərilə bilmədi')
+    } finally {
+      setInviteLoading(false)
+    }
+  }
 
   // ─── Branch filter → server refetch ────────────────────────────────────────
   const handleBranchChange = useCallback(async (branchId: string) => {
@@ -237,6 +282,29 @@ export default function StaffList({ staff, branches, userRole: _userRole }: Staf
             </option>
           ))}
         </select>
+
+        {(userRole === 'super_admin' || userRole === 'region_manager') && (
+          <button
+            type="button"
+            onClick={() => setShowInviteModal(true)}
+            style={{
+              padding: '9px 18px',
+              background: '#C8102E',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              minHeight: '44px',
+              transition: 'opacity .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.88' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+          >
+            + Yeni Dəvət
+          </button>
+        )}
       </div>
 
       {/* Cədvəl */}
@@ -442,6 +510,188 @@ export default function StaffList({ staff, branches, userRole: _userRole }: Staf
         }}>
           {displayedStaff.length} əməkdaş göstərilir
         </p>
+      )}
+
+      {/* Invite Modal */}
+      {showInviteModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1000, padding: '16px'
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '450px',
+            padding: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+            boxSizing: 'border-box'
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 8px' }}>
+              Yeni Əməkdaş Dəvət Et
+            </h3>
+            <p style={{ fontSize: '12px', color: '#888', margin: '0 0 20px' }}>
+              Dəvət olunan şəxsin e-poçt ünvanına qeydiyyat linki göndəriləcək.
+            </p>
+
+            {inviteError && (
+              <div style={{
+                background: '#fef2f2', border: '1px solid #fecaca', color: '#c8102e',
+                fontSize: '12px', padding: '10px 12px', borderRadius: '8px', marginBottom: '16px'
+              }}>
+                {inviteError}
+              </div>
+            )}
+
+            {inviteSuccess ? (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>🎉</div>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 4px' }}>
+                  Dəvət linki yaradıldı!
+                </h4>
+                <p style={{ fontSize: '12px', color: '#666', margin: '0 0 20px' }}>
+                  E-poçt uğurla göndərildi.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowInviteModal(false)
+                    setInviteSuccess(false)
+                    setInviteEmail('')
+                    setInviteRole('staff')
+                    setInviteBranchId('')
+                    setInviteRegionId('')
+                    setInviteError(null)
+                  }}
+                  style={{
+                    width: '100%', padding: '11px', background: '#1A1614', color: '#fff',
+                    border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Tamam
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleInviteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#444', marginBottom: '6px' }}>
+                    E-poçt ünvanı *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="email@domain.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    style={{
+                      width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid #e0e0e0',
+                      borderRadius: '8px', fontSize: '13px', outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#444', marginBottom: '6px' }}>
+                    Sistem rolu *
+                  </label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => {
+                      setInviteRole(e.target.value)
+                      setInviteBranchId('')
+                      setInviteRegionId('')
+                    }}
+                    style={{
+                      width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0',
+                      borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#fff'
+                    }}
+                  >
+                    <option value="staff">Əməkdaş (Staff)</option>
+                    <option value="branch_manager">Filial Meneceri</option>
+                    {userRole === 'super_admin' && (
+                      <option value="region_manager">Bölgə Meneceri</option>
+                    )}
+                  </select>
+                </div>
+
+                {inviteRole === 'region_manager' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#444', marginBottom: '6px' }}>
+                      Bölgə *
+                    </label>
+                    <select
+                      required
+                      value={inviteRegionId}
+                      onChange={(e) => setInviteRegionId(e.target.value)}
+                      style={{
+                        width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0',
+                        borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#fff'
+                      }}
+                    >
+                      <option value="">Bölgə seçin...</option>
+                      {regions.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {(inviteRole === 'staff' || inviteRole === 'branch_manager') && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#444', marginBottom: '6px' }}>
+                      Filial *
+                    </label>
+                    <select
+                      required
+                      value={inviteBranchId}
+                      onChange={(e) => setInviteBranchId(e.target.value)}
+                      style={{
+                        width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0',
+                        borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#fff'
+                      }}
+                    >
+                      <option value="">Filial seçin...</option>
+                      {branches.map(b => (
+                        <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    disabled={inviteLoading}
+                    onClick={() => {
+                      setShowInviteModal(false)
+                      setInviteEmail('')
+                      setInviteRole('staff')
+                      setInviteBranchId('')
+                      setInviteRegionId('')
+                      setInviteError(null)
+                    }}
+                    style={{
+                      flex: 1, padding: '11px', background: '#f5f5f5', color: '#333',
+                      border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Ləğv et
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={inviteLoading}
+                    style={{
+                      flex: 1, padding: '11px', background: '#C8102E', color: '#fff',
+                      border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+                      cursor: 'pointer', opacity: inviteLoading ? 0.6 : 1
+                    }}
+                  >
+                    {inviteLoading ? 'Göndərilir...' : 'Dəvət et'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

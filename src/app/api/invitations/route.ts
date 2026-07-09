@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import { invitations, users } from '@/db/schema/auth'
+import { branches } from '@/db/schema/branches'
 import { eq, and } from 'drizzle-orm'
 import { inviteRateLimit } from '@/lib/rate-limit'
 import { sendInvitationEmail } from '@/lib/email'
@@ -28,7 +29,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { email, role } = await req.json()
+  const { email, role, region_id, branch_id } = await req.json()
+
+  if (!email || !role) {
+    return NextResponse.json({ error: 'E-poçt və rol tələb olunur' }, { status: 400 })
+  }
 
   // 4. Rol yoxlaması — öz rolundan yuxarı dəvət edə bilməz
   const roleHierarchy = ['staff', 'branch_manager', 'region_manager', 'super_admin']
@@ -64,16 +69,38 @@ export async function POST(req: NextRequest) {
     role,
     token,
     invited_by: session.user.id,
+    region_id:  region_id || null,
+    branch_id:  branch_id || null,
     expires_at,
   })
 
+  // Şöbə adını al (əgər varsa)
+  let branchName: string | undefined
+  if (branch_id) {
+    const [br] = await db
+      .select({ name: branches.name })
+      .from(branches)
+      .where(eq(branches.id, branch_id))
+      .limit(1)
+    if (br) branchName = br.name
+  }
+
   // 7. Mail göndər
-  await sendInvitationEmail({
+  const { error } = await sendInvitationEmail({
     email,
     token,
     inviterName: session.user.name ?? 'Admin',
     recipientRole: role,
+    branchName,
   })
+
+  if (error) {
+    console.error('Resend API error details:', error)
+    return NextResponse.json(
+      { error: `Dəvət e-poçtu göndərilə bilmədi: ${error.message}` },
+      { status: 500 }
+    )
+  }
 
   return NextResponse.json({ success: true })
 }

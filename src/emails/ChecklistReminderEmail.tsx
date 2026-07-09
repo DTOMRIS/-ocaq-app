@@ -86,7 +86,7 @@ ChecklistReminderEmail.PreviewProps = {
   deadline:      '20 İyun 2026, 12:00',
   delayDuration: '2 saat 18 dəqiqə',
   responsible:   'Filial müdürü',
-  ocaqUrl:       'https://ocaq.app/dashboard/checklists',
+  ocaqUrl:       'https://ocaq.app/dashboard/vardiya-checklist',
 } satisfies ChecklistReminderEmailProps
 
 export default ChecklistReminderEmail

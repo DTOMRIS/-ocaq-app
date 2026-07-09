@@ -2,22 +2,42 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import { branches } from '@/db/schema/branches'
-import { eq, and } from 'drizzle-orm'
+import { regions } from '@/db/schema/regions'
+import { eq, and, inArray } from 'drizzle-orm'
 
 // GET — filial listini al
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const role = session.user.role
+  const conditions = [
+    eq(branches.tenant_id, session.user.tenant_id),
+    eq(branches.is_archived, false),
+  ]
+
+  // Region manager yalnız öz bölgəsinin filiallarını görə bilər
+  if (role === 'region_manager') {
+    const myRegions = await db
+      .select({ id: regions.id })
+      .from(regions)
+      .where(and(
+        eq(regions.tenant_id, session.user.tenant_id),
+        eq(regions.manager_id, session.user.id),
+      ))
+    
+    if (myRegions.length === 0) {
+      return NextResponse.json([])
+    }
+    
+    const regionIds = myRegions.map(r => r.id)
+    conditions.push(inArray(branches.region_id, regionIds))
+  }
+
   const list = await db
     .select()
     .from(branches)
-    .where(
-      and(
-        eq(branches.tenant_id, session.user.tenant_id),
-        eq(branches.is_archived, false),
-      )
-    )
+    .where(and(...conditions))
     .orderBy(branches.code)
 
   return NextResponse.json(list)

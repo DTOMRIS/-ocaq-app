@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { invitations, users } from '@/db/schema/auth'
+import { regions } from '@/db/schema/regions'
+import { branches } from '@/db/schema/branches'
+import { staff_profiles } from '@/db/schema/staff'
 import { eq, and, gt, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { sendWelcomeEmail } from '@/lib/email'
@@ -50,6 +53,28 @@ export async function POST(req: NextRequest) {
       email_verified_at: new Date(),
     })
     .returning({ id: users.id })
+
+  // Roluna görə avtomatik əlaqələndirmə
+  if (invite.role === 'region_manager' && invite.region_id) {
+    await db
+      .update(regions)
+      .set({ manager_id: newUser.id, updated_at: new Date() })
+      .where(eq(regions.id, invite.region_id))
+  } else if (invite.role === 'branch_manager' && invite.branch_id) {
+    await db
+      .update(branches)
+      .set({ manager_id: newUser.id, updated_at: new Date() })
+      .where(eq(branches.id, invite.branch_id))
+  } else if (invite.role === 'staff') {
+    await db
+      .insert(staff_profiles)
+      .values({
+        user_id:       newUser.id,
+        tenant_id:     invite.tenant_id,
+        branch_id:     invite.branch_id || null,
+        status:        'active',
+      })
+  }
 
   // Dəvəti bağla
   await db
