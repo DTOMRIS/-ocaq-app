@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/db'
-import { invitations, users } from '@/db/schema/auth'
+import { invitations, users, audit_logs } from '@/db/schema/auth'
 import { branches } from '@/db/schema/branches'
 import { eq, and } from 'drizzle-orm'
 import { inviteRateLimit } from '@/lib/rate-limit'
@@ -119,6 +119,19 @@ export async function POST(req: NextRequest) {
       { error: `Dəvət e-poçtu göndərilə bilmədi: ${error.message}` },
       { status: 500 }
     )
+  }
+
+  // 8. Audit log yaz
+  try {
+    await db.insert(audit_logs).values({
+      tenant_id:  session.user.tenant_id,
+      user_id:    session.user.id,
+      action:     'user.invite',
+      entity:     'invitation',
+      metadata:   JSON.stringify({ email, role, region_id, branch_id }),
+    })
+  } catch (logErr) {
+    console.error('Audit log write error (ignored for flow):', logErr)
   }
 
   return NextResponse.json({ success: true })

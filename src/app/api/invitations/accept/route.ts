@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
-import { invitations, users } from '@/db/schema/auth'
+import { invitations, users, audit_logs } from '@/db/schema/auth'
 import { regions } from '@/db/schema/regions'
 import { branches } from '@/db/schema/branches'
 import { staff_profiles } from '@/db/schema/staff'
@@ -96,6 +96,20 @@ export async function POST(req: NextRequest) {
     name,
     role: invite.role,
   })
+
+  // Audit log yaz
+  try {
+    await db.insert(audit_logs).values({
+      tenant_id:  invite.tenant_id,
+      user_id:    newUser.id,
+      action:     'user.register',
+      entity:     'user',
+      entity_id:  newUser.id,
+      metadata:   JSON.stringify({ email: invite.email, role: invite.role }),
+    })
+  } catch (logErr) {
+    console.error('Audit log onboarding write error:', logErr)
+  }
 
   return NextResponse.json({ success: true, userId: newUser.id })
 }

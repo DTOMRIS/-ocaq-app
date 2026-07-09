@@ -246,11 +246,19 @@ export default function BranchesClient({
                       </span>
                     </td>
 
-                    {/* Ad */}
                     <td style={{ padding: '13px 16px' }}>
-                      <span style={{ fontWeight: '500', color: '#1a1a1a' }}>
+                      <a
+                        href="/dashboard/vardiya-checklist"
+                        style={{
+                          fontWeight: '600',
+                          color: '#C8102E',
+                          textDecoration: 'none',
+                        }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'underline' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'none' }}
+                      >
                         {branch.name}
-                      </span>
+                      </a>
                     </td>
 
                     {/* Bölgə */}
