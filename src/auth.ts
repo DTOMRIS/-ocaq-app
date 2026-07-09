@@ -64,8 +64,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token
     },
     async session({ session, token }) {
-      // Session-a tenant_id və role əlavə et
       if (token) {
+        // Active session revocation check: verify user is still active in database
+        const [dbUser] = await db
+          .select({ is_active: users.is_active })
+          .from(users)
+          .where(eq(users.id, token.id as string))
+          .limit(1)
+
+        if (!dbUser || !dbUser.is_active) {
+          // Force session logout by returning an empty session object
+          return null as any
+        }
+
         session.user.id        = token.id as string
         session.user.role      = token.role as string
         session.user.tenant_id = token.tenant_id as string

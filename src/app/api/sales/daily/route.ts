@@ -3,7 +3,8 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { daily_sales } from '@/db/schema/sales'
 import { branches } from '@/db/schema/branches'
-import { eq, and, gte, lte } from 'drizzle-orm'
+import { regions } from '@/db/schema/regions'
+import { eq, and, gte, lte, inArray } from 'drizzle-orm'
 
 // GET — gündəlik satışları al (month filteri: month_start, month_end)
 export async function GET(req: NextRequest) {
@@ -15,13 +16,14 @@ export async function GET(req: NextRequest) {
   const month_start = searchParams.get('month_start') // '2026-07-01'
   const month_end   = searchParams.get('month_end')   // '2026-07-31'
 
+  const role = session.user.role
   const conditions = [eq(daily_sales.tenant_id, session.user.tenant_id)]
-  if (branch_id) conditions.push(eq(daily_sales.branch_id, branch_id))
+
   if (month_start) conditions.push(gte(daily_sales.sale_date, month_start))
   if (month_end) conditions.push(lte(daily_sales.sale_date, month_end))
 
   // branch_manager yalnız öz filialını
-  if (session.user.role === 'branch_manager') {
+  if (role === 'branch_manager') {
     const myBranches = await db
       .select({ id: branches.id })
       .from(branches)
@@ -30,7 +32,46 @@ export async function GET(req: NextRequest) {
         eq(branches.manager_id, session.user.id),
       ))
     if (myBranches.length === 0) return NextResponse.json([])
-    conditions.push(eq(daily_sales.branch_id, myBranches[0].id))
+    const myBranchId = myBranches[0].id
+
+    if (branch_id && branch_id !== myBranchId) {
+      return NextResponse.json([])
+    }
+    conditions.push(eq(daily_sales.branch_id, myBranchId))
+  }
+
+  // region_manager yalnız öz bölgəsinin filiallarını
+  if (role === 'region_manager') {
+    const myRegions = await db
+      .select({ id: regions.id })
+      .from(regions)
+      .where(and(
+        eq(regions.tenant_id, session.user.tenant_id),
+        eq(regions.manager_id, session.user.id),
+      ))
+    if (myRegions.length === 0) return NextResponse.json([])
+    const regionIds = myRegions.map(r => r.id)
+
+    const myBranches = await db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(and(
+        eq(branches.tenant_id, session.user.tenant_id),
+        inArray(branches.region_id, regionIds),
+      ))
+    if (myBranches.length === 0) return NextResponse.json([])
+    const myBranchIds = myBranches.map(b => b.id)
+
+    if (branch_id) {
+      if (!myBranchIds.includes(branch_id)) {
+        return NextResponse.json([])
+      }
+      conditions.push(eq(daily_sales.branch_id, branch_id))
+    } else {
+      conditions.push(inArray(daily_sales.branch_id, myBranchIds))
+    }
+  } else if (role === 'super_admin' && branch_id) {
+    conditions.push(eq(daily_sales.branch_id, branch_id))
   }
 
   const list = await db
@@ -74,6 +115,32 @@ export async function POST(req: NextRequest) {
       ))
     if (myBranch.length === 0) {
       return NextResponse.json({ error: 'Bu filial sizə aid deyil' }, { status: 403 })
+    }
+  }
+
+  // region_manager yalnız öz bölgəsinin filialına yaza bilər
+  if (role === 'region_manager') {
+    const myRegions = await db
+      .select({ id: regions.id })
+      .from(regions)
+      .where(and(
+        eq(regions.tenant_id, session.user.tenant_id),
+        eq(regions.manager_id, session.user.id),
+      ))
+    if (myRegions.length === 0) {
+      return NextResponse.json({ error: 'Bölgəniz tapılmadı' }, { status: 403 })
+    }
+    const regionIds = myRegions.map(r => r.id)
+
+    const myBranch = await db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(and(
+        eq(branches.id, branch_id),
+        inArray(branches.region_id, regionIds),
+      ))
+    if (myBranch.length === 0) {
+      return NextResponse.json({ error: 'Bu filial sizin bölgənizə aid deyil' }, { status: 403 })
     }
   }
 

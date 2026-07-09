@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { MEK_F08_SECTIONS } from "@/data/mek-f08-checklist";
 
@@ -19,6 +19,24 @@ export default function VardiyaChecklistPage() {
   const [checkedBy, setCheckedBy] = useState("");
   const [openSection, setOpenSection] = useState<string>("personal");
   const [items, setItems] = useState<Record<string, ItemState>>({});
+
+  const [branches, setBranches] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setBranches(data);
+          if (data.length > 0) {
+            setSelectedBranchId(data[0].id);
+          }
+        }
+      })
+      .catch((err) => console.error("Error fetching branches:", err));
+  }, []);
 
   const getItem = (id: string): ItemState =>
     items[id] ?? { checked: false, note: "" };
@@ -60,21 +78,42 @@ export default function VardiyaChecklistPage() {
   const checkedCount = Object.values(items).filter((i) => i.checked).length;
   const pct = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
 
-  const handleSubmit = () => {
-    const report = {
-      shift,
-      completedBy,
-      checkedBy,
-      date: new Date().toISOString(),
-      score: `${checkedCount}/${totalItems} (${pct}%)`,
-      items,
-    };
-    // Gələcəkdə API-yə POST olacaq
-    alert(
-      `Checklist göndərildi!\n\nSkor: ${checkedCount}/${totalItems} (${pct}%)\nVardiya: ${shift === "sabah" ? "Sabah" : "Axşam"}\nEdən: ${completedBy}\nYoxlayan: ${checkedBy}`
-    );
-    // eslint-disable-next-line no-console
-    console.log("Checklist report:", JSON.stringify(report, null, 2));
+  const handleSubmit = async () => {
+    if (!selectedBranchId) {
+      alert("Zəhmət olmasa filial seçin");
+      return;
+    }
+    if (!completedBy.trim() || !checkedBy.trim()) {
+      alert("Zəhmət olmasa məsul şəxslərin adlarını daxil edin");
+      return;
+    }
+
+    setSubmitLoading(true);
+    try {
+      const res = await fetch("/api/checklists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branch_id: selectedBranchId,
+          completed_by: completedBy.trim(),
+          checked_by: checkedBy.trim(),
+          shift,
+          score_pct: pct,
+          items,
+        }),
+      });
+
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "Göndərmə zamanı xəta");
+      }
+
+      alert("Checklist uğurla bazaya qeyd olundu!");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Göndərilmədi");
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   return (
@@ -92,7 +131,23 @@ export default function VardiyaChecklistPage() {
             <h1 className="font-bold text-slate-900 text-lg leading-tight">
               Vardiya Checklist
             </h1>
-            <p className="text-xs text-slate-500">MƏK F 08 — Shaurma No.1</p>
+            {branches.length > 1 ? (
+              <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 outline-none mt-1"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.code} — {b.name}
+                  </option>
+                ))}
+              </select>
+            ) : branches.length === 1 ? (
+              <p className="text-xs text-slate-500">{branches[0].code} — {branches[0].name}</p>
+            ) : (
+              <p className="text-xs text-slate-500">Filial yüklənir...</p>
+            )}
           </div>
           {/* Skor badge */}
           <div
@@ -319,10 +374,10 @@ export default function VardiyaChecklistPage() {
           </div>
           <button
             onClick={handleSubmit}
-            disabled={checkedCount === 0 || !completedBy}
+            disabled={checkedCount === 0 || !completedBy || submitLoading}
             className="px-6 py-2.5 bg-[var(--ocaq-red)] text-white font-semibold rounded-xl text-sm shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
           >
-            Checklistı Göndər
+            {submitLoading ? "Göndərilir..." : "Checklistı Göndər"}
           </button>
         </div>
       </div>

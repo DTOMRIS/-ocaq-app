@@ -7,21 +7,19 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
-- `src/db/schema/auth.ts` — Added `region_id` and `branch_id` relations to the `invitations` table schema.
-- `src/components/staff-list.tsx` — Added a "+ Yeni Dəvət" button and an invitation modal for Super Admins and Region Managers to invite members with specific roles, regions, and branches.
-- `src/app/api/invitations/route.ts` & `accept/route.ts` — Implemented audit logging by writing records to the `audit_logs` table on user invitation and user registration.
-- `src/app/dashboard/settings/page.tsx` — Created settings page with persistent configurations stored in localStorage.
-- `drizzle/migrations/0002_polite_songbird.sql` — Generated and pushed migration to database for region/branch invitations.
+- `src/db/schema/checklists.ts` — Created checklists table schema for persisting vardiya checklist responses.
+- `src/app/api/checklists/route.ts` — Implemented GET/POST endpoints for checklists with automatic audit logging on submit.
+- `src/app/api/audit-logs/route.ts` — Added super_admin restricted endpoint for fetching latest 100 system audit logs.
+- `drizzle/migrations/0003_black_whistler.sql` — Generated and pushed database migration for checklists table.
 
 ### Changed
-- `src/app/dashboard/page.tsx` — Customized dashboard welcome views: staff roles see a mobile-friendly welcome screen with only two direct cards (KXT yoxlama and incident reporting), and managers see metrics dynamically counted by their assigned branches and regions.
-- `src/app/api/staff/route.ts` & `branches/route.ts` — Added server-side role security checks. Staff are blocked, while region/branch managers can only access staff/branches details belonging to their regions/branches.
-- `src/app/dashboard/branches/branches-client.tsx` — Connected the Branch name in the list as a direct clickable anchor linking to `/dashboard/vardiya-checklist`.
-- `src/emails/ChecklistReminderEmail.tsx` & `src/lib/email.ts` — Re-pointed out-of-date `/dashboard/checklists` links to the functional `/dashboard/vardiya-checklist`.
+- `src/app/api/sales/daily/route.ts` & `targets/route.ts` — Added strict region/branch validation checks for region managers and branch managers preventing cross-region data queries and target updates.
+- `src/app/dashboard/vardiya-checklist/page.tsx` — Replaced client-side mockup submission with database persistence, complete with dynamic branch fetching and dropdown selection.
+- `src/app/dashboard/settings/page.tsx` — Upgraded the page with a tabbed interface, adding a secure "Audit Girişləri" log viewer tab for super_admins.
+- `src/auth.ts` — Implemented active session revocation. NextAuth session callback now queries the database dynamically to invalidate the session of any user whose status becomes disabled.
 
 ### Fixed
-- Fixed email error swallowing; the Resend client now properly throws/logs API errors on failure.
-- Removed duplicate keys and resolved conflicts in `/accept` onboarding API and invitations schema definition.
+- Fixed cross-region sales leakages and target manipulation vulnerabilities in sales API endpoints.
 
 ---
 
