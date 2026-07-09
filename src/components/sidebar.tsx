@@ -5,20 +5,33 @@ import { usePathname } from 'next/navigation'
 
 const NAV = [
   { href: '/dashboard',            icon: '◈', label: 'İdarə paneli', roles: ['*'] },
-  { href: '/dashboard/branches',   icon: '⊞', label: 'Filiallar',    roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/regions',    icon: '◉', label: 'Bölgələr',     roles: ['super_admin', 'region_manager'] },
+  // ── Satış & Maliyyə ──
   { href: '/dashboard/sales',      icon: '₼', label: 'Satış hədəfi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/team',       icon: '☰', label: 'Komanda',      roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/staff',      icon: '⊙', label: 'Personel',     roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/hr',         icon: '👤', label: 'HR / KXT',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/komanda',    icon: '👥', label: 'Komanda',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/ekipman',    icon: '🔧', label: 'Avadanlıq',    roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/complaints', icon: '!', label: 'Şikayətlər',   roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
+  { href: '/dashboard/tahmin',     icon: '📊', label: 'Satış təxmini', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/kasa',       icon: '💰', label: 'Kasa',         roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/fire',       icon: '🔥', label: 'Fire / İtki',  roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  // ── Yoxlama & Təhlükəsizlik ──
   { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT yoxlama',  roles: ['*'] },
   { href: '/dashboard/checklists', icon: '📋', label: 'Checklistlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/reports',    icon: '≡', label: 'Hesabatlar',   roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/haccp',      icon: '🛡️', label: 'Qida təhlükəsizliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  // ── Əməliyyat ──
+  { href: '/dashboard/ekipman',    icon: '🔧', label: 'Avadanlıq',    roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/logbook',    icon: '📓', label: 'Logbook',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/takvim',     icon: '📅', label: 'Təqvim',       roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  // ── Komanda & HR ──
+  { href: '/dashboard/komanda',    icon: '👥', label: 'Komanda',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/staff',      icon: '⊙', label: 'Personel',     roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/hr',         icon: '👤', label: 'HR / KXT',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  // ── Şikayət & Bildiriş ──
+  { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayətlər',   roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
+  { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  // ── Admin ──
+  { href: '/dashboard/branches',   icon: '🏪', label: 'Filiallar',    roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/regions',    icon: '◉', label: 'Bölgələr',     roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/reports',    icon: '📈', label: 'Hesabatlar',   roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/settings',   icon: '⚙', label: 'Parametrlər', roles: ['super_admin'] },
 ]
+
 
 export default function Sidebar({ role }: { role: string }) {
   const path = usePathname()
