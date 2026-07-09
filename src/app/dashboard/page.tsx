@@ -5,7 +5,8 @@ import { db } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
 import { staff_profiles } from '@/db/schema/staff'
-import { eq, and, inArray } from 'drizzle-orm'
+import { daily_sales, sales_targets } from '@/db/schema/sales'
+import { eq, and, inArray, gte, lte } from 'drizzle-orm'
 
 // Gələcəkdə DB-dən real data gələcək
 const TODAY = {
@@ -115,6 +116,60 @@ export default async function DashboardPage() {
     console.error("Dashboard stats query error:", err)
   }
 
+  // ─── REAL satış (rol əhatəsinə görə) — mock deyil, DB-dən ───
+  let monthSales = 0, monthTarget = 0, dayActual = 0, dayYesterday = 0
+  let hasSalesData = false
+  try {
+    let ids: string[] = []
+    if (role === 'super_admin') {
+      ids = (await db.select({ id: branches.id }).from(branches).where(eq(branches.is_archived, false))).map(b => b.id)
+    } else {
+      ids = myBranchesList.map(b => b.id)
+    }
+    if (ids.length > 0) {
+      const now = new Date()
+      const yr = now.getFullYear(), mo = now.getMonth()
+      const monthStart = `${yr}-${String(mo + 1).padStart(2, '0')}-01`
+      const daysInMonth = new Date(yr, mo + 1, 0).getDate()
+      const monthEnd = `${yr}-${String(mo + 1).padStart(2, '0')}-${daysInMonth}`
+
+      const salesRows = await db.select({ d: daily_sales.sale_date, a: daily_sales.amount })
+        .from(daily_sales)
+        .where(and(
+          eq(daily_sales.tenant_id, session.user.tenant_id),
+          inArray(daily_sales.branch_id, ids),
+          gte(daily_sales.sale_date, monthStart),
+          lte(daily_sales.sale_date, monthEnd),
+        ))
+      monthSales = salesRows.reduce((s, r) => s + Number(r.a), 0)
+
+      const tgtRows = await db.select({ t: sales_targets.target_amount })
+        .from(sales_targets)
+        .where(and(
+          eq(sales_targets.tenant_id, session.user.tenant_id),
+          inArray(sales_targets.branch_id, ids),
+          eq(sales_targets.month, monthStart),
+        ))
+      monthTarget = tgtRows.reduce((s, r) => s + Number(r.t), 0)
+
+      const byDay: Record<string, number> = {}
+      for (const r of salesRows) byDay[r.d] = (byDay[r.d] ?? 0) + Number(r.a)
+      const days = Object.keys(byDay).sort()
+      dayActual = days.length ? byDay[days[days.length - 1]] : 0
+      dayYesterday = days.length > 1 ? byDay[days[days.length - 2]] : 0
+      hasSalesData = salesRows.length > 0 || tgtRows.length > 0
+    }
+  } catch (err) {
+    console.error("Dashboard sales query error:", err)
+  }
+
+  const now2 = new Date()
+  const dim = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate()
+  const dailyTarget = monthTarget > 0 ? Math.round(monthTarget / dim) : TODAY.sales.target
+  const salesActual = hasSalesData ? dayActual : TODAY.sales.actual
+  const salesTarget = hasSalesData ? dailyTarget : TODAY.sales.target
+  const salesYesterday = hasSalesData ? dayYesterday : TODAY.sales.yesterday
+
   const roleLabels: Record<string, string> = {
     super_admin: 'Süper Admin',
     region_manager: 'Bölgə Meneceri',
@@ -122,8 +177,8 @@ export default async function DashboardPage() {
     staff: 'Əməkdaş',
   }
 
-  const salesPct = pctOf(TODAY.sales.actual, TODAY.sales.target)
-  const salesDiff = TODAY.sales.actual - TODAY.sales.target
+  const salesPct = pctOf(salesActual, salesTarget)
+  const salesDiff = salesActual - salesTarget
 
   return (
     <div>
@@ -154,15 +209,15 @@ export default async function DashboardPage() {
           </span>
         </div>
         <div className="flex items-end gap-2 mb-2">
-          <span className="text-3xl font-bold text-slate-900">{TODAY.sales.actual.toLocaleString()} ₼</span>
-          <span className="text-sm text-slate-500 mb-1">/ {TODAY.sales.target.toLocaleString()} ₼ hədəf</span>
+          <span className="text-3xl font-bold text-slate-900">{salesActual.toLocaleString()} ₼</span>
+          <span className="text-sm text-slate-500 mb-1">/ {salesTarget.toLocaleString()} ₼ hədəf</span>
         </div>
         <div className="h-3 bg-white/60 rounded-full overflow-hidden mb-2">
           <div className={`h-full rounded-full transition-all ${salesPct >= 100 ? "bg-emerald-500" : salesPct >= 75 ? "bg-amber-500" : "bg-red-500"}`}
             style={{ width: `${Math.min(salesPct, 100)}%` }} />
         </div>
         <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>Dünən: {TODAY.sales.yesterday.toLocaleString()} ₼</span>
+          <span>Əvvəlki gün: {salesYesterday.toLocaleString()} ₼</span>
           <span className={salesDiff >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
             {salesDiff >= 0 ? "+" : ""}{salesDiff.toLocaleString()} ₼ fərq
           </span>
@@ -252,7 +307,7 @@ export default async function DashboardPage() {
       <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
         <div className="space-y-3">
           {[
-            { label: "Aylıq Satış", actual: 42350, target: 84000, unit: "₼" },
+            { label: "Aylıq Satış", actual: hasSalesData ? monthSales : 42350, target: hasSalesData && monthTarget > 0 ? monthTarget : 84000, unit: "₼" },
             { label: "Aylıq Müştəri", actual: 1840, target: 4200, unit: "nəfər" },
             { label: "Ort. Çek", actual: 18.5, target: 22, unit: "₼" },
             { label: "Google Rey", actual: 4.2, target: 4.5, unit: "★" },
