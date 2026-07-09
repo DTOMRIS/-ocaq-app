@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
@@ -6,20 +7,34 @@ import { regions } from '@/db/schema/regions'
 import { staff_profiles } from '@/db/schema/staff'
 import { eq, and, inArray } from 'drizzle-orm'
 
+// Gələcəkdə DB-dən real data gələcək
+const TODAY = {
+  sales: { target: 2800, actual: 2145, yesterday: 2530 },
+  avgCheck: { value: 18.5, target: 22 },
+  covers: { value: 116, target: 140 },
+  transactions: { value: 89, peak: "12:30-13:30" },
+  labor: { pct: 28, target: 30, alert: false },
+  food: { pct: 31, target: 33, alert: false },
+  prime: { pct: 59, target: 63, alert: false },
+}
+
+const pctOf = (actual: number, target: number) =>
+  target > 0 ? Math.round((actual / target) * 100) : 0
+
 export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
   const role = session.user.role
+  const userName = session.user.name ?? 'İstifadəçi'
 
   // 1. Staff üçün sadələşdirilmiş görünüş
   if (role === 'staff') {
     return (
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 10px' }}>
-        {/* Welcome */}
         <div style={{ marginBottom: '32px', textAlign: 'center' }}>
           <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a1a', margin: '0 0 6px' }}>
-            Xoş gəldiniz, {session.user.name ?? 'Əməkdaş'} 👋
+            Xoş gəldiniz, {userName} 👋
           </h2>
           <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>
             OCAQ Əməkdaş Portalı
@@ -33,15 +48,12 @@ export default async function DashboardPage() {
             Əməkdaş
           </span>
         </div>
-
-        {/* Action Cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <a href="/dashboard/vardiya-checklist" style={{
             display: 'flex', alignItems: 'center', gap: '16px',
             background: 'linear-gradient(135deg, #1A1614 0%, #2A2422 100%)',
             color: '#fff', padding: '24px', borderRadius: '16px',
             textDecoration: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            transition: 'transform 0.15s ease',
           }}>
             <span style={{ fontSize: '32px', background: 'rgba(242,168,29,0.15)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📋</span>
             <div>
@@ -51,13 +63,11 @@ export default async function DashboardPage() {
               </p>
             </div>
           </a>
-
           <a href="/dashboard/complaints" style={{
             display: 'flex', alignItems: 'center', gap: '16px',
             background: '#fff', border: '1px solid #e8e8e8',
             color: '#1a1a1a', padding: '24px', borderRadius: '16px',
             textDecoration: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            transition: 'transform 0.15s ease',
           }}>
             <span style={{ fontSize: '32px', background: 'rgba(200,16,46,0.1)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🚨</span>
             <div>
@@ -75,80 +85,29 @@ export default async function DashboardPage() {
   // 2. Admin & Manager üçün statistika yükləmə
   let branchCount = 0
   let staffCount = 0
-  let regionalBranchIds: string[] = []
   let myBranchesList: any[] = []
 
   try {
     if (role === 'super_admin') {
-      const allBranches = await db
-        .select({ id: branches.id })
-        .from(branches)
-        .where(eq(branches.is_archived, false))
+      const allBranches = await db.select({ id: branches.id }).from(branches).where(eq(branches.is_archived, false))
       branchCount = allBranches.length
-
-      const allStaff = await db
-        .select({ id: staff_profiles.id })
-        .from(staff_profiles)
-        .where(eq(staff_profiles.is_archived, false))
+      const allStaff = await db.select({ id: staff_profiles.id }).from(staff_profiles).where(eq(staff_profiles.is_archived, false))
       staffCount = allStaff.length
     } else if (role === 'region_manager') {
-      const managedRegions = await db
-        .select({ id: regions.id })
-        .from(regions)
-        .where(eq(regions.manager_id, session.user.id))
-      
+      const managedRegions = await db.select({ id: regions.id }).from(regions).where(eq(regions.manager_id, session.user.id))
       if (managedRegions.length > 0) {
         const regionIds = managedRegions.map(r => r.id)
-        const regBranches = await db
-          .select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active })
-          .from(branches)
-          .where(
-            and(
-              eq(branches.is_archived, false),
-              inArray(branches.region_id, regionIds)
-            )
-          )
+        const regBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active }).from(branches).where(and(eq(branches.is_archived, false), inArray(branches.region_id, regionIds)))
         branchCount = regBranches.length
         myBranchesList = regBranches
-        regionalBranchIds = regBranches.map(b => b.id)
-
-        if (regionalBranchIds.length > 0) {
-          const regStaff = await db
-            .select({ id: staff_profiles.id })
-            .from(staff_profiles)
-            .where(
-              and(
-                eq(staff_profiles.is_archived, false),
-                inArray(staff_profiles.branch_id, regionalBranchIds)
-              )
-            )
-          staffCount = regStaff.length
-        }
       }
     } else if (role === 'branch_manager') {
-      const myBranches = await db
-        .select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active })
-        .from(branches)
-        .where(
-          and(
-            eq(branches.is_archived, false),
-            eq(branches.manager_id, session.user.id)
-          )
-        )
+      const myBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active }).from(branches).where(and(eq(branches.is_archived, false), eq(branches.manager_id, session.user.id)))
       branchCount = myBranches.length
       myBranchesList = myBranches
       const myBranchIds = myBranches.map(b => b.id)
-
       if (myBranchIds.length > 0) {
-        const myStaff = await db
-          .select({ id: staff_profiles.id })
-          .from(staff_profiles)
-          .where(
-            and(
-              eq(staff_profiles.is_archived, false),
-              inArray(staff_profiles.branch_id, myBranchIds)
-            )
-          )
+        const myStaff = await db.select({ id: staff_profiles.id }).from(staff_profiles).where(and(eq(staff_profiles.is_archived, false), inArray(staff_profiles.branch_id, myBranchIds)))
         staffCount = myStaff.length
       }
     }
@@ -157,185 +116,196 @@ export default async function DashboardPage() {
   }
 
   const roleLabels: Record<string, string> = {
-    super_admin:    'Süper Admin',
+    super_admin: 'Süper Admin',
     region_manager: 'Bölgə Meneceri',
     branch_manager: 'Filial Meneceri',
-    staff:          'Əməkdaş',
+    staff: 'Əməkdaş',
   }
 
-  const roleColors: Record<string, string> = {
-    super_admin:    '#C8102E',
-    region_manager: '#7C3AED',
-    branch_manager: '#2563EB',
-    staff:          '#059669',
-  }
-
-  const roleLabel = roleLabels[role] ?? role
-  const roleColor = roleColors[role] ?? '#888'
-
-  const ALL_MODULES = [
-    { title: 'Personel İdarəetməsi', desc: 'Əməkdaş atama, profil, arşiv',     icon: '👥', href: '/dashboard/staff',  color: '#7C3AED', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { title: 'Filiallar',            desc: 'Filial CRUD, müdür atama',          icon: '🏪', href: '/dashboard/branches', color: '#C8102E', soon: false, roles: ['super_admin', 'region_manager'] },
-    { title: 'Şikayət Mərkəzi',       desc: 'Wolt, Bolt və müştəri şikayətləri', icon: '!', href: '/dashboard/complaints', color: '#BE185D', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
-    { title: 'İnsan Resursları (HR)', desc: 'İşə qəbul, sınaq müddəti, oryantasiya', icon: '👤', href: '/dashboard/hr', color: '#EA580C', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { title: 'Komanda yoldaşları',   desc: 'Əməkdaş siyahısı və online status', icon: '👥', href: '/dashboard/komanda', color: '#BE185D', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { title: 'Avadanlıq (Ekipman)',  desc: 'Cihaz bakımları və arızalar',      icon: '🔧', href: '/dashboard/ekipman', color: '#3b82f6', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { title: 'Göndərilmiş Checklistlər', desc: 'Keçmiş checklist arxivləri',    icon: '📋', href: '/dashboard/checklists', color: '#C8102E', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { title: 'Bölgələr',             desc: 'Bölgə idarəetməsi, müdür atama',   icon: '◉', href: '/dashboard/regions',    color: '#7C3AED', soon: false, roles: ['super_admin', 'region_manager'] },
-    { title: 'Satış Hədəfi',         desc: 'Gündəlik satış, proqnoz, hədəf',   icon: '₼', href: '/dashboard/sales',      color: '#059669', soon: false, roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { title: 'KXT Yoxlama',          desc: 'Dijital checklist, SOP uyğunluğu', icon: '📋', href: '/dashboard/vardiya-checklist', color: '#2563EB', soon: false, roles: ['*'] },
-    { title: 'KPI Dashboard',        desc: 'Performans metrikleri',             icon: '📊', href: '#', color: '#059669', soon: true, roles: ['super_admin', 'region_manager'] },
-    { title: 'Kampaniya',            desc: 'Promosyon, simülasiya',             icon: '🎯', href: '#', color: '#EA580C', soon: true, roles: ['super_admin', 'region_manager'] },
-    { title: 'Hesabatlar',           desc: 'Geriyə dönük raporlar',             icon: '📈', href: '#', color: '#BE185D', soon: true, roles: ['super_admin', 'region_manager'] },
-  ]
-
-  const visibleModules = ALL_MODULES.filter(m => m.roles.includes('*') || m.roles.includes(role))
+  const salesPct = pctOf(TODAY.sales.actual, TODAY.sales.target)
+  const salesDiff = TODAY.sales.actual - TODAY.sales.target
 
   return (
     <div>
-      {/* Welcome */}
-      <div style={{ marginBottom: '32px' }}>
-        <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 4px' }}>
-          Xoş gəldiniz, {session.user.name ?? 'İstifadəçi'} 👋
-        </h2>
-        <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>
-          OCAQ platformasına daxil oldunuz.{' '}
-          <span style={{
-            display: 'inline-block', fontSize: '11px', padding: '2px 8px',
-            borderRadius: '10px', fontWeight: '500',
-            background: `${roleColor}12`, color: roleColor,
-            border: `1px solid ${roleColor}25`,
-          }}>
-            {roleLabel}
-          </span>
-        </p>
-      </div>
-
-      {/* Stats Grid */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '16px', marginBottom: '32px',
-      }}>
-        {[
-          { label: 'Filiallar', value: String(branchCount), icon: '🏪', color: '#C8102E' },
-          { label: 'Personel',  value: String(staffCount), icon: '👥', color: '#7C3AED' },
-          { label: 'KXT Skoru', value: '—', icon: '📋', color: '#2563EB' },
-          { label: 'Kampaniya', value: '—', icon: '🎯', color: '#059669' },
-        ].map((stat) => (
-          <div key={stat.label} style={{
-            background: '#fff', borderRadius: '10px', padding: '20px',
-            border: '0.5px solid #e8e8e8',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <span style={{ fontSize: '20px' }}>{stat.icon}</span>
-              <div style={{
-                width: '8px', height: '8px', borderRadius: '50%',
-                background: stat.color, opacity: 0.6,
-              }} />
-            </div>
-            <p style={{ fontSize: '24px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>
-              {stat.value}
-            </p>
-            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
-              {stat.label}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filiallarım (Yalnız menecerlər üçün) */}
-      {(role === 'branch_manager' || role === 'region_manager') && myBranchesList.length > 0 && (
-        <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 12px' }}>
-            Filiallarım ({myBranchesList.length})
-          </h3>
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: '16px',
-          }}>
-            {myBranchesList.map((br) => (
-              <div key={br.id} style={{
-                background: '#fff', borderRadius: '12px', padding: '20px',
-                border: '0.5px solid #e8e8e8',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-                display: 'flex', flexDirection: 'column' as const, justifyContent: 'space-between',
-                minHeight: '120px'
-              }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{
-                      padding: '3px 8px', borderRadius: '6px', background: '#1A1614', color: '#F2A81D',
-                      fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px'
-                    }}>
-                      {br.code}
-                    </span>
-                    <span style={{
-                      width: '8px', height: '8px', borderRadius: '50%',
-                      background: br.is_active ? '#059669' : '#bbb'
-                    }} />
-                  </div>
-                  <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 4px' }}>
-                    {br.name}
-                  </h4>
-                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>
-                    📍 {br.city}
-                  </p>
-                </div>
-                <a href={`/dashboard/vardiya-checklist?branch_id=${br.id}`} style={{
-                  display: 'inline-block', textAlign: 'center' as const,
-                  padding: '10px 16px', borderRadius: '8px', background: '#C8102E', color: '#fff',
-                  fontSize: '13px', fontWeight: '600', textDecoration: 'none', transition: 'opacity 0.15s'
-                }}>
-                  📋 Vardiya Checklist Başla
-                </a>
-              </div>
-            ))}
-          </div>
+      {/* ═══ BAŞLIQ ═══ */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Xoş gəldiniz, {userName} 👋</h1>
+          <p className="text-sm text-slate-500">
+            Bugünkü performans
+            {myBranchesList.length > 0 && ` — ${myBranchesList[0].name}`}
+            {' · '}
+            <span className="font-medium">{roleLabels[role] ?? role}</span>
+          </p>
         </div>
-      )}
+        <div className="text-right">
+          <p className="text-xs text-slate-400">
+            {new Date().toLocaleDateString("az-AZ", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+      </div>
 
-      {/* Modules */}
-      <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 12px' }}>
-        Modullar
-      </h3>
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '12px',
-      }}>
-        {visibleModules.map((mod) => (
-          <a key={mod.title} href={mod.soon ? undefined : mod.href} style={{
-            display: 'block', background: '#fff', borderRadius: '10px', padding: '20px',
-            border: '0.5px solid #e8e8e8', textDecoration: 'none',
-            opacity: mod.soon ? 0.5 : 1,
-            cursor: mod.soon ? 'default' : 'pointer',
-            transition: 'box-shadow .15s',
-            position: 'relative' as const,
-          }}>
-            {mod.soon && (
-              <span style={{
-                position: 'absolute' as const, top: '12px', right: '12px',
-                fontSize: '10px', padding: '2px 8px', borderRadius: '8px',
-                background: '#f5f5f5', color: '#888',
-              }}>
-                Tezliklə
-              </span>
-            )}
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '10px',
-              background: `${mod.color}10`, display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              marginBottom: '12px', fontSize: '20px',
-            }}>
-              {mod.icon}
+      {/* ═══ SATIŞ HƏDƏFİ — ana kart ═══ */}
+      <div className={`rounded-2xl border-2 p-5 mb-4 ${salesPct >= 100 ? "bg-emerald-50 border-emerald-200" : salesPct >= 75 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-slate-900">📊 Günlük Satış</h2>
+          <span className={`text-sm font-bold px-3 py-1 rounded-full ${salesPct >= 100 ? "bg-emerald-100 text-emerald-700" : salesPct >= 75 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
+            {salesPct}%
+          </span>
+        </div>
+        <div className="flex items-end gap-2 mb-2">
+          <span className="text-3xl font-bold text-slate-900">{TODAY.sales.actual.toLocaleString()} ₼</span>
+          <span className="text-sm text-slate-500 mb-1">/ {TODAY.sales.target.toLocaleString()} ₼ hədəf</span>
+        </div>
+        <div className="h-3 bg-white/60 rounded-full overflow-hidden mb-2">
+          <div className={`h-full rounded-full transition-all ${salesPct >= 100 ? "bg-emerald-500" : salesPct >= 75 ? "bg-amber-500" : "bg-red-500"}`}
+            style={{ width: `${Math.min(salesPct, 100)}%` }} />
+        </div>
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>Dünən: {TODAY.sales.yesterday.toLocaleString()} ₼</span>
+          <span className={salesDiff >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+            {salesDiff >= 0 ? "+" : ""}{salesDiff.toLocaleString()} ₼ fərq
+          </span>
+        </div>
+      </div>
+
+      {/* ═══ KPI KARTLARI ═══ */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Ortalama Çek</p>
+          <div className="flex items-end gap-1">
+            <span className="text-2xl font-bold text-slate-900">{TODAY.avgCheck.value}</span>
+            <span className="text-sm text-slate-400 mb-0.5">₼</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">Hədəf: {TODAY.avgCheck.target} ₼
+            <span className={`ml-1 font-bold ${TODAY.avgCheck.value >= TODAY.avgCheck.target ? "text-emerald-600" : "text-amber-600"}`}>
+              ({pctOf(TODAY.avgCheck.value, TODAY.avgCheck.target)}%)
+            </span>
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Müştəri Sayı</p>
+          <div className="flex items-end gap-1">
+            <span className="text-2xl font-bold text-slate-900">{TODAY.covers.value}</span>
+            <span className="text-sm text-slate-400 mb-0.5">nəfər</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">Hədəf: {TODAY.covers.target}
+            <span className={`ml-1 font-bold ${TODAY.covers.value >= TODAY.covers.target ? "text-emerald-600" : "text-amber-600"}`}>
+              ({pctOf(TODAY.covers.value, TODAY.covers.target)}%)
+            </span>
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Çek Sayı</p>
+          <div className="flex items-end gap-1">
+            <span className="text-2xl font-bold text-slate-900">{TODAY.transactions.value}</span>
+            <span className="text-sm text-slate-400 mb-0.5">əməliyyat</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">Pik: {TODAY.transactions.peak}</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Checklist Skor</p>
+          <div className="flex items-end gap-1">
+            <span className="text-2xl font-bold text-emerald-700">78</span>
+            <span className="text-sm text-slate-400 mb-0.5">%</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">Sabah vardiyası</p>
+        </div>
+      </div>
+
+      {/* ═══ MALİYYƏT GÖSTƏRİCİLƏRİ ═══ */}
+      <h2 className="text-lg font-semibold text-slate-900 mb-3">💰 Maliyyət Göstəriciləri</h2>
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {[
+          { label: "Food Cost", pct: TODAY.food.pct, target: TODAY.food.target, icon: "🥩", good: "aşağı" },
+          { label: "Labor Cost", pct: TODAY.labor.pct, target: TODAY.labor.target, icon: "👥", good: "aşağı" },
+          { label: "Prime Cost", pct: TODAY.prime.pct, target: TODAY.prime.target, icon: "📊", good: "aşağı" },
+        ].map((cost) => {
+          const isOk = cost.pct <= cost.target
+          return (
+            <div key={cost.label} className={`rounded-xl border p-4 ${isOk ? "bg-white border-slate-200" : "bg-red-50 border-red-200"}`}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-lg">{cost.icon}</span>
+                <p className="text-xs font-semibold text-slate-700">{cost.label}</p>
+              </div>
+              <div className="flex items-end gap-1">
+                <span className={`text-2xl font-bold ${isOk ? "text-emerald-700" : "text-red-700"}`}>{cost.pct}%</span>
+              </div>
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2">
+                <div className={`h-full rounded-full ${isOk ? "bg-emerald-500" : "bg-red-500"}`}
+                  style={{ width: `${Math.min((cost.pct / cost.target) * 100, 100)}%` }} />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Hədəf: ≤{cost.target}%
+                {!isOk && <span className="text-red-600 font-bold ml-1">⚠️ AŞIB</span>}
+              </p>
             </div>
-            <p style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 4px' }}>
-              {mod.title}
-            </p>
-            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
-              {mod.desc}
-            </p>
-          </a>
+          )
+        })}
+      </div>
+
+      {/* ═══ AYLIQ HƏDƏFLƏR ═══ */}
+      <h2 className="text-lg font-semibold text-slate-900 mb-3">🎯 Aylıq Hədəflər</h2>
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div className="space-y-3">
+          {[
+            { label: "Aylıq Satış", actual: 42350, target: 84000, unit: "₼" },
+            { label: "Aylıq Müştəri", actual: 1840, target: 4200, unit: "nəfər" },
+            { label: "Ort. Çek", actual: 18.5, target: 22, unit: "₼" },
+            { label: "Google Rey", actual: 4.2, target: 4.5, unit: "★" },
+          ].map((g) => {
+            const gPct = pctOf(g.actual, g.target)
+            return (
+              <div key={g.label}>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="text-slate-700 font-medium">{g.label}</span>
+                  <span className="text-slate-500">
+                    <span className="font-bold text-slate-900">{g.actual.toLocaleString()}</span> / {g.target.toLocaleString()} {g.unit}
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${gPct >= 80 ? "bg-emerald-500" : gPct >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+                    style={{ width: `${Math.min(gPct, 100)}%` }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ═══ TEZ KEÇİDLƏR ═══ */}
+      <h2 className="text-lg font-semibold text-slate-900 mb-3">Tez Keçidlər</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          { href: "/dashboard/vardiya-checklist", icon: "✅", title: "Checklist" },
+          { href: "/dashboard/haccp", icon: "🛡️", title: "Food Safety" },
+          { href: "/dashboard/kasa", icon: "💰", title: "Kasa" },
+          { href: "/dashboard/ekipman", icon: "🔧", title: "Ekipman" },
+          { href: "/dashboard/logbook", icon: "📓", title: "Logbook" },
+          { href: "/dashboard/takvim", icon: "📅", title: "Təqvim" },
+          { href: "/dashboard/hr", icon: "📋", title: "HR" },
+          { href: "/dashboard/bildirisler", icon: "🔔", title: "Bildirişlər" },
+          { href: "/dashboard/fire", icon: "🔥", title: "Fire / İtki" },
+          { href: "/dashboard/tahmin", icon: "📊", title: "Satış Təxmini" },
+          { href: "/dashboard/komanda", icon: "👥", title: "Komanda" },
+          { href: "/dashboard/sales", icon: "₼", title: "Satış Hədəfi" },
+          { href: "/dashboard/complaints", icon: "🚨", title: "Şikayətlər" },
+          { href: "/dashboard/staff", icon: "⊙", title: "Personel" },
+          ...(role === 'super_admin' || role === 'region_manager' ? [
+            { href: "/dashboard/branches", icon: "🏪", title: "Filiallar" },
+            { href: "/dashboard/regions", icon: "◉", title: "Bölgələr" },
+            { href: "/dashboard/settings", icon: "⚙", title: "Parametrlər" },
+            { href: "/dashboard/reports", icon: "📈", title: "Hesabatlar" },
+          ] : []),
+        ].map((item) => (
+          <Link key={item.href} href={item.href}
+            className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 hover:border-[var(--ocaq-red)] hover:shadow-sm transition-all text-sm font-medium text-slate-700 hover:text-[var(--ocaq-red)]">
+            <span className="text-lg">{item.icon}</span>
+            {item.title}
+          </Link>
         ))}
       </div>
     </div>
