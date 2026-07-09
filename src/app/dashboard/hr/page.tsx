@@ -1,13 +1,13 @@
 import Link from "next/link";
 
 const HR_MODULES = [
-  { href: "/admin/personel/yeni", icon: "📝", title: "İşə Qəbul", desc: "Yeni əməkdaş müraciət anketi + sənəd yığma", badge: "F02/F03" },
+  { href: "/dashboard/staff", icon: "📝", title: "İşə Qəbul", desc: "Yeni əməkdaş müraciət anketi + sənəd yığma", badge: "F02/F03" },
   { href: "/dashboard/hr/oryentasiya", icon: "🎓", title: "Oryantasiya (3 gün)", desc: "Yeni işçi təlim checklist-i — şirkət, HACCP, avadanlıq", badge: "F08-F09" },
   { href: "/dashboard/hr/sinaq", icon: "📊", title: "Sınaq Müddəti", desc: "3 aylıq dəyərləndirmə (1/2/3 ay) — 10 meyar, 50 bal", badge: "F13" },
   { href: "/dashboard/hr/sanitar", icon: "🏥", title: "Sanitar Kitabça Takibi", desc: "Tibbi müayinə, kitabça müddəti, xatırlatma sistemi", badge: "F14" },
   { href: "/dashboard/hr/mezuniyyet", icon: "🏖️", title: "Məzuniyyət / İcazə", desc: "İllik məzuniyyət, əvəz edən şəxs, qalıq gün", badge: "F07" },
   { href: "/dashboard/haccp", icon: "🛡️", title: "HACCP Təlim Qeydiyyatı", desc: "Food Safety təlim, 10 suallıq test, imza", badge: "F15" },
-  { href: "/dashboard/komanda", icon: "👥", title: "Komanda", desc: "Personel siyahısı, online status, əlaqə", badge: "" },
+  { href: "/dashboard/staff", icon: "👥", title: "Komanda", desc: "Personel siyahısı, online status, əlaqə", badge: "" },
 ];
 
 export default function HRPage() {

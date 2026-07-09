@@ -35,13 +35,15 @@ export default async function StaffPage() {
 
   const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
 
-  const [branchesRes, staffRes] = await Promise.all([
+  const [branchesRes, staffRes, regionsRes] = await Promise.all([
     fetch(`${baseUrl}/api/branches`, { headers: { cookie }, cache: 'no-store' }),
     fetch(`${baseUrl}/api/staff`, { headers: { cookie }, cache: 'no-store' }),
+    fetch(`${baseUrl}/api/regions`, { headers: { cookie }, cache: 'no-store' }),
   ])
 
   const branches: Branch[] = branchesRes.ok ? await branchesRes.json() : []
   const staffList: Staff[] = staffRes.ok ? await staffRes.json() : []
+  const regionsList: any[] = regionsRes.ok ? await regionsRes.json() : []
 
   return (
     <div>
@@ -83,6 +85,7 @@ export default async function StaffPage() {
       <StaffList
         staff={staffList}
         branches={branches}
+        regions={regionsList}
         userRole={session.user.role}
       />
     </div>

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(npx next:*)",
+      "Read(//e/USB Drive/DKagency/PROJELER/Turan Qastro Turizm/eğitim modulleri/garson//**)",
+      "Read(//e/USB Drive/DKagency/PROJELER/Turan Qastro Turizm/eğitim modulleri/garson/**)",
+      "Bash(pip install:*)",
+      "Bash(ls -1 *.md)",
+      "Bash(ls -la *.md)",
+      "Bash(python:*)"
+    ]
+  }
+}

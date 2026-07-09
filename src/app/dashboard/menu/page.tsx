@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 const MENU_ITEMS = [
@@ -19,12 +21,12 @@ export default function MenuPage() {
             {MENU_ITEMS.filter((i) => i.active).length} aktiv məhsul
           </p>
         </div>
-        <Link
-          href="/admin/menu/yeni"
-          className="px-4 py-2 bg-[var(--ocaq-red)] text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity"
+        <button
+          onClick={() => alert("Yeni məhsul əlavə etmək funksionallığı tezliklə aktivləşəcək")}
+          className="px-4 py-2 bg-[var(--ocaq-red)] text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
         >
           + Yeni Məhsul
-        </Link>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

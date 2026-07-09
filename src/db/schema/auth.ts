@@ -1,6 +1,8 @@
 import {
   pgTable, uuid, text, timestamp, boolean, pgEnum,
 } from 'drizzle-orm/pg-core'
+import { regions } from './regions'
+import { branches } from './branches'
 
 // ─── Rollər ───────────────────────────────────────────────────────────────────
 export const roleEnum = pgEnum('role', [
@@ -43,9 +45,10 @@ export const invitations = pgTable('invitations', {
   tenant_id:   uuid('tenant_id').notNull().references(() => tenants.id),
   email:       text('email').notNull(),
   role:        roleEnum('role').notNull().default('staff'),
-  branch_id:   uuid('branch_id'),                   // Filial atanması (branch_manager üçün)
   token:       text('token').notNull().unique(),    // crypto.randomBytes(32)
   invited_by:  uuid('invited_by').references(() => users.id),
+  region_id:   uuid('region_id').references(() => regions.id),
+  branch_id:   uuid('branch_id').references(() => branches.id),
   expires_at:  timestamp('expires_at').notNull(),   // +48 saat
   accepted_at: timestamp('accepted_at'),
   created_at:  timestamp('created_at').notNull().defaultNow(),

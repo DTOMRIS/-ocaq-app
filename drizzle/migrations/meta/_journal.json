@@ -15,6 +15,13 @@
       "when": 1783103711742,
       "tag": "0001_cold_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783534691715,
+      "tag": "0002_polite_songbird",
+      "breakpoints": true
     }
   ]
 }

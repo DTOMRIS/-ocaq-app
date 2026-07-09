@@ -7,7 +7,7 @@ import { WelcomeEmail } from '@/emails/WelcomeEmail'
 import { ChecklistReminderEmail } from '@/emails/ChecklistReminderEmail'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM   = 'OCAQ <noreply@ocaq.app>'
+const FROM   = process.env.SENDER_EMAIL ?? 'OCAQ <noreply@ocaq.app>'
 const BASE   = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
 
 // ─── Hoş Gəldiniz maili ──────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ export async function sendChecklistReminderEmail({
       deadline,
       delayDuration,
       responsible,
-      ocaqUrl: `${BASE}/dashboard/checklists`,
+      ocaqUrl: `${BASE}/dashboard/vardiya-checklist`,
     })
   )
 
