@@ -72,10 +72,27 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Bölgə ID tələb olunur' }, { status: 400 })
   }
 
+  // region_manager yalnız ÖZ bölgəsini dəyişə bilər (başqasını ələ keçirə bilməz)
+  if (role === 'region_manager') {
+    const [own] = await db
+      .select({ id: regions.id })
+      .from(regions)
+      .where(and(
+        eq(regions.id, id),
+        eq(regions.tenant_id, session.user.tenant_id),
+        eq(regions.manager_id, session.user.id),
+      ))
+      .limit(1)
+    if (!own) {
+      return NextResponse.json({ error: 'Bu bölgə sizə aid deyil' }, { status: 403 })
+    }
+  }
+
   const updates: Record<string, unknown> = { updated_at: new Date() }
   if (name !== undefined) updates.name = name.trim()
-  if (manager_id !== undefined) updates.manager_id = manager_id || null
   if (is_active !== undefined) updates.is_active = is_active
+  // manager_id dəyişməsi (bölgə sahibliyi) yalnız super_admin
+  if (manager_id !== undefined && role === 'super_admin') updates.manager_id = manager_id || null
 
   const [updated] = await db
     .update(regions)
