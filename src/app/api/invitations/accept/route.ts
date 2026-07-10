@@ -90,12 +90,17 @@ export async function POST(req: NextRequest) {
       .where(eq(branches.id, invite.branch_id))
   }
 
-  // Hoş gəldiniz maili göndər 🎉
-  await sendWelcomeEmail({
-    email: invite.email,
-    name,
-    role: invite.role,
-  })
+  // Hoş gəldiniz maili göndər 🎉 — mail xətası qeydiyyatı POZMAMALI
+  // (istifadəçi artıq yaradıldı; mail throw etsə belə uğurlu cavab qaytar)
+  try {
+    await sendWelcomeEmail({
+      email: invite.email,
+      name,
+      role: invite.role,
+    })
+  } catch (mailErr) {
+    console.error('Welcome mail göndərilmədi (qeydiyyat uğurlu):', mailErr)
+  }
 
   // Audit log yaz
   try {
