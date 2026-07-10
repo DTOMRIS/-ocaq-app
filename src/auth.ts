@@ -65,9 +65,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       if (token) {
-        // Active session revocation check: verify user is still active in database
+        // Active session revocation + rol/tenant-i DB-dən TƏZƏ oxu
+        // (JWT-dəki köhnə rola güvənmə — icazə dəyişikliyi dərhal təsir etsin)
         const [dbUser] = await db
-          .select({ is_active: users.is_active })
+          .select({ is_active: users.is_active, role: users.role, tenant_id: users.tenant_id })
           .from(users)
           .where(eq(users.id, token.id as string))
           .limit(1)
@@ -78,8 +79,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         session.user.id        = token.id as string
-        session.user.role      = token.role as string
-        session.user.tenant_id = token.tenant_id as string
+        session.user.role      = dbUser.role
+        session.user.tenant_id = dbUser.tenant_id
       }
       return session
     },
