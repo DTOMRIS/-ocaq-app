@@ -42,7 +42,11 @@ export async function accessibleRegionIds(user: ScopedUser): Promise<string[]> {
 export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
   if (user.role === 'super_admin') {
     const rows = await db.select({ id: branches.id }).from(branches)
-      .where(eq(branches.tenant_id, user.tenant_id))
+      .where(and(
+        eq(branches.tenant_id, user.tenant_id),
+        eq(branches.is_active, true),
+        eq(branches.is_archived, false),
+      ))
     return rows.map(row => row.id)
   }
 
@@ -53,6 +57,8 @@ export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
       .where(and(
         eq(branches.tenant_id, user.tenant_id),
         inArray(branches.region_id, regionIds),
+        eq(branches.is_active, true),
+        eq(branches.is_archived, false),
       ))
     return rows.map(row => row.id)
   }
@@ -62,6 +68,8 @@ export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
       .where(and(
         eq(branches.tenant_id, user.tenant_id),
         eq(branches.manager_id, user.id),
+        eq(branches.is_active, true),
+        eq(branches.is_archived, false),
       ))
     return rows.map(row => row.id)
   }
@@ -115,6 +123,8 @@ export async function canAccessUser(actor: ScopedUser, targetUserId: string) {
       eq(branches.tenant_id, actor.tenant_id),
       eq(branches.manager_id, targetUserId),
       inArray(branches.id, branchIds),
+      eq(branches.is_active, true),
+      eq(branches.is_archived, false),
     )).limit(1),
   ])
   if (profile[0] || managedBranch[0]) return true

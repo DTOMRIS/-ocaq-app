@@ -13,7 +13,9 @@ const PERMISSIONS: Record<Role, string[]> = {
     'complaint.view.branch', 'complaint.create', 'complaint.update.branch',
     'sales.view.branch', 'sales.entry.create',
   ],
-  staff:          ['checklist.run.self', 'profile.edit.self', 'complaint.create'],
+  // İşçi OCAQ əməliyyat modullarından istifadə etmir; ayrıca təlim portalına
+  // yönləndirilir. Operativ icazə əlavə etmək kanonik rol qərarını pozar.
+  staff:          [],
 }
 
 export function can(role: Role, permission: string): boolean {

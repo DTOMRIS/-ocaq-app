@@ -154,7 +154,7 @@ export default function RegionsClient({ regions: rawRegions, managers, branches,
                     {r.manager_name ? `Müdür: ${r.manager_name}` : 'Müdür təyin edilməyib'}
                   </p>
                 </div>
-                {(isSuperAdmin || true) && (
+                {isSuperAdmin && (
                   <button onClick={() => startEdit(r)} style={{
                     padding: '6px 12px', fontSize: '12px', border: '1px solid #e0e0e0',
                     borderRadius: '6px', background: '#fff', color: '#555', cursor: 'pointer',

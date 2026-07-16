@@ -12,7 +12,7 @@
 - ⚠️ Guardrail **yoxdur**: birbaşa main-ə merge, CI qapısı yox, staging yox.
 - ⚠️ Məlumat prod-a **ad-hoc skript**lə girildi (versiyasız).
 - ⚠️ Davət maili sınıq (Resend domain doğrulanmayıb) və **xəta udulur**.
-- ⚠️ RBAC var amma staff landing hamı ilə eynidir.
+- ✅ Staff OCAQ əməliyyatından ayrılıb; yalnız ayrıca təlim portalına yönləndirilir.
 
 ---
 
@@ -46,7 +46,7 @@
 
 ## Faz 3 — Məhsul yetkinliyi
 
-- [ ] **RBAC bərkitmə**: staff üçün sadə landing (yalnız checklist + öz şikayəti);
+- [ ] **RBAC bərkitmə**: staff üçün yalnız ayrıca təlim portalına keçid;
       hər endpoint-də rol yoxlaması (təkcə menyu gizlətmə yox).
 - [ ] **Hesabat modulu real məlumatdan**: `/dashboard/reports` hazırda sabit
       məlumatla işləyir — satış DB-sinə bağla (əl girişi qalxsın).
@@ -65,7 +65,7 @@ Aşağıdakı matris təsdiqlənməlidir (Faz 3 girişi):
 | super_admin | hər şey | hər şey |
 | region_manager | öz bölgəsinin filialları, satış, hesabat | davet, hədəf təyini |
 | branch_manager | öz filialı | gündəlik satış, checklist |
-| staff | öz checklist-i, öz şikayəti | checklist doldur |
+| staff | ayrıca TQTA təlim portalına keçid | OCAQ əməliyyatında iştirak etmir |
 
 > Bu matris kod ilə **hər səhifə/endpoint-də** icra olunmalıdır.
 

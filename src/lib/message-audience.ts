@@ -3,7 +3,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema/auth'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
-import { staff_profiles } from '@/db/schema/staff'
+import { OPERATIONAL_ROLES } from '@/lib/operational-roles'
 
 export type AudienceKind = 'all' | 'role' | 'region' | 'branch' | 'selected'
 
@@ -21,6 +21,7 @@ export async function accessibleBranchIds(actor: Actor): Promise<string[]> {
   if (actor.role === 'super_admin') {
     const rows = await db.select({ id: branches.id }).from(branches).where(and(
       eq(branches.tenant_id, actor.tenant_id),
+      eq(branches.is_active, true),
       eq(branches.is_archived, false),
     ))
     return rows.map((row) => row.id)
@@ -30,6 +31,7 @@ export async function accessibleBranchIds(actor: Actor): Promise<string[]> {
     const rows = await db.select({ id: branches.id }).from(branches).where(and(
       eq(branches.tenant_id, actor.tenant_id),
       eq(branches.manager_id, actor.id),
+      eq(branches.is_active, true),
       eq(branches.is_archived, false),
     ))
     return rows.map((row) => row.id)
@@ -43,6 +45,7 @@ export async function accessibleBranchIds(actor: Actor): Promise<string[]> {
   const rows = await db.select({ id: branches.id }).from(branches).where(and(
     eq(branches.tenant_id, actor.tenant_id),
     inArray(branches.region_id, managedRegions.map((region) => region.id)),
+    eq(branches.is_active, true),
     eq(branches.is_archived, false),
   ))
   return rows.map((row) => row.id)
@@ -54,6 +57,7 @@ export async function resolveAudience(actor: Actor, selection: AudienceSelection
   const activeTenantUsers = await db.select({ id: users.id }).from(users).where(and(
     eq(users.tenant_id, actor.tenant_id),
     eq(users.is_active, true),
+    inArray(users.role, OPERATIONAL_ROLES),
   ))
   const tenantUserIds = new Set(activeTenantUsers.map((user) => user.id))
 
@@ -63,8 +67,7 @@ export async function resolveAudience(actor: Actor, selection: AudienceSelection
   }
 
   if (selection.kind === 'role') {
-    const allowedRoles = ['super_admin', 'region_manager', 'branch_manager', 'staff'] as const
-    const role = allowedRoles.find((item) => item === selection.value)
+    const role = OPERATIONAL_ROLES.find((item) => item === selection.value)
     if (!role) throw new Error('INVALID_AUDIENCE')
     if (actor.role !== 'super_admin') throw new Error('FORBIDDEN')
     const rows = await db.select({ id: users.id }).from(users).where(and(
@@ -78,15 +81,7 @@ export async function resolveAudience(actor: Actor, selection: AudienceSelection
   const allowedBranches = new Set(await accessibleBranchIds(actor))
   if (selection.kind === 'branch') {
     if (!selection.value || !allowedBranches.has(selection.value)) throw new Error('FORBIDDEN')
-    const rows = await db.select({ user_id: staff_profiles.user_id }).from(staff_profiles).innerJoin(
-      users,
-      and(eq(users.id, staff_profiles.user_id), eq(users.is_active, true)),
-    ).where(and(
-      eq(staff_profiles.tenant_id, actor.tenant_id),
-      eq(staff_profiles.branch_id, selection.value),
-      eq(staff_profiles.is_archived, false),
-    ))
-    return [...new Set(rows.map((row) => row.user_id))]
+    return managerIdsForBranches(actor.tenant_id, [selection.value])
   }
 
   if (selection.kind === 'region') {
@@ -102,28 +97,46 @@ export async function resolveAudience(actor: Actor, selection: AudienceSelection
     const scopedBranches = await db.select({ id: branches.id }).from(branches).where(and(
       eq(branches.tenant_id, actor.tenant_id),
       eq(branches.region_id, selection.value),
+      eq(branches.is_active, true),
       eq(branches.is_archived, false),
     ))
-    if (!scopedBranches.length) return []
-    const rows = await db.select({ user_id: staff_profiles.user_id }).from(staff_profiles).innerJoin(
-      users,
-      and(eq(users.id, staff_profiles.user_id), eq(users.is_active, true)),
-    ).where(and(
-      eq(staff_profiles.tenant_id, actor.tenant_id),
-      inArray(staff_profiles.branch_id, scopedBranches.map((branch) => branch.id)),
-      eq(staff_profiles.is_archived, false),
-    ))
-    return [...new Set(rows.map((row) => row.user_id))]
+    const branchManagerIds = scopedBranches.length
+      ? await managerIdsForBranches(actor.tenant_id, scopedBranches.map((branch) => branch.id))
+      : []
+    const [region] = await db.select({ manager_id: regions.manager_id }).from(regions).where(and(
+      eq(regions.id, selection.value),
+      eq(regions.tenant_id, actor.tenant_id),
+      eq(regions.is_active, true),
+    )).limit(1)
+    return [...new Set([
+      ...branchManagerIds,
+      ...(region?.manager_id && tenantUserIds.has(region.manager_id) ? [region.manager_id] : []),
+    ])]
   }
 
   const requested = [...new Set(selection.user_ids ?? [])].filter((id) => tenantUserIds.has(id))
   if (actor.role === 'super_admin') return requested
   if (!requested.length || !allowedBranches.size) return []
-  const scoped = await db.select({ user_id: staff_profiles.user_id }).from(staff_profiles).where(and(
-    eq(staff_profiles.tenant_id, actor.tenant_id),
-    inArray(staff_profiles.branch_id, [...allowedBranches]),
-    inArray(staff_profiles.user_id, requested),
-    eq(staff_profiles.is_archived, false),
+  const scopedManagerIds = new Set(await managerIdsForBranches(actor.tenant_id, [...allowedBranches]))
+  scopedManagerIds.add(actor.id)
+  return requested.filter((id) => scopedManagerIds.has(id))
+}
+
+async function managerIdsForBranches(tenantId: string, branchIds: string[]) {
+  if (!branchIds.length) return []
+  const rows = await db.select({ manager_id: branches.manager_id }).from(branches).innerJoin(
+    users,
+    and(
+      eq(users.id, branches.manager_id),
+      eq(users.tenant_id, tenantId),
+      eq(users.is_active, true),
+      eq(users.role, 'branch_manager'),
+    ),
+  ).where(and(
+    eq(branches.tenant_id, tenantId),
+    inArray(branches.id, branchIds),
+    eq(branches.is_active, true),
+    eq(branches.is_archived, false),
   ))
-  return [...new Set(scoped.map((row) => row.user_id))]
+  return [...new Set(rows.flatMap((row) => row.manager_id ? [row.manager_id] : []))]
 }

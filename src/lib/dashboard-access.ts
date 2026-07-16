@@ -8,6 +8,15 @@ const LEGACY_MOCK_ROUTES = [
   '/dashboard/promosyonlar',
 ] as const
 
+const LEGACY_ADMIN_REDIRECTS: Array<{ route: string; destination: string }> = [
+  { route: '/admin/filiallar', destination: '/dashboard/branches' },
+  { route: '/admin/personel', destination: '/dashboard/staff' },
+  { route: '/admin/ayarlar', destination: '/dashboard/settings' },
+  { route: '/admin/ekipman', destination: '/dashboard' },
+  { route: '/admin/menu', destination: '/dashboard' },
+  { route: '/admin/promosyonlar', destination: '/dashboard' },
+]
+
 export function isLegacyMockRoute(pathname: string) {
   return LEGACY_MOCK_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
@@ -15,6 +24,11 @@ export function isLegacyMockRoute(pathname: string) {
 }
 
 export function dashboardRedirectForRole(role: string, pathname: string) {
+  const legacyAdmin = LEGACY_ADMIN_REDIRECTS.find(
+    ({ route }) => pathname === route || pathname.startsWith(`${route}/`),
+  )
+  if (legacyAdmin) return legacyAdmin.destination
+
   if (isLegacyMockRoute(pathname)) return '/dashboard'
 
   // Əməkdaş OCAQ əməliyyat modullarından istifadə etmir. Yalnız təlim
