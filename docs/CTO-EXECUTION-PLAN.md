@@ -1,7 +1,7 @@
 # OCAQ CTO Yürütme Planı
 
 Tarih: 16 Temmuz 2026  
-Durum: yürürlükte  
+Durum: yürürlükte — Etap 0 ve Etap 1 tamamlandı; sıradaki uygulama kapısı Etap 2.
 Kaynak: kullanıcı görüşmeleri, kod denetimi, ADR-024 ve `PRODUCT-COMPLETION-CONTRACT.md`
 
 ## 1. Çalışma yöntemi
@@ -71,6 +71,9 @@ Ekip ve gelecek agentler için tek ürün gerçeği oluşturmak; çelişkili rol
 
 ## Etap 1 — Yetki ve yaşam döngüsü tutarlılığı
 
+Durum: **tamamlandı**. Kod/otomatik kontroller ve izole Preview authenticated
+kabulü geçti. Kanıt: `docs/ETAP-1-RESULT.md`.
+
 ### Amaç
 
 Gizli menü ile gerçek API yetkisinin aynı olması; arşivli/deaktif kayıtların operasyona sızmaması; legacy sayfaların yanlış gerçeklik göstermemesi.
@@ -111,6 +114,9 @@ Gizli menü ile gerçek API yetkisinin aynı olması; arşivli/deaktif kayıtlar
 - Tek commit; şema değişikliği yok; önceki commit'e kod rollback mümkündür.
 
 ## Etap 2 — Filial yaşam döngüsü
+
+Durum: **planlandı, uygulama başlangıcına hazır**. Uygulama ve kabul ayrıntısı:
+`docs/ETAP-2-PLAN.md`.
 
 ### Amaç
 
@@ -358,4 +364,3 @@ Her etap sonunda aşağıdaki format zorunludur:
 - Production etkisi
 - Rollback yolu
 - Sonraki etaba geçiş kararı
-

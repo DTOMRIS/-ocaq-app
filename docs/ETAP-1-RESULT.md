@@ -1,7 +1,7 @@
 # Etap 1 Sonuç Raporu
 
 Tarih: 16 Temmuz 2026  
-Durum: kod ve otomatik doğrulama tamamlandı; authenticated Preview rol kabulü bekliyor.
+Durum: tamamlandı.
 
 ## Amaç
 
@@ -30,9 +30,10 @@ Yetki, route, filial durumu ve operasyon alıcısı kararlarını kanonik rol ka
 
 NO NAME diski `.next` klasörü oluşturmasına izin vermediği için build aynı kaynak ağacının `/private/tmp` içindeki temiz kopyasında, temiz `npm ci` bağımlılıklarıyla çalıştırıldı. Build için yalnız sahte ve bağlantı kurmayan placeholder ortam değerleri kullanıldı; Production credential veya veri kullanılmadı.
 
-## Açık kabul kapısı
+## Authenticated Preview kabulü
 
-Preview dağıtımı sonrası aşağıdaki authenticated kontroller yapılmadan Etap 1 bütünüyle kapalı sayılmaz:
+16 Temmuz 2026 tarihinde izole Neon `preview-codex` dalında dört geçici
+hesapla gerçek oturum kabulü çalıştırıldı:
 
 - Staff legacy/dashboard operasyon URL'lerinden eğitim landing'ine döner.
 - Bölge müdürü başka bölgeye erişemez ve bölge düzenleme düğmesini görmez.
@@ -40,16 +41,26 @@ Preview dağıtımı sonrası aşağıdaki authenticated kontroller yapılmadan 
 - Arşivli/deaktif filial doğrudan API ile vardiya/KXT/bildirim kapsamına giremez.
 - Bildirim alıcı önizlemesinde staff görünmez.
 
-### 16 Temmuz doğrulama notu
+Sonuç: **56/56 kontrol geçti**.
 
-Preview deployment `Ready` durumuna ulaştı. In-app browser ile authenticated
-rol kabulü denenirken Preview aliası kurumsal ağ politikası tarafından engellendi.
-Başka tarayıcı veya koruma aşma yöntemi kullanılmadı. Bu nedenle aşağıdaki
-otomatik kanıtlar geçerli olmakla birlikte dört gerçek oturum kabulü hâlâ açıktır.
+- İlk koşuda deaktif filial denemesi eksik payload nedeniyle kapsam kontrolünden
+  önce `400` aldı. Test geçerli tarih ve növbə alanlarıyla düzeltildi.
+- Son koşuda deaktif ve arşivli filialın vardiya yazma girişimleri `403` aldı.
+- Staff operasyon route'ları dashboard eğitim landing'ine döndü ve bildirim
+  alıcı API'si `403` verdi.
+- Super admin alıcı önizlemesinde yalnız üç operasyon rolü ve üç geçici yönetici
+  hesabı yer aldı; staff yer almadı.
+- Bölge ve filial müdürü yalnız aktif, arşivlenmemiş test filialını gördü.
+- Legacy admin URL'leri kanonik dashboard URL'lerine yönlendi.
+
+Her koşu zorunlu temizleme bloğuyla bitti. Son başarılı koşuda dört geçici hesap
+pasifleştirildi, üç test filialı arşivlendi ve test tenantı pasifleştirildi. İlk
+koşunun geçici kayıtları da aynı şekilde temizlendi. Test parolaları veya bağlantı
+değerleri dosyaya, rapora ya da terminal çıktısına yazılmadı.
 
 ## Production etkisi
 
-Yok. Production deploy veya migration yapılmadı.
+Yok. Production deploy, veri yazımı veya migration yapılmadı.
 
 ## Rollback
 
