@@ -11,20 +11,19 @@ const NAV = [
   { href: '/dashboard/kasa',       icon: '💰', label: 'Kasa',         roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/fire',       icon: '🔥', label: 'Fire / İtki',  roles: ['super_admin', 'region_manager', 'branch_manager'] },
   // ── Yoxlama & Təhlükəsizlik ──
-  { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT yoxlama',  roles: ['*'] },
+  { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT yoxlama',  roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/vardiya-liderliyi', icon: '◆', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/checklists', icon: '📋', label: 'Checklistlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/haccp',      icon: '🛡️', label: 'Qida təhlükəsizliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   // ── Əməliyyat ──
   { href: '/dashboard/ekipman',    icon: '🔧', label: 'Avadanlıq',    roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/logbook',    icon: '📓', label: 'Logbook',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/takvim',     icon: '📅', label: 'Təqvim',       roles: ['super_admin', 'region_manager', 'branch_manager'] },
   // ── Komanda & HR ──
-  { href: '/dashboard/komanda',    icon: '👥', label: 'Komanda',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/team',       icon: '👥', label: 'Komanda',      roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/staff',      icon: '⊙', label: 'Personel',     roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/hr',         icon: '👤', label: 'HR / KXT',      roles: ['super_admin', 'region_manager', 'branch_manager'] },
   // ── Şikayət & Bildiriş ──
   { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayətlər',   roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
-  { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
   // ── Admin ──
   { href: '/dashboard/branches',   icon: '🏪', label: 'Filiallar',    roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/regions',    icon: '◉', label: 'Bölgələr',     roles: ['super_admin', 'region_manager'] },
@@ -33,7 +32,7 @@ const NAV = [
 ]
 
 
-export default function Sidebar({ role }: { role: string }) {
+export default function Sidebar({ role, onNavigate }: { role: string; onNavigate?: () => void }) {
   const path = usePathname()
 
   const visible = NAV.filter(n =>
@@ -69,7 +68,7 @@ export default function Sidebar({ role }: { role: string }) {
           const active = path === item.href ||
             (item.href !== '/dashboard' && path.startsWith(item.href))
           return (
-            <Link key={item.href} href={item.href} style={{
+            <Link key={item.href} href={item.href} onClick={onNavigate} style={{
               display: 'flex', alignItems: 'center', gap: '10px',
               padding: '9px 10px', borderRadius: '6px', marginBottom: '2px',
               textDecoration: 'none',

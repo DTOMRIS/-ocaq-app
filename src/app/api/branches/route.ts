@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import { branches } from '@/db/schema/branches'
-import { regions } from '@/db/schema/regions'
 import { eq, and, inArray } from 'drizzle-orm'
+import { accessibleBranchIds } from '@/lib/branch-access'
+import { regions } from '@/db/schema/regions'
 
 // GET — filial listini al
 export async function GET() {
@@ -16,27 +17,29 @@ export async function GET() {
     eq(branches.is_archived, false),
   ]
 
-  // Region manager yalnız öz bölgəsinin filiallarını görə bilər
-  if (role === 'region_manager') {
-    const myRegions = await db
-      .select({ id: regions.id })
-      .from(regions)
-      .where(and(
-        eq(regions.tenant_id, session.user.tenant_id),
-        eq(regions.manager_id, session.user.id),
-      ))
-    
-    if (myRegions.length === 0) {
-      return NextResponse.json([])
-    }
-    
-    const regionIds = myRegions.map(r => r.id)
-    conditions.push(inArray(branches.region_id, regionIds))
+  if (role !== 'super_admin') {
+    const branchIds = await accessibleBranchIds(session.user)
+    if (branchIds.length === 0) return NextResponse.json([])
+    conditions.push(inArray(branches.id, branchIds))
   }
 
-  const list = await db
-    .select()
-    .from(branches)
+  const query = role === 'super_admin'
+    ? db.select().from(branches)
+    : db.select({
+        id: branches.id,
+        region_id: branches.region_id,
+        code: branches.code,
+        name: branches.name,
+        city: branches.city,
+        address: branches.address,
+        phone: branches.phone,
+        manager_id: branches.manager_id,
+        open_time: branches.open_time,
+        close_time: branches.close_time,
+        is_active: branches.is_active,
+      }).from(branches)
+
+  const list = await query
     .where(and(...conditions))
     .orderBy(branches.code)
 
@@ -58,6 +61,16 @@ export async function POST(req: NextRequest) {
 
   if (!code || !name) {
     return NextResponse.json({ error: 'Kod və ad tələb olunur' }, { status: 400 })
+  }
+
+  if (region_id) {
+    const [region] = await db.select({ id: regions.id }).from(regions)
+      .where(and(
+        eq(regions.id, region_id),
+        eq(regions.tenant_id, session.user.tenant_id),
+      ))
+      .limit(1)
+    if (!region) return NextResponse.json({ error: 'Bölgə tapılmadı' }, { status: 400 })
   }
 
   const [branch] = await db

@@ -21,10 +21,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
+        const email = String(credentials.email).trim().toLowerCase()
+
         const [user] = await db
           .select()
           .from(users)
-          .where(eq(users.email, credentials.email as string))
+          .where(eq(users.email, email))
           .limit(1)
 
         if (!user || !user.password_hash) return null
@@ -49,6 +51,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name:      user.name,
           role:      user.role,
           tenant_id: user.tenant_id,
+          session_version: user.updated_at.toISOString(),
         }
       },
     }),
@@ -60,6 +63,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id        = user.id as string
         token.role      = (user as Record<string, unknown>).role as string
         token.tenant_id = (user as Record<string, unknown>).tenant_id as string
+        token.session_version = (user as Record<string, unknown>).session_version as string
+      } else if (token.id && !token.session_version) {
+        // Deploydən əvvəl yaradılmış JWT-ləri cari DB versiyası ilə möhürlə.
+        const [dbUser] = await db.select({ updated_at: users.updated_at }).from(users)
+          .where(eq(users.id, token.id as string)).limit(1)
+        token.session_version = dbUser?.updated_at.toISOString()
       }
       return token
     },
@@ -68,14 +77,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Active session revocation + rol/tenant-i DB-dən TƏZƏ oxu
         // (JWT-dəki köhnə rola güvənmə — icazə dəyişikliyi dərhal təsir etsin)
         const [dbUser] = await db
-          .select({ is_active: users.is_active, role: users.role, tenant_id: users.tenant_id })
+          .select({
+            is_active: users.is_active,
+            role: users.role,
+            tenant_id: users.tenant_id,
+            updated_at: users.updated_at,
+          })
           .from(users)
           .where(eq(users.id, token.id as string))
           .limit(1)
 
-        if (!dbUser || !dbUser.is_active) {
+        if (
+          !dbUser ||
+          !dbUser.is_active ||
+          dbUser.updated_at.toISOString() !== token.session_version
+        ) {
           // Force session logout by returning an empty session object
-          return null as any
+          return null as unknown as typeof session
         }
 
         session.user.id        = token.id as string

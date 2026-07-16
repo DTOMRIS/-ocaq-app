@@ -4,6 +4,7 @@ import { createAvatarUploadUrl } from '@/lib/r2'
 import { db } from '@/db'
 import { staff_profiles } from '@/db/schema/staff'
 import { eq, and } from 'drizzle-orm'
+import { canAccessBranch } from '@/lib/branch-access'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -15,9 +16,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'staffId tələb olunur' }, { status: 400 })
   }
 
+  if (!['super_admin', 'region_manager', 'branch_manager'].includes(session.user.role)) {
+    return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
+  }
+
   // Tenant yoxlaması — həmin staff bu tenant-a məxsusdurmu?
   const [profile] = await db
-    .select({ id: staff_profiles.id })
+    .select({ id: staff_profiles.id, branch_id: staff_profiles.branch_id })
     .from(staff_profiles)
     .where(
       and(
@@ -29,6 +34,10 @@ export async function POST(req: NextRequest) {
 
   if (!profile) {
     return NextResponse.json({ error: 'Tapılmadı' }, { status: 404 })
+  }
+
+  if (!await canAccessBranch(session.user, profile.branch_id)) {
+    return NextResponse.json({ error: 'Bu personal üçün icazəniz yoxdur' }, { status: 403 })
   }
 
   // Presigned URL yarat (400px + 150px)

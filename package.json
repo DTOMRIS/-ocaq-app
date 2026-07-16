@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "test": "node --import tsx --test tests/checklist-validation.test.ts",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",

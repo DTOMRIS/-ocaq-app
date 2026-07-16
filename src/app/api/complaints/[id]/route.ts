@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import { complaints } from '@/db/schema/complaints'
-import { branches } from '@/db/schema/branches'
 import { audit_logs } from '@/db/schema/auth'
 import { and, eq } from 'drizzle-orm'
+import { canAccessBranch, canAccessUser } from '@/lib/branch-access'
 
 const STATUSES = ['new', 'in_review', 'sent_to_branch', 'resolved', 'closed'] as const
 const PRIORITIES = ['low', 'normal', 'high', 'critical'] as const
@@ -25,11 +25,10 @@ export async function PATCH(
   const [existing] = await db
     .select({
       id: complaints.id,
-      branch_manager_id: branches.manager_id,
+      branch_id: complaints.branch_id,
       created_by: complaints.created_by,
     })
     .from(complaints)
-    .leftJoin(branches, eq(complaints.branch_id, branches.id))
     .where(
       and(
         eq(complaints.id, id),
@@ -40,15 +39,11 @@ export async function PATCH(
 
   if (!existing) return NextResponse.json({ error: 'Tapılmadı' }, { status: 404 })
 
-  if (
-    session.user.role === 'branch_manager' &&
-    existing.branch_manager_id !== session.user.id &&
-    existing.created_by !== session.user.id
-  ) {
+  if (session.user.role === 'staff') {
     return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   }
 
-  if (session.user.role === 'staff' && existing.created_by !== session.user.id) {
+  if (!await canAccessBranch(session.user, existing.branch_id)) {
     return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   }
 
@@ -60,30 +55,34 @@ export async function PATCH(
     if (body.status === 'resolved') updates.resolved_at = new Date()
     if (body.status === 'closed') updates.closed_at = new Date()
   }
-  if (isOneOf(PRIORITIES, body.priority)) updates.priority = body.priority
-  if (isOneOf(FAULTS, body.fault)) updates.fault = body.fault
+  if (session.user.role !== 'branch_manager' && isOneOf(PRIORITIES, body.priority)) {
+    updates.priority = body.priority
+  }
+  if (session.user.role !== 'branch_manager' && isOneOf(FAULTS, body.fault)) {
+    updates.fault = body.fault
+  }
 
-  for (const field of ['assigned_to', 'action_taken', 'resolution_note']) {
+  for (const field of ['action_taken', 'resolution_note']) {
     if (body[field] !== undefined) updates[field] = body[field] || null
+  }
+
+  if (body.assigned_to !== undefined && session.user.role !== 'branch_manager') {
+    if (body.assigned_to) {
+      if (!await canAccessUser(session.user, body.assigned_to)) {
+        return NextResponse.json({ error: 'Təyin edilən istifadəçi tapılmadı' }, { status: 400 })
+      }
+    }
+    updates.assigned_to = body.assigned_to || null
   }
 
   if (body.branch_id !== undefined) {
     if (session.user.role === 'branch_manager') {
-      const [branch] = await db
-        .select({ id: branches.id })
-        .from(branches)
-        .where(
-          and(
-            eq(branches.id, body.branch_id),
-            eq(branches.tenant_id, session.user.tenant_id),
-            eq(branches.manager_id, session.user.id),
-          ),
-        )
-        .limit(1)
-
-      if (!branch) return NextResponse.json({ error: 'Bu filial üçün icazəniz yoxdur' }, { status: 403 })
+      return NextResponse.json({ error: 'Filialı dəyişmək icazəniz yoxdur' }, { status: 403 })
     }
-    updates.branch_id = body.branch_id || null
+    if (!body.branch_id || !await canAccessBranch(session.user, body.branch_id)) {
+      return NextResponse.json({ error: 'Bu filial üçün icazəniz yoxdur' }, { status: 403 })
+    }
+    updates.branch_id = body.branch_id
   }
 
   await db.update(complaints).set(updates).where(eq(complaints.id, id))

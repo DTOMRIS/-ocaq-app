@@ -26,6 +26,11 @@ interface Branch {
   name: string
 }
 
+interface Region {
+  id: string
+  name: string
+}
+
 export default async function StaffPage() {
   const session = await auth()
   if (!session) redirect('/login')
@@ -43,7 +48,7 @@ export default async function StaffPage() {
 
   const branches: Branch[] = branchesRes.ok ? await branchesRes.json() : []
   const staffList: Staff[] = staffRes.ok ? await staffRes.json() : []
-  const regionsList: any[] = regionsRes.ok ? await regionsRes.json() : []
+  const regionsList: Region[] = regionsRes.ok ? await regionsRes.json() : []
 
   return (
     <div>

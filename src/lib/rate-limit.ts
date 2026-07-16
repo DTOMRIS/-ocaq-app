@@ -3,8 +3,10 @@ import { Redis } from '@upstash/redis'
 
 type LimitResult = Awaited<ReturnType<Ratelimit['limit']>>
 type SafeLimiter = {
-  limit: (identifier: string) => Promise<LimitResult | { success: true }>
+  limit: (identifier: string) => Promise<LimitResult | { success: boolean }>
 }
+
+const memoryWindows = new Map<string, { count: number; resetsAt: number }>()
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
@@ -20,13 +22,32 @@ const redis = hasRedisConfig
     })
   : null
 
-function createLimiter(prefix: string, requests: number, window: `${number} ${'m' | 'h'}`): SafeLimiter {
-  if (!redis) {
-    return {
-      async limit() {
+function createMemoryLimiter(prefix: string, requests: number, window: `${number} ${'m' | 'h'}`): SafeLimiter {
+  const [amount, unit] = window.split(' ') as [`${number}`, 'm' | 'h']
+  const windowMs = Number(amount) * (unit === 'h' ? 60 * 60_000 : 60_000)
+  return {
+    async limit(identifier: string) {
+      const now = Date.now()
+      const key = `${prefix}:${identifier}`
+      const current = memoryWindows.get(key)
+      if (!current || current.resetsAt <= now) {
+        memoryWindows.set(key, { count: 1, resetsAt: now + windowMs })
         return { success: true }
-      },
-    }
+      }
+      current.count += 1
+      return { success: current.count <= requests }
+    },
+  }
+}
+
+function createLimiter(
+  prefix: string,
+  requests: number,
+  window: `${number} ${'m' | 'h'}`,
+  failClosed = false,
+): SafeLimiter {
+  if (!redis) {
+    return createMemoryLimiter(prefix, requests, window)
   }
 
   const limiter = new Ratelimit({
@@ -40,7 +61,7 @@ function createLimiter(prefix: string, requests: number, window: `${number} ${'m
       try {
         return await limiter.limit(identifier)
       } catch {
-        return { success: true }
+        return { success: !failClosed }
       }
     },
   }
@@ -54,3 +75,6 @@ export const inviteRateLimit = createLimiter('ocaq:invite', 10, '1 h')
 
 // Şifrə sıfırla: 3 / saat
 export const resetRateLimit = createLimiter('ocaq:reset', 3, '1 h')
+
+// Checklist sübutu: hər istifadəçi üçün 20 foto / 15 dəqiqə
+export const checklistPhotoRateLimit = createLimiter('ocaq:checklist-photo', 20, '15 m', true)

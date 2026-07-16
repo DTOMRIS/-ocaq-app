@@ -6,9 +6,14 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail'
 import { WelcomeEmail } from '@/emails/WelcomeEmail'
 import { ChecklistReminderEmail } from '@/emails/ChecklistReminderEmail'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM   = process.env.SENDER_EMAIL ?? 'OCAQ <noreply@ocaq.app>'
 const BASE   = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+
+function getResend() {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) throw new Error('E-poçt xidməti qoşulmayıb')
+  return new Resend(apiKey)
+}
 
 // ─── Hoş Gəldiniz maili ──────────────────────────────────────────────────────
 export async function sendWelcomeEmail({
@@ -22,7 +27,7 @@ export async function sendWelcomeEmail({
     })
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: email,
     subject: `🔥 OCAQ-a xoş gəldiniz, ${name}!`,
@@ -58,7 +63,7 @@ export async function sendInvitationEmail({
     })
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: email,
     subject: `${inviterName} sizi OCAQ-a dəvət edir`,
@@ -76,7 +81,7 @@ export async function sendVerificationEmail({
     VerifyEmail({ name, verifyUrl })
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: email,
     subject: 'OCAQ — E-poçt adresinizi doğrulayın',
@@ -110,7 +115,7 @@ export async function sendPasswordResetEmail({
     })
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: email,
     subject: 'OCAQ — Şifrə sıfırlama',
@@ -140,7 +145,7 @@ export async function sendChecklistReminderEmail({
     })
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: email,
     subject: `⚠️ KXT yoxlaması gecikir — ${branchName}`,
@@ -163,7 +168,7 @@ export async function sendBulkEmail({
   }
 
   for (const chunk of chunks) {
-    await resend.batch.send(
+    await getResend().batch.send(
       chunk.map((email) => ({
         from: FROM,
         to: email,

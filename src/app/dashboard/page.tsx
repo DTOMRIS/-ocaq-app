@@ -4,24 +4,12 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
-import { staff_profiles } from '@/db/schema/staff'
 import { daily_sales, sales_targets } from '@/db/schema/sales'
 import { checklists } from '@/db/schema/checklists'
 import { eq, and, inArray, gte, lte } from 'drizzle-orm'
 
 // Verisi olmayan metrik üçün göstərici (mock yox, dürüst)
 const NA = '—'
-
-// Gələcəkdə DB-dən real data gələcək
-const TODAY = {
-  sales: { target: 2800, actual: 2145, yesterday: 2530 },
-  avgCheck: { value: 18.5, target: 22 },
-  covers: { value: 116, target: 140 },
-  transactions: { value: 89, peak: "12:30-13:30" },
-  labor: { pct: 28, target: 30, alert: false },
-  food: { pct: 31, target: 33, alert: false },
-  prime: { pct: 59, target: 63, alert: false },
-}
 
 const pctOf = (actual: number, target: number) =>
   target > 0 ? Math.round((actual / target) * 100) : 0
@@ -54,17 +42,17 @@ export default async function DashboardPage() {
           </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <a href="/dashboard/vardiya-checklist" style={{
+          <a href="/dashboard/bildirisler" style={{
             display: 'flex', alignItems: 'center', gap: '16px',
             background: 'linear-gradient(135deg, #1A1614 0%, #2A2422 100%)',
             color: '#fff', padding: '24px', borderRadius: '16px',
             textDecoration: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           }}>
-            <span style={{ fontSize: '32px', background: 'rgba(242,168,29,0.15)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📋</span>
+            <span style={{ fontSize: '32px', background: 'rgba(242,168,29,0.15)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🔔</span>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: '#F2A81D' }}>KXT Yoxlama Başla</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: '#F2A81D' }}>Bildirişlərim</h3>
               <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>
-                Açılış, kapanış və vardiya checklistlərini doldurun.
+                Müdürün göndərdiyi məlumat və tapşırıqları izləyin.
               </p>
             </div>
           </a>
@@ -88,33 +76,22 @@ export default async function DashboardPage() {
   }
 
   // 2. Admin & Manager üçün statistika yükləmə
-  let branchCount = 0
-  let staffCount = 0
-  let myBranchesList: any[] = []
+  type BranchSummary = { id: string; code: string; name: string; city: string; is_active: boolean }
+  let myBranchesList: BranchSummary[] = []
 
   try {
     if (role === 'super_admin') {
-      const allBranches = await db.select({ id: branches.id }).from(branches).where(eq(branches.is_archived, false))
-      branchCount = allBranches.length
-      const allStaff = await db.select({ id: staff_profiles.id }).from(staff_profiles).where(eq(staff_profiles.is_archived, false))
-      staffCount = allStaff.length
+      // Super admin satış və checklist sorğularında bütün tenant filiallarını görür.
     } else if (role === 'region_manager') {
       const managedRegions = await db.select({ id: regions.id }).from(regions).where(eq(regions.manager_id, session.user.id))
       if (managedRegions.length > 0) {
         const regionIds = managedRegions.map(r => r.id)
         const regBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active }).from(branches).where(and(eq(branches.is_archived, false), inArray(branches.region_id, regionIds)))
-        branchCount = regBranches.length
         myBranchesList = regBranches
       }
     } else if (role === 'branch_manager') {
       const myBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active }).from(branches).where(and(eq(branches.is_archived, false), eq(branches.manager_id, session.user.id)))
-      branchCount = myBranches.length
       myBranchesList = myBranches
-      const myBranchIds = myBranches.map(b => b.id)
-      if (myBranchIds.length > 0) {
-        const myStaff = await db.select({ id: staff_profiles.id }).from(staff_profiles).where(and(eq(staff_profiles.is_archived, false), inArray(staff_profiles.branch_id, myBranchIds)))
-        staffCount = myStaff.length
-      }
     }
   } catch (err) {
     console.error("Dashboard stats query error:", err)
@@ -169,10 +146,10 @@ export default async function DashboardPage() {
 
   const now2 = new Date()
   const dim = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate()
-  const dailyTarget = monthTarget > 0 ? Math.round(monthTarget / dim) : TODAY.sales.target
-  const salesActual = hasSalesData ? dayActual : TODAY.sales.actual
-  const salesTarget = hasSalesData ? dailyTarget : TODAY.sales.target
-  const salesYesterday = hasSalesData ? dayYesterday : TODAY.sales.yesterday
+  const dailyTarget = monthTarget > 0 ? Math.round(monthTarget / dim) : 0
+  const salesActual = dayActual
+  const salesTarget = dailyTarget
+  const salesYesterday = dayYesterday
 
   // ─── REAL checklist skoru (rol əhatəsinə görə) ───
   let checklistAvg: number | null = null
@@ -219,26 +196,28 @@ export default async function DashboardPage() {
       </div>
 
       {/* ═══ SATIŞ HƏDƏFİ — ana kart ═══ */}
-      <div className={`rounded-2xl border-2 p-5 mb-4 ${salesPct >= 100 ? "bg-emerald-50 border-emerald-200" : salesPct >= 75 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
+      <div className={`rounded-2xl border-2 p-5 mb-4 ${!hasSalesData ? "bg-white border-slate-200" : salesPct >= 100 ? "bg-emerald-50 border-emerald-200" : salesPct >= 75 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-slate-900">📊 Günlük Satış</h2>
-          <span className={`text-sm font-bold px-3 py-1 rounded-full ${salesPct >= 100 ? "bg-emerald-100 text-emerald-700" : salesPct >= 75 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
-            {salesPct}%
+          <span className={`text-sm font-bold px-3 py-1 rounded-full ${!hasSalesData ? "bg-slate-100 text-slate-500" : salesPct >= 100 ? "bg-emerald-100 text-emerald-700" : salesPct >= 75 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
+            {hasSalesData ? `${salesPct}%` : 'Məlumat yoxdur'}
           </span>
         </div>
         <div className="flex items-end gap-2 mb-2">
-          <span className="text-3xl font-bold text-slate-900">{salesActual.toLocaleString()} ₼</span>
-          <span className="text-sm text-slate-500 mb-1">/ {salesTarget.toLocaleString()} ₼ hədəf</span>
+          <span className={`text-3xl font-bold ${hasSalesData ? 'text-slate-900' : 'text-slate-300'}`}>{hasSalesData ? `${salesActual.toLocaleString()} ₼` : NA}</span>
+          {hasSalesData && <span className="text-sm text-slate-500 mb-1">/ {salesTarget.toLocaleString()} ₼ hədəf</span>}
         </div>
         <div className="h-3 bg-white/60 rounded-full overflow-hidden mb-2">
           <div className={`h-full rounded-full transition-all ${salesPct >= 100 ? "bg-emerald-500" : salesPct >= 75 ? "bg-amber-500" : "bg-red-500"}`}
-            style={{ width: `${Math.min(salesPct, 100)}%` }} />
+            style={{ width: `${hasSalesData ? Math.min(salesPct, 100) : 0}%` }} />
         </div>
         <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>Əvvəlki gün: {salesYesterday.toLocaleString()} ₼</span>
-          <span className={salesDiff >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
-            {salesDiff >= 0 ? "+" : ""}{salesDiff.toLocaleString()} ₼ fərq
-          </span>
+          {hasSalesData ? <>
+            <span>Əvvəlki gün: {salesYesterday.toLocaleString()} ₼</span>
+            <span className={salesDiff >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+              {salesDiff >= 0 ? "+" : ""}{salesDiff.toLocaleString()} ₼ fərq
+            </span>
+          </> : <span>Satış daxil edildikdə burada real nəticə görünəcək.</span>}
         </div>
       </div>
 
@@ -338,8 +317,7 @@ export default async function DashboardPage() {
           { href: "/dashboard/haccp", icon: "🛡️", title: "Food Safety" },
           { href: "/dashboard/kasa", icon: "💰", title: "Kasa" },
           { href: "/dashboard/ekipman", icon: "🔧", title: "Ekipman" },
-          { href: "/dashboard/logbook", icon: "📓", title: "Logbook" },
-          { href: "/dashboard/takvim", icon: "📅", title: "Təqvim" },
+          { href: "/dashboard/vardiya-liderliyi", icon: "◆", title: "Növbə liderliyi" },
           { href: "/dashboard/hr", icon: "📋", title: "HR" },
           { href: "/dashboard/bildirisler", icon: "🔔", title: "Bildirişlər" },
           { href: "/dashboard/fire", icon: "🔥", title: "Fire / İtki" },

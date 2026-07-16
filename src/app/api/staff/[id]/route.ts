@@ -3,11 +3,10 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { staff_profiles } from '@/db/schema/staff'
 import { users, audit_logs } from '@/db/schema/auth'
-import { branches } from '@/db/schema/branches'
-import { regions } from '@/db/schema/regions'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { encryptOrNull, decryptOrNull } from '@/lib/encryption'
 import { getAllFieldPerms } from '@/lib/permissions'
+import { canAccessBranch } from '@/lib/branch-access'
 
 // GET — tek personel profili (field permission ilə)
 export async function GET(
@@ -33,11 +32,16 @@ export async function GET(
     return NextResponse.json({ error: 'Tapılmadı' }, { status: 404 })
   }
 
+  const ownsProfile = profile.user_id === session.user.id
+  if (!ownsProfile && !await canAccessBranch(session.user, profile.branch_id)) {
+    return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
+  }
+
   // User məlumatı
   const [user] = await db
     .select({ name: users.name, email: users.email, role: users.role })
     .from(users)
-    .where(eq(users.id, profile.user_id))
+    .where(and(eq(users.id, profile.user_id), eq(users.tenant_id, session.user.tenant_id)))
     .limit(1)
 
   // Field permissions
@@ -106,31 +110,18 @@ export async function PATCH(
     return NextResponse.json({ error: 'Tapılmadı' }, { status: 404 })
   }
 
-  // Menecer yalnız öz əhatəsindəki personalı dəyişə bilər
-  if (role === 'region_manager' || role === 'branch_manager') {
-    let allowedBranchIds: string[] = []
-    if (role === 'region_manager') {
-      const myRegions = await db.select({ id: regions.id }).from(regions)
-        .where(and(eq(regions.tenant_id, session.user.tenant_id), eq(regions.manager_id, session.user.id)))
-      if (myRegions.length > 0) {
-        const bs = await db.select({ id: branches.id }).from(branches)
-          .where(and(eq(branches.tenant_id, session.user.tenant_id), inArray(branches.region_id, myRegions.map(r => r.id))))
-        allowedBranchIds = bs.map(b => b.id)
-      }
-    } else {
-      const bs = await db.select({ id: branches.id }).from(branches)
-        .where(and(eq(branches.tenant_id, session.user.tenant_id), eq(branches.manager_id, session.user.id)))
-      allowedBranchIds = bs.map(b => b.id)
-    }
-    if (!existing.branch_id || !allowedBranchIds.includes(existing.branch_id)) {
-      return NextResponse.json({ error: 'Bu personal sizin əhatənizdə deyil' }, { status: 403 })
-    }
+  if (!await canAccessBranch(session.user, existing.branch_id)) {
+    return NextResponse.json({ error: 'Bu personal sizin əhatənizdə deyil' }, { status: 403 })
   }
 
   const isPrivileged = role === 'super_admin' || role === 'region_manager'
 
   const body = await req.json()
   const updates: Record<string, unknown> = { updated_at: new Date() }
+
+  if (body.branch_id !== undefined && !await canAccessBranch(session.user, body.branch_id)) {
+    return NextResponse.json({ error: 'Yeni filial sizin əhatənizdə deyil' }, { status: 403 })
+  }
 
   // Həssas sahələr (maaş, FIN, IBAN, filial dəyişmə) — yalnız super_admin / region_manager
   if (isPrivileged) {

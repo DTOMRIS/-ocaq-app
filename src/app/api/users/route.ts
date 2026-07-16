@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import { users } from '@/db/schema/auth'
-import { eq, and } from 'drizzle-orm'
+import { staff_profiles } from '@/db/schema/staff'
+import { branches } from '@/db/schema/branches'
+import { eq, and, inArray } from 'drizzle-orm'
+import { accessibleBranchIds } from '@/lib/branch-access'
 
 // GET — istifadəçi listini al (role filter ilə)
 export async function GET(req: NextRequest) {
@@ -21,8 +24,40 @@ export async function GET(req: NextRequest) {
     eq(users.is_active, true),
   ]
 
+  const validRoles = ['super_admin', 'region_manager', 'branch_manager', 'staff'] as const
+  if (role && !validRoles.includes(role as typeof validRoles[number])) {
+    return NextResponse.json({ error: 'Yanlış rol' }, { status: 400 })
+  }
   if (role) {
     conditions.push(eq(users.role, role as 'super_admin' | 'region_manager' | 'branch_manager' | 'staff'))
+  }
+
+  if (session.user.role === 'region_manager') {
+    const branchIds = await accessibleBranchIds(session.user)
+    if (branchIds.length === 0) {
+      return NextResponse.json([])
+    }
+
+    const [profileRows, branchRows] = await Promise.all([
+      db.select({ user_id: staff_profiles.user_id }).from(staff_profiles)
+        .where(and(
+          eq(staff_profiles.tenant_id, session.user.tenant_id),
+          inArray(staff_profiles.branch_id, branchIds),
+          eq(staff_profiles.is_archived, false),
+        )),
+      db.select({ manager_id: branches.manager_id }).from(branches)
+        .where(and(
+          eq(branches.tenant_id, session.user.tenant_id),
+          inArray(branches.id, branchIds),
+        )),
+    ])
+
+    const userIds = [...new Set([
+      session.user.id,
+      ...profileRows.map(row => row.user_id),
+      ...branchRows.flatMap(row => row.manager_id ? [row.manager_id] : []),
+    ])]
+    conditions.push(inArray(users.id, userIds))
   }
 
   const list = await db

@@ -14,7 +14,7 @@ export default function Topbar({ user }: {
   user: { name?: string | null; email?: string | null; role: string }
 }) {
   return (
-    <header style={{
+    <header className="ocaq-topbar" style={{
       height: '56px', borderBottom: '0.5px solid #e5e5e5',
       background: '#fff', display: 'flex', alignItems: 'center',
       padding: '0 24px', justifyContent: 'space-between', flexShrink: 0,
@@ -29,9 +29,9 @@ export default function Topbar({ user }: {
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="ocaq-topbar-user" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {/* Ad — profil linki */}
-        <Link href="/dashboard/profile" style={{ fontSize: '13px', color: '#555', textDecoration: 'none' }}>
+        <Link className="ocaq-topbar-name" href="/dashboard/profile" style={{ fontSize: '13px', color: '#555', textDecoration: 'none' }}>
           {user.name ?? user.email}
         </Link>
         {/* Avatar */}

@@ -4,7 +4,8 @@ import { db } from '@/db'
 import { complaints } from '@/db/schema/complaints'
 import { branches } from '@/db/schema/branches'
 import { audit_logs } from '@/db/schema/auth'
-import { and, desc, eq, or } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
+import { accessibleBranchIds, canAccessBranch } from '@/lib/branch-access'
 
 const CHANNELS = ['wolt', 'bolt', 'phone', 'whatsapp', 'instagram', 'in_store', 'other'] as const
 const CATEGORIES = ['late_delivery', 'missing_item', 'wrong_item', 'cold_food', 'packaging', 'courier_behavior', 'food_quality', 'refund', 'pricing', 'other'] as const
@@ -44,18 +45,26 @@ export async function GET(req: NextRequest) {
 
   const filters = [
     eq(complaints.tenant_id, session.user.tenant_id),
-    ...(branchId ? [eq(complaints.branch_id, branchId)] : []),
     ...(isOneOf(STATUSES, status) ? [eq(complaints.status, status)] : []),
     ...(isOneOf(CHANNELS, channel) ? [eq(complaints.channel, channel)] : []),
   ]
 
-  if (session.user.role === 'branch_manager') {
-    filters.push(
-      or(
-        eq(branches.manager_id, session.user.id),
-        eq(complaints.created_by, session.user.id),
-      )!,
-    )
+  if (session.user.role === 'staff') {
+    filters.push(eq(complaints.created_by, session.user.id))
+  } else if (session.user.role !== 'super_admin') {
+    const branchIds = await accessibleBranchIds(session.user)
+    if (branchIds.length === 0) return NextResponse.json([])
+    if (branchId && !branchIds.includes(branchId)) {
+      return NextResponse.json({ error: 'Bu filial üçün icazəniz yoxdur' }, { status: 403 })
+    }
+    filters.push(branchId
+      ? eq(complaints.branch_id, branchId)
+      : inArray(complaints.branch_id, branchIds))
+  } else if (branchId) {
+    if (!await canAccessBranch(session.user, branchId)) {
+      return NextResponse.json({ error: 'Filial tapılmadı' }, { status: 404 })
+    }
+    filters.push(eq(complaints.branch_id, branchId))
   }
 
   const list = await db
@@ -112,22 +121,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Başlıq və təsvir tələb olunur' }, { status: 400 })
   }
 
-  if (session.user.role === 'branch_manager' && branchId) {
-    const [branch] = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(
-        and(
-          eq(branches.id, branchId),
-          eq(branches.tenant_id, session.user.tenant_id),
-          eq(branches.manager_id, session.user.id),
-        ),
-      )
-      .limit(1)
-
-    if (!branch) {
-      return NextResponse.json({ error: 'Bu filial üçün icazəniz yoxdur' }, { status: 403 })
-    }
+  if (branchId && !await canAccessBranch(session.user, branchId)) {
+    return NextResponse.json({ error: 'Bu filial üçün icazəniz yoxdur' }, { status: 403 })
+  }
+  if (session.user.role !== 'super_admin' && !branchId) {
+    return NextResponse.json({ error: 'Filial tələb olunur' }, { status: 400 })
   }
 
   const [complaint] = await db
@@ -139,8 +137,8 @@ export async function POST(req: NextRequest) {
       channel,
       category,
       priority,
-      status,
-      fault,
+      status: session.user.role === 'super_admin' ? status : 'new',
+      fault: session.user.role === 'staff' ? 'unknown' : fault,
       customer_name: typeof body.customer_name === 'string' ? body.customer_name.trim() || null : null,
       customer_phone: typeof body.customer_phone === 'string' ? body.customer_phone.trim() || null : null,
       platform_order_id: typeof body.platform_order_id === 'string' ? body.platform_order_id.trim() || null : null,

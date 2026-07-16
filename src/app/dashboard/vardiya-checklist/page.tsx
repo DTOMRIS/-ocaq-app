@@ -10,23 +10,28 @@ interface ItemState {
   checked: boolean;
   note: string;
   temperature?: string;
-  photoUrl?: string;
+  photoKey?: string;
 }
 
 export default function VardiyaChecklistPage() {
   const [shift, setShift] = useState<Shift>("sabah");
-  const [completedBy, setCompletedBy] = useState("");
-  const [checkedBy, setCheckedBy] = useState("");
   const [openSection, setOpenSection] = useState<string>("personal");
   const [items, setItems] = useState<Record<string, ItemState>>({});
 
   const [branches, setBranches] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [uploadingPhotoIds, setUploadingPhotoIds] = useState<string[]>([]);
+  const [pageError, setPageError] = useState("");
+  const [submissionKey, setSubmissionKey] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
-    fetch("/api/branches")
-      .then((res) => res.json())
+    fetch("/api/checklists?view=branches")
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error ?? "Filiallar yüklənmədi");
+        return data;
+      })
       .then((data) => {
         if (Array.isArray(data)) {
           setBranches(data);
@@ -35,7 +40,7 @@ export default function VardiyaChecklistPage() {
           }
         }
       })
-      .catch((err) => console.error("Error fetching branches:", err));
+      .catch((err) => setPageError(err instanceof Error ? err.message : "Filiallar yüklənmədi"));
   }, []);
 
   const getItem = (id: string): ItemState =>
@@ -44,7 +49,9 @@ export default function VardiyaChecklistPage() {
   const toggleItem = useCallback((id: string) => {
     setItems((prev) => ({
       ...prev,
-      [id]: { ...prev[id], checked: !prev[id]?.checked, note: prev[id]?.note ?? "" },
+      [id]: prev[id]?.checked
+        ? { checked: false, note: "" }
+        : { ...prev[id], checked: true, note: prev[id]?.note ?? "" },
     }));
   }, []);
 
@@ -62,13 +69,35 @@ export default function VardiyaChecklistPage() {
     }));
   }, []);
 
-  const handlePhoto = useCallback((id: string, file: File) => {
-    const url = URL.createObjectURL(file);
-    setItems((prev) => ({
-      ...prev,
-      [id]: { ...prev[id] ?? { checked: false, note: "" }, photoUrl: url },
-    }));
-  }, []);
+  const handlePhoto = useCallback(async (id: string, file: File) => {
+    if (!selectedBranchId || uploadingPhotoIds.includes(id)) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setPageError("Foto 5 MB-dan böyük ola bilməz");
+      return;
+    }
+
+    setPageError("");
+    setUploadingPhotoIds((current) => [...current, id]);
+    try {
+      const form = new FormData();
+      form.set("branch_id", selectedBranchId);
+      form.set("item_id", id);
+      form.set("file", file);
+      const response = await fetch("/api/upload/checklist-photo", { method: "POST", body: form });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data.key !== "string") {
+        throw new Error(data.error ?? "Foto yüklənmədi");
+      }
+      setItems((prev) => ({
+        ...prev,
+        [id]: { ...prev[id] ?? { checked: true, note: "" }, photoKey: data.key },
+      }));
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Foto yüklənmədi");
+    } finally {
+      setUploadingPhotoIds((current) => current.filter((itemId) => itemId !== id));
+    }
+  }, [selectedBranchId, uploadingPhotoIds]);
 
   // Skor hesablama
   const totalItems = MEK_F08_SECTIONS.reduce(
@@ -77,17 +106,28 @@ export default function VardiyaChecklistPage() {
   );
   const checkedCount = Object.values(items).filter((i) => i.checked).length;
   const pct = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
+  const missingRequiredCount = MEK_F08_SECTIONS.flatMap((section) => section.items).filter((item) => {
+    const state = getItem(item.id);
+    if (!state.checked) return false;
+    return (item.temperatureField && !state.temperature?.trim()) || (item.requiresPhoto && !state.photoKey);
+  }).length;
 
   const handleSubmit = async () => {
+    if (submitLoading) return;
     if (!selectedBranchId) {
-      alert("Zəhmət olmasa filial seçin");
+      setPageError("Zəhmət olmasa filial seçin");
       return;
     }
-    if (!completedBy.trim() || !checkedBy.trim()) {
-      alert("Zəhmət olmasa məsul şəxslərin adlarını daxil edin");
+    if (uploadingPhotoIds.length > 0) {
+      setPageError("Fotoların yüklənməsini gözləyin");
+      return;
+    }
+    if (missingRequiredCount > 0) {
+      setPageError("İşarələnmiş maddələrdə tələb olunan ölçü və fotoları tamamlayın");
       return;
     }
 
+    setPageError("");
     setSubmitLoading(true);
     try {
       const res = await fetch("/api/checklists", {
@@ -95,10 +135,8 @@ export default function VardiyaChecklistPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           branch_id: selectedBranchId,
-          completed_by: completedBy.trim(),
-          checked_by: checkedBy.trim(),
           shift,
-          score_pct: pct,
+          idempotency_key: submissionKey,
           items,
         }),
       });
@@ -108,16 +146,19 @@ export default function VardiyaChecklistPage() {
         throw new Error(d.error ?? "Göndərmə zamanı xəta");
       }
 
+      setItems({});
+      setOpenSection("personal");
+      setSubmissionKey(crypto.randomUUID());
       alert("Checklist uğurla bazaya qeyd olundu!");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Göndərilmədi");
+      setPageError(err instanceof Error ? err.message : "Göndərilmədi");
     } finally {
       setSubmitLoading(false);
     }
   };
 
   return (
-    <main className="flex-1 flex flex-col max-w-lg mx-auto w-full">
+    <main className="flex-1 flex flex-col max-w-lg mx-auto w-full min-h-[100dvh]">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-3">
         <div className="flex items-center gap-3">
@@ -134,7 +175,12 @@ export default function VardiyaChecklistPage() {
             {branches.length > 1 ? (
               <select
                 value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedBranchId(e.target.value);
+                  setItems({});
+                  setSubmissionKey(crypto.randomUUID());
+                  setPageError("");
+                }}
                 className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 outline-none mt-1"
               >
                 {branches.map((b) => (
@@ -180,7 +226,7 @@ export default function VardiyaChecklistPage() {
         </div>
       </header>
 
-      {/* Meta: Vardiya + İsimler */}
+      {/* Meta: Vardiya */}
       <div className="px-4 py-3 bg-white border-b border-slate-100">
         <div className="flex gap-2 mb-3">
           <button
@@ -204,23 +250,16 @@ export default function VardiyaChecklistPage() {
             🌙 Axşam Vardiyası
           </button>
         </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Edən (ad soyad)"
-            value={completedBy}
-            onChange={(e) => setCompletedBy(e.target.value)}
-            className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30 focus:border-[var(--ocaq-red)]"
-          />
-          <input
-            type="text"
-            placeholder="Yoxlayan (müdür)"
-            value={checkedBy}
-            onChange={(e) => setCheckedBy(e.target.value)}
-            className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30 focus:border-[var(--ocaq-red)]"
-          />
-        </div>
+        <p className="text-xs text-slate-500">
+          Dolduran menecer və Bakı iş tarixi sistem tərəfindən avtomatik qeyd olunur.
+        </p>
       </div>
+
+      {pageError && (
+        <div role="alert" className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {pageError}
+        </div>
+      )}
 
       {/* Sections */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
@@ -329,6 +368,7 @@ export default function VardiyaChecklistPage() {
                                 type="file"
                                 accept="image/*"
                                 capture="environment"
+                                disabled={uploadingPhotoIds.includes(item.id)}
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
@@ -336,9 +376,13 @@ export default function VardiyaChecklistPage() {
                                 }}
                               />
                             </label>
-                            {state.photoUrl && (
+                            {uploadingPhotoIds.includes(item.id) ? (
+                              <span className="text-xs text-slate-500 font-medium">
+                                Yüklənir...
+                              </span>
+                            ) : state.photoKey && (
                               <span className="text-xs text-emerald-600 font-medium">
-                                ✓ Foto əlavə edildi
+                                ✓ Foto təhlükəsiz saxlanıldı
                               </span>
                             )}
                           </div>
@@ -367,14 +411,17 @@ export default function VardiyaChecklistPage() {
       </div>
 
       {/* Footer: Submit */}
-      <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 px-4 py-3">
+      <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <div className="flex items-center gap-3">
           <div className="flex-1 text-sm text-slate-600">
-            <span className="font-bold text-slate-900">{checkedCount}</span>/{totalItems} madde
+            <span className="font-bold text-slate-900">{checkedCount}</span>/{totalItems} maddə
+            {missingRequiredCount > 0 && (
+              <span className="block text-xs text-amber-700">{missingRequiredCount} tələb tamamlanmayıb</span>
+            )}
           </div>
           <button
             onClick={handleSubmit}
-            disabled={checkedCount === 0 || !completedBy || submitLoading}
+            disabled={checkedCount === 0 || !selectedBranchId || submitLoading || uploadingPhotoIds.length > 0 || missingRequiredCount > 0}
             className="px-6 py-2.5 bg-[var(--ocaq-red)] text-white font-semibold rounded-xl text-sm shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
           >
             {submitLoading ? "Göndərilir..." : "Checklistı Göndər"}

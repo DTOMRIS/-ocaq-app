@@ -27,6 +27,10 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
+  if (session?.user.role === 'staff' && (pathname === '/dashboard/vardiya-checklist' || pathname === '/vardiya-checklist')) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
+  }
+
   return NextResponse.next()
 }
 

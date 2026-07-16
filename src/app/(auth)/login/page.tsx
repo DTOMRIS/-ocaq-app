@@ -77,7 +77,7 @@ export default function LoginPage() {
   return (
     <main style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', width: '100%', background: '#fff', margin: 0, padding: 0, boxSizing: 'border-box' }}>
       {/* Left — Sliding Images */}
-      <div style={{ position: 'relative', width: '50%', minHeight: '100vh', overflow: 'hidden', background: '#0f172a' }}>
+      <div className="login-visual" style={{ position: 'relative', width: '50%', minHeight: '100vh', overflow: 'hidden', background: '#0f172a' }}>
         {SLIDES.map((slide, idx) => (
           <div
             key={slide.url}
@@ -125,9 +125,9 @@ export default function LoginPage() {
       </div>
 
       {/* Right — Welcome + Login Form */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', minHeight: '100vh', width: '50%' }}>
+      <div className="login-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', minHeight: '100vh', width: '50%' }}>
         {/* Top bar: logo + language */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 48px' }}>
+        <div className="login-topbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 48px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '12px', background: '#C8102E', color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>
               O
@@ -163,7 +163,7 @@ export default function LoginPage() {
         </div>
 
         {/* Login Form area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 48px 32px' }}>
+        <div className="login-form-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 48px 32px' }}>
           <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto' }}>
             
             {!selectedRole ? (

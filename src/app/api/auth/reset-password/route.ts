@@ -9,7 +9,8 @@ import bcrypt from 'bcryptjs'
 
 // POST — Şifrə sıfırlama tələbi (e-poçta link göndər)
 export async function POST(req: NextRequest) {
-  const { email } = await req.json()
+  const body = await req.json()
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
 
   if (!email) {
     return NextResponse.json({ error: 'E-poçt daxil edin' }, { status: 400 })
@@ -62,7 +63,9 @@ export async function POST(req: NextRequest) {
 
 // PUT — Yeni şifrə təyin et
 export async function PUT(req: NextRequest) {
-  const { token, password } = await req.json()
+  const body = await req.json()
+  const token = typeof body.token === 'string' ? body.token.trim() : ''
+  const password = typeof body.password === 'string' ? body.password : ''
 
   if (!token || !password || password.length < 8) {
     return NextResponse.json(
@@ -71,18 +74,15 @@ export async function PUT(req: NextRequest) {
     )
   }
 
-  // Token tap
-  const [record] = await db
-    .select()
-    .from(password_reset_tokens)
-    .where(
-      and(
-        eq(password_reset_tokens.token, token),
-        isNull(password_reset_tokens.used_at),
-        gt(password_reset_tokens.expires_at, new Date())
-      )
-    )
-    .limit(1)
+  // Tokeni atomik olaraq istifadədə işarələ; paralel sorğulardan yalnız biri qazanır.
+  const [record] = await db.update(password_reset_tokens)
+    .set({ used_at: new Date() })
+    .where(and(
+      eq(password_reset_tokens.token, token),
+      isNull(password_reset_tokens.used_at),
+      gt(password_reset_tokens.expires_at, new Date()),
+    ))
+    .returning()
 
   if (!record) {
     return NextResponse.json(
@@ -94,16 +94,16 @@ export async function PUT(req: NextRequest) {
   // Şifrəni yenilə
   const password_hash = await bcrypt.hash(password, 12)
 
-  await Promise.all([
-    db
-      .update(users)
+  try {
+    await db.update(users)
       .set({ password_hash, updated_at: new Date() })
-      .where(eq(users.id, record.user_id)),
-    db
-      .update(password_reset_tokens)
-      .set({ used_at: new Date() })
-      .where(eq(password_reset_tokens.id, record.id)),
-  ])
+      .where(eq(users.id, record.user_id))
+  } catch (error) {
+    await db.update(password_reset_tokens).set({ used_at: null })
+      .where(and(eq(password_reset_tokens.id, record.id), eq(password_reset_tokens.used_at, record.used_at!)))
+      .catch(() => undefined)
+    throw error
+  }
 
   return NextResponse.json({ success: true })
 }

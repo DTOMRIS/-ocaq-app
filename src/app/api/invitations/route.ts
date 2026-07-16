@@ -3,136 +3,130 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { invitations, users, audit_logs } from '@/db/schema/auth'
 import { branches } from '@/db/schema/branches'
-import { eq, and } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import { inviteRateLimit } from '@/lib/rate-limit'
 import { sendInvitationEmail } from '@/lib/email'
+import { accessibleBranchIds, accessibleRegionIds } from '@/lib/branch-access'
+import { invitationScope, isInvitableRole } from './_scope'
 import crypto from 'crypto'
 
-// GET — dəvət listini al
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   if (!['super_admin', 'region_manager'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const list = await db
-    .select()
-    .from(invitations)
-    .where(eq(invitations.tenant_id, session.user.tenant_id))
-    .orderBy(invitations.created_at)
+  const filters = [eq(invitations.tenant_id, session.user.tenant_id)]
+  if (session.user.role === 'region_manager') {
+    const [branchIds, regionIds] = await Promise.all([
+      accessibleBranchIds(session.user),
+      accessibleRegionIds(session.user),
+    ])
+    const scopeFilters = [eq(invitations.invited_by, session.user.id)]
+    if (branchIds.length > 0) scopeFilters.push(inArray(invitations.branch_id, branchIds))
+    if (regionIds.length > 0) scopeFilters.push(inArray(invitations.region_id, regionIds))
+    filters.push(or(...scopeFilters)!)
+  }
+
+  const list = await db.select({
+    id: invitations.id,
+    email: invitations.email,
+    role: invitations.role,
+    region_id: invitations.region_id,
+    branch_id: invitations.branch_id,
+    invited_by: invitations.invited_by,
+    expires_at: invitations.expires_at,
+    accepted_at: invitations.accepted_at,
+    created_at: invitations.created_at,
+  }).from(invitations).where(and(...filters)).orderBy(invitations.created_at)
 
   return NextResponse.json(list)
 }
 
-// POST — yeni dəvət göndər
 export async function POST(req: NextRequest) {
-  // 1. Auth yoxla
   const session = await auth()
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  // 2. Yalnız super_admin və region_manager dəvət edə bilər
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!['super_admin', 'region_manager'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // 3. Rate limit
   const { success } = await inviteRateLimit.limit(session.user.id)
   if (!success) {
-    return NextResponse.json(
-      { error: 'Çox sayda sorğu. Bir saat sonra cəhd edin.' },
-      { status: 429 }
-    )
+    return NextResponse.json({ error: 'Çox sayda sorğu. Bir saat sonra cəhd edin.' }, { status: 429 })
   }
 
-  const { email, role, region_id, branch_id } = await req.json()
-
-  if (!email || !role) {
-    return NextResponse.json({ error: 'E-poçt və rol tələb olunur' }, { status: 400 })
+  const body = await req.json()
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  if (!email || !/^\S+@\S+\.\S+$/.test(email) || !isInvitableRole(body.role)) {
+    return NextResponse.json({ error: 'Düzgün e-poçt və rol tələb olunur' }, { status: 400 })
   }
 
-  // 4. Rol yoxlaması — öz rolundan yuxarı dəvət edə bilməz
-  const roleHierarchy = ['staff', 'branch_manager', 'region_manager', 'super_admin']
-  const myRankIndex    = roleHierarchy.indexOf(session.user.role)
-  const targetRankIndex = roleHierarchy.indexOf(role)
-  if (targetRankIndex >= myRankIndex) {
-    return NextResponse.json(
-      { error: 'Bu rol üçün dəvət göndərə bilməzsiniz' },
-      { status: 403 }
-    )
-  }
+  const scope = await invitationScope(session.user, body.role, body.region_id, body.branch_id)
+  if ('error' in scope) return NextResponse.json({ error: scope.error }, { status: 403 })
 
-  // 5. Artıq qeydiyyatda varmı?
-  const [existing] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.email, email), eq(users.tenant_id, session.user.tenant_id)))
+  const [existingUser] = await db.select({ id: users.id }).from(users)
+    .where(eq(users.email, email))
+    .limit(1)
+  if (existingUser) return NextResponse.json({ error: 'Bu e-poçt artıq qeydiyyatlıdır' }, { status: 409 })
 
-  if (existing) {
-    return NextResponse.json(
-      { error: 'Bu e-poçt artıq qeydiyyatlıdır' },
-      { status: 409 }
-    )
-  }
+  const [pending] = await db.select({ id: invitations.id }).from(invitations)
+    .where(and(
+      eq(invitations.tenant_id, session.user.tenant_id),
+      eq(invitations.email, email),
+      isNull(invitations.accepted_at),
+      gt(invitations.expires_at, new Date()),
+    )).limit(1)
+  if (pending) return NextResponse.json({ error: 'Bu e-poçt üçün gözləyən dəvət artıq mövcuddur' }, { status: 409 })
 
-  // 6. Token yarat, dəvəti bazaya yaz
   const token = crypto.randomBytes(32).toString('hex')
-  const expires_at = new Date(Date.now() + 48 * 60 * 60 * 1000) // 48 saat
-
-  await db.insert(invitations).values({
-    tenant_id:  session.user.tenant_id,
+  const [invitation] = await db.insert(invitations).values({
+    tenant_id: session.user.tenant_id,
     email,
-    role,
+    role: body.role,
     token,
     invited_by: session.user.id,
-    region_id:  region_id || null,
-    branch_id:  branch_id || null,
-    expires_at,
-  })
+    region_id: scope.regionId,
+    branch_id: scope.branchId,
+    expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000),
+  }).returning({ id: invitations.id })
 
-  // Şöbə adını al (əgər varsa)
   let branchName: string | undefined
-  if (branch_id) {
-    const [br] = await db
-      .select({ name: branches.name })
-      .from(branches)
-      .where(eq(branches.id, branch_id))
+  if (scope.branchId) {
+    const [branch] = await db.select({ name: branches.name }).from(branches)
+      .where(and(eq(branches.id, scope.branchId), eq(branches.tenant_id, session.user.tenant_id)))
       .limit(1)
-    if (br) branchName = br.name
+    branchName = branch?.name
   }
 
-  // 7. Mail göndər
   const { error } = await sendInvitationEmail({
     email,
     token,
     inviterName: session.user.name ?? 'Admin',
-    recipientRole: role,
+    recipientRole: body.role,
     branchName,
   })
-
   if (error) {
-    console.error('Resend API error details:', error)
-    return NextResponse.json(
-      { error: `Dəvət e-poçtu göndərilə bilmədi: ${error.message}` },
-      { status: 500 }
-    )
+    await db.delete(invitations).where(and(
+      eq(invitations.id, invitation.id),
+      eq(invitations.tenant_id, session.user.tenant_id),
+    ))
+    console.error('Invitation mail error:', error)
+    return NextResponse.json({ error: 'Dəvət e-poçtu göndərilə bilmədi' }, { status: 502 })
   }
 
-  // 8. Audit log yaz
   try {
     await db.insert(audit_logs).values({
-      tenant_id:  session.user.tenant_id,
-      user_id:    session.user.id,
-      action:     'user.invite',
-      entity:     'invitation',
-      metadata:   JSON.stringify({ email, role, region_id, branch_id }),
+      tenant_id: session.user.tenant_id,
+      user_id: session.user.id,
+      action: 'user.invite',
+      entity: 'invitation',
+      entity_id: invitation.id,
+      metadata: JSON.stringify({ email, role: body.role, region_id: scope.regionId, branch_id: scope.branchId }),
     })
-  } catch (logErr) {
-    console.error('Audit log write error (ignored for flow):', logErr)
+  } catch (error) {
+    console.error('Audit log write error:', error)
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, id: invitation.id }, { status: 201 })
 }

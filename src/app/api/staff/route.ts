@@ -3,10 +3,9 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { staff_profiles } from '@/db/schema/staff'
 import { users, audit_logs } from '@/db/schema/auth'
-import { branches } from '@/db/schema/branches'
-import { regions } from '@/db/schema/regions'
 import { eq, and, inArray } from 'drizzle-orm'
 import { encryptOrNull } from '@/lib/encryption'
+import { accessibleBranchIds, canAccessBranch } from '@/lib/branch-access'
 
 // GET — personel listini al (şifrəli sahələr göndərilmir)
 export async function GET(req: NextRequest) {
@@ -27,61 +26,19 @@ export async function GET(req: NextRequest) {
     eq(staff_profiles.is_archived, false),
   ]
 
-  // Branch manager yalnız öz filialının personalını
-  if (role === 'branch_manager') {
-    const myBranches = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(and(
-        eq(branches.tenant_id, session.user.tenant_id),
-        eq(branches.manager_id, session.user.id),
-      ))
-    
-    if (myBranches.length === 0) {
-      return NextResponse.json([])
+  if (role !== 'super_admin') {
+    const branchIds = await accessibleBranchIds(session.user)
+    if (branchIds.length === 0) return NextResponse.json([])
+    if (branchId && !branchIds.includes(branchId)) {
+      return NextResponse.json({ error: 'Bu filial üçün icazəniz yoxdur' }, { status: 403 })
     }
-    conditions.push(eq(staff_profiles.branch_id, myBranches[0].id))
-  }
-
-  // Region manager yalnız öz bölgəsinin filiallarının personalını
-  if (role === 'region_manager') {
-    const myRegions = await db
-      .select({ id: regions.id })
-      .from(regions)
-      .where(and(
-        eq(regions.tenant_id, session.user.tenant_id),
-        eq(regions.manager_id, session.user.id),
-      ))
-    
-    if (myRegions.length === 0) {
-      return NextResponse.json([])
+    conditions.push(branchId
+      ? eq(staff_profiles.branch_id, branchId)
+      : inArray(staff_profiles.branch_id, branchIds))
+  } else if (branchId) {
+    if (!await canAccessBranch(session.user, branchId)) {
+      return NextResponse.json({ error: 'Filial tapılmadı' }, { status: 404 })
     }
-    
-    const regionIds = myRegions.map(r => r.id)
-    const myBranchesInRegions = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(and(
-        eq(branches.tenant_id, session.user.tenant_id),
-        inArray(branches.region_id, regionIds)
-      ))
-    
-    if (myBranchesInRegions.length === 0) {
-      return NextResponse.json([])
-    }
-    
-    const branchIds = myBranchesInRegions.map(b => b.id)
-    
-    if (branchId) {
-      if (!branchIds.includes(branchId)) {
-        return NextResponse.json({ error: 'Bu filial sizin bölgənizə aid deyil' }, { status: 403 })
-      }
-      conditions.push(eq(staff_profiles.branch_id, branchId))
-    } else {
-      conditions.push(inArray(staff_profiles.branch_id, branchIds))
-    }
-  } else if (role === 'super_admin' && branchId) {
-    // Super admin istənilən filialı süzgəcdən keçirə bilər
     conditions.push(eq(staff_profiles.branch_id, branchId))
   }
 
@@ -128,8 +85,37 @@ export async function POST(req: NextRequest) {
     salary_gross, salary_net, bonus,
   } = body
 
-  if (!user_id) {
-    return NextResponse.json({ error: 'user_id tələb olunur' }, { status: 400 })
+  if (!user_id || !branch_id) {
+    return NextResponse.json({ error: 'user_id və branch_id tələb olunur' }, { status: 400 })
+  }
+
+  if (!await canAccessBranch(session.user, branch_id)) {
+    return NextResponse.json({ error: 'Bu filial üçün icazəniz yoxdur' }, { status: 403 })
+  }
+
+  const [targetUser] = await db.select({ id: users.id, role: users.role })
+    .from(users)
+    .where(and(
+      eq(users.id, user_id),
+      eq(users.tenant_id, session.user.tenant_id),
+      eq(users.is_active, true),
+    ))
+    .limit(1)
+
+  if (!targetUser || targetUser.role !== 'staff') {
+    return NextResponse.json({ error: 'Aktiv işçi istifadəçisi tapılmadı' }, { status: 400 })
+  }
+
+  const [existingProfile] = await db.select({ id: staff_profiles.id })
+    .from(staff_profiles)
+    .where(and(
+      eq(staff_profiles.tenant_id, session.user.tenant_id),
+      eq(staff_profiles.user_id, user_id),
+    ))
+    .limit(1)
+
+  if (existingProfile) {
+    return NextResponse.json({ error: 'Bu istifadəçinin personal profili artıq mövcuddur' }, { status: 409 })
   }
 
   const [profile] = await db

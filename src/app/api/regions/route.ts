@@ -4,11 +4,16 @@ import { db } from '@/db'
 import { regions } from '@/db/schema/regions'
 import { users } from '@/db/schema/auth'
 import { eq, and } from 'drizzle-orm'
+import { accessibleRegionIds } from '@/lib/branch-access'
+import { inArray } from 'drizzle-orm'
 
 // GET — bölgə listini al
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const regionIds = await accessibleRegionIds(session.user)
+  if (regionIds.length === 0) return NextResponse.json([])
 
   const list = await db
     .select({
@@ -21,7 +26,10 @@ export async function GET() {
     })
     .from(regions)
     .leftJoin(users, eq(regions.manager_id, users.id))
-    .where(eq(regions.tenant_id, session.user.tenant_id))
+    .where(and(
+      eq(regions.tenant_id, session.user.tenant_id),
+      inArray(regions.id, regionIds),
+    ))
     .orderBy(regions.name)
 
   return NextResponse.json(list)
@@ -41,6 +49,18 @@ export async function POST(req: NextRequest) {
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'Bölgə adı tələb olunur' }, { status: 400 })
+  }
+
+  if (manager_id) {
+    const [manager] = await db.select({ id: users.id }).from(users)
+      .where(and(
+        eq(users.id, manager_id),
+        eq(users.tenant_id, session.user.tenant_id),
+        eq(users.role, 'region_manager'),
+        eq(users.is_active, true),
+      ))
+      .limit(1)
+    if (!manager) return NextResponse.json({ error: 'Bölgə müdiri tapılmadı' }, { status: 400 })
   }
 
   const [region] = await db
@@ -70,6 +90,18 @@ export async function PATCH(req: NextRequest) {
 
   if (!id) {
     return NextResponse.json({ error: 'Bölgə ID tələb olunur' }, { status: 400 })
+  }
+
+  if (manager_id !== undefined && role === 'super_admin' && manager_id) {
+    const [manager] = await db.select({ id: users.id }).from(users)
+      .where(and(
+        eq(users.id, manager_id),
+        eq(users.tenant_id, session.user.tenant_id),
+        eq(users.role, 'region_manager'),
+        eq(users.is_active, true),
+      ))
+      .limit(1)
+    if (!manager) return NextResponse.json({ error: 'Bölgə müdiri tapılmadı' }, { status: 400 })
   }
 
   // region_manager yalnız ÖZ bölgəsini dəyişə bilər (başqasını ələ keçirə bilməz)
