@@ -5,39 +5,27 @@ import { usePathname } from 'next/navigation'
 
 type NavItem = { href: string; icon: string; label: string; roles: string[] }
 
-const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
-  { label: 'Əsas', items: [
-    { href: '/dashboard', icon: '◈', label: 'İdarə paneli', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayətlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  ] },
-  { label: 'Növbə', items: [
-    { href: '/dashboard/vardiya-liderliyi', icon: '◆', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT doldur', roles: ['branch_manager'] },
-    { href: '/dashboard/checklists', icon: '📋', label: 'KXT izləmə', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  ] },
-  { label: 'Satış və maliyyə', items: [
-    { href: '/dashboard/sales', icon: '₼', label: 'Satış hədəfi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  ] },
-  { label: 'Komanda', items: [
-    { href: '/dashboard/staff', icon: '⊙', label: 'Personel', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-    { href: '/dashboard/team', icon: '✉', label: 'Hesab və dəvət', roles: ['super_admin', 'region_manager'] },
-    { href: '/dashboard/hr', icon: '👤', label: 'HR prosesləri', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  ] },
-  { label: 'İdarəetmə', items: [
-    { href: '/dashboard/branches', icon: '🏪', label: 'Filiallar', roles: ['super_admin', 'region_manager'] },
-    { href: '/dashboard/regions', icon: '◉', label: 'Bölgələr', roles: ['super_admin', 'region_manager'] },
-    { href: '/dashboard/settings', icon: '⚙', label: 'Parametrlər', roles: ['super_admin'] },
-  ] },
+const NAV: NavItem[] = [
+  { href: '/dashboard', icon: '◈', label: 'İdarə paneli', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/vardiya-liderliyi', icon: '◆', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT doldur', roles: ['branch_manager'] },
+  { href: '/dashboard/checklists', icon: '📋', label: 'KXT izləmə', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/sales', icon: '₼', label: 'Satış hədəfi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/staff', icon: '⊙', label: 'Personel', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/team', icon: '✉', label: 'Hesab və dəvət', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/hr', icon: '👤', label: 'HR prosesləri', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayətlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/branches', icon: '🏪', label: 'Filiallar', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/regions', icon: '◉', label: 'Bölgələr', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/settings', icon: '⚙', label: 'Parametrlər', roles: ['super_admin'] },
 ]
 
 
 export default function Sidebar({ role, onNavigate }: { role: string; onNavigate?: () => void }) {
   const path = usePathname()
 
-  const visibleGroups = NAV_GROUPS
-    .map((group) => ({ ...group, items: group.items.filter((item) => item.roles.includes(role)) }))
-    .filter((group) => group.items.length > 0)
+  const visible = NAV.filter((item) => item.roles.includes(role))
 
   const isActive = (href: string) => path === href || (href !== '/dashboard' && path.startsWith(href))
 
@@ -65,27 +53,25 @@ export default function Sidebar({ role, onNavigate }: { role: string; onNavigate
       <div style={{ height: '3px', background: '#F2A81D' }} />
 
       {/* Nav */}
-      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 8px' }}>
-        {visibleGroups.map((group) => {
-          const groupActive = group.items.some((item) => isActive(item.href))
+      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 8px' }}>
+        {visible.map((item) => {
+          const active = isActive(item.href)
           return (
-            <details key={`${group.label}-${path}`} open={group.label === 'Əsas' || groupActive} style={{ marginBottom: '5px' }}>
-              <summary style={{ cursor: 'pointer', listStyle: 'none', padding: '7px 10px', color: groupActive ? '#F2A81D' : 'rgba(255,255,255,0.35)', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                {group.label}
-              </summary>
-              {group.items.map((item) => {
-                const active = isActive(item.href)
-                return (
-                  <Link key={item.href} href={item.href} onClick={onNavigate} style={{
-                    display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 10px', borderRadius: '6px', marginBottom: '2px', textDecoration: 'none',
-                    background: active ? 'rgba(200,16,46,0.15)' : 'transparent', color: active ? '#fff' : 'rgba(255,255,255,0.55)', fontSize: '13px', fontWeight: active ? '500' : '400', transition: 'all .15s',
-                  }}>
-                    <span style={{ color: active ? '#C8102E' : 'rgba(255,255,255,0.3)', fontSize: '16px', width: '20px', textAlign: 'center' }}>{item.icon}</span>
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </details>
+            <Link key={item.href} href={item.href} onClick={onNavigate} style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '9px 10px', borderRadius: '6px', marginBottom: '2px',
+              textDecoration: 'none',
+              background: active ? 'rgba(200,16,46,0.15)' : 'transparent',
+              color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+              fontSize: '13px', fontWeight: active ? '500' : '400',
+              transition: 'all .15s',
+            }}>
+              <span style={{
+                color: active ? '#C8102E' : 'rgba(255,255,255,0.3)',
+                fontSize: '16px', width: '20px', textAlign: 'center',
+              }}>{item.icon}</span>
+              {item.label}
+            </Link>
           )
         })}
       </nav>
