@@ -40,6 +40,13 @@ Preview dağıtımı sonrası aşağıdaki authenticated kontroller yapılmadan 
 - Arşivli/deaktif filial doğrudan API ile vardiya/KXT/bildirim kapsamına giremez.
 - Bildirim alıcı önizlemesinde staff görünmez.
 
+### 16 Temmuz doğrulama notu
+
+Preview deployment `Ready` durumuna ulaştı. In-app browser ile authenticated
+rol kabulü denenirken Preview aliası kurumsal ağ politikası tarafından engellendi.
+Başka tarayıcı veya koruma aşma yöntemi kullanılmadı. Bu nedenle aşağıdaki
+otomatik kanıtlar geçerli olmakla birlikte dört gerçek oturum kabulü hâlâ açıktır.
+
 ## Production etkisi
 
 Yok. Production deploy veya migration yapılmadı.
