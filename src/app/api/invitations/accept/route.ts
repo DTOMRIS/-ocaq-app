@@ -4,9 +4,10 @@ import { invitations, users, audit_logs } from '@/db/schema/auth'
 import { regions } from '@/db/schema/regions'
 import { branches } from '@/db/schema/branches'
 import { staff_profiles } from '@/db/schema/staff'
-import { and, eq, gt, isNull } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { sendWelcomeEmail } from '@/lib/email'
+import { oneTimeTokenCandidates } from '@/lib/one-time-token'
 
 class AcceptError extends Error {
   constructor(public code: string) { super(code) }
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   }
 
   const [candidate] = await db.select().from(invitations).where(and(
-    eq(invitations.token, token),
+    inArray(invitations.token, oneTimeTokenCandidates(token)),
     isNull(invitations.accepted_at),
     gt(invitations.expires_at, new Date()),
   )).limit(1)
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
       .set({ accepted_at: claimedAt })
       .where(and(
         eq(invitations.id, candidate.id),
-        eq(invitations.token, token),
+        eq(invitations.token, candidate.token),
         isNull(invitations.accepted_at),
         gt(invitations.expires_at, new Date()),
       ))

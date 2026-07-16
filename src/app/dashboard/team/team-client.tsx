@@ -8,7 +8,7 @@ interface Invitation {
   email: string
   role: string
   branch_id: string | null
-  token: string
+  region_id: string | null
   expires_at: string
   accepted_at: string | null
   created_at: string
@@ -27,10 +27,16 @@ interface Branch {
   name: string
 }
 
+interface Region {
+  id: string
+  name: string
+}
+
 interface Props {
   invitations: unknown[]
   users: unknown[]
   branches: unknown[]
+  regions: unknown[]
   isSuperAdmin: boolean
   fetchError: string | null
 }
@@ -49,16 +55,18 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   staff: { bg: '#ecfdf5', text: '#059669' },
 }
 
-export default function TeamClient({ invitations: rawInv, users: rawUsers, branches: rawBranches, isSuperAdmin, fetchError }: Props) {
+export default function TeamClient({ invitations: rawInv, users: rawUsers, branches: rawBranches, regions: rawRegions, isSuperAdmin, fetchError }: Props) {
   const router = useRouter()
   const invitations = rawInv as Invitation[]
   const users = rawUsers as User[]
   const branches = rawBranches as Branch[]
+  const regions = rawRegions as Region[]
 
   const [showInvite, setShowInvite] = useState(false)
   const [invEmail, setInvEmail] = useState('')
   const [invRole, setInvRole] = useState('branch_manager')
   const [invBranch, setInvBranch] = useState('')
+  const [invRegion, setInvRegion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -73,13 +81,19 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
     return b ? `${b.code} ${b.name}` : null
   }
 
+  const regionName = (id: string | null) => {
+    if (!id) return null
+    return regions.find(region => region.id === id)?.name ?? null
+  }
+
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setSuccess(null)
 
     if (!invEmail.trim()) { setError('E-poçt daxil edin'); return }
-    if (invRole === 'branch_manager' && !invBranch) { setError('Filial seçin'); return }
+    if ((invRole === 'branch_manager' || invRole === 'staff') && !invBranch) { setError('Filial seçin'); return }
+    if (invRole === 'region_manager' && !invRegion) { setError('Bölgə seçin'); return }
 
     setLoading(true)
     try {
@@ -89,7 +103,8 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         body: JSON.stringify({
           email: invEmail.trim(),
           role: invRole,
-          branch_id: invRole === 'branch_manager' ? invBranch : null,
+          branch_id: invRole === 'branch_manager' || invRole === 'staff' ? invBranch : null,
+          region_id: invRole === 'region_manager' ? invRegion : null,
         }),
       })
       if (!res.ok) {
@@ -99,6 +114,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
       setSuccess(`${invEmail} adresinə dəvət göndərildi!`)
       setInvEmail('')
       setInvBranch('')
+      setInvRegion('')
       setTimeout(() => { setShowInvite(false); setSuccess(null); router.refresh() }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xəta baş verdi')
@@ -111,20 +127,31 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
     if (!confirm(`${inv.email} adresinə yenidən dəvət göndərilsin?`)) return
     setLoading(true)
     try {
-      const res = await fetch('/api/invitations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: inv.email,
-          role: inv.role,
-          branch_id: inv.branch_id,
-        }),
-      })
+      const res = await fetch(`/api/invitations/${inv.id}`, { method: 'PATCH' })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         alert((d as { error?: string }).error ?? 'Xəta baş verdi')
       } else {
         alert('Yenidən göndərildi!')
+        router.refresh()
+      }
+    } catch {
+      alert('Xəta baş verdi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCancel(inv: Invitation) {
+    if (!confirm(`${inv.email} üçün dəvət ləğv edilsin?`)) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/invitations/${inv.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        alert((d as { error?: string }).error ?? 'Xəta baş verdi')
+      } else {
+        alert('Dəvət ləğv edildi')
         router.refresh()
       }
     } catch {
@@ -262,7 +289,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-                  {['E-poçt', 'Rol', 'Filial', 'Status', 'Tarix', ''].map(h => (
+                  {['E-poçt', 'Rol', 'Əhatə', 'Status', 'Tarix', ''].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
                   ))}
                 </tr>
@@ -272,19 +299,27 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                   <tr key={inv.id} style={{ borderBottom: i < invitations.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
                     <td style={{ padding: '12px 16px', fontWeight: '500' }}>{inv.email}</td>
                     <td style={{ padding: '12px 16px' }}><RoleBadge role={inv.role} /></td>
-                    <td style={{ padding: '12px 16px', color: '#555' }}>{branchName(inv.branch_id) ?? '—'}</td>
+                    <td style={{ padding: '12px 16px', color: '#555' }}>{branchName(inv.branch_id) ?? regionName(inv.region_id) ?? '—'}</td>
                     <td style={{ padding: '12px 16px' }}><StatusBadge inv={inv} /></td>
                     <td style={{ padding: '12px 16px', color: '#888', whiteSpace: 'nowrap' }}>
                       {new Date(inv.created_at).toLocaleDateString('az-AZ')}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {!inv.accepted_at && (
-                        <button onClick={() => handleResend(inv)} disabled={loading} style={{
-                          padding: '5px 12px', fontSize: '11px', border: '1px solid #e0e0e0',
-                          borderRadius: '6px', background: '#fff', color: '#555', cursor: 'pointer',
-                        }}>
-                          Yenidən göndər
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => handleResend(inv)} disabled={loading} style={{
+                            padding: '5px 12px', fontSize: '11px', border: '1px solid #e0e0e0',
+                            borderRadius: '6px', background: '#fff', color: '#555', cursor: 'pointer',
+                          }}>
+                            Yenidən göndər
+                          </button>
+                          <button onClick={() => handleCancel(inv)} disabled={loading} style={{
+                            padding: '5px 12px', fontSize: '11px', border: '1px solid #fecaca',
+                            borderRadius: '6px', background: '#fff', color: '#C8102E', cursor: 'pointer',
+                          }}>
+                            Ləğv et
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -331,13 +366,17 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
                   Rol <span style={{ color: '#C8102E' }}>*</span>
                 </label>
-                <select value={invRole} onChange={e => setInvRole(e.target.value)} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <select value={invRole} onChange={e => {
+                  setInvRole(e.target.value)
+                  setInvBranch('')
+                  setInvRegion('')
+                }} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
                   <option value="branch_manager">Filial Meneceri</option>
                   <option value="staff">Əməkdaş</option>
                   {isSuperAdmin && <option value="region_manager">Bölgə Meneceri</option>}
                 </select>
               </div>
-              {invRole === 'branch_manager' && (
+              {(invRole === 'branch_manager' || invRole === 'staff') && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
                     Filial <span style={{ color: '#C8102E' }}>*</span>
@@ -346,6 +385,19 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                     <option value="">Filial seçin</option>
                     {branches.map(b => (
                       <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {invRole === 'region_manager' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
+                    Bölgə <span style={{ color: '#C8102E' }}>*</span>
+                  </label>
+                  <select value={invRegion} onChange={e => setInvRegion(e.target.value)} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
+                    <option value="">Bölgə seçin</option>
+                    {regions.map(region => (
+                      <option key={region.id} value={region.id}>{region.name}</option>
                     ))}
                   </select>
                 </div>

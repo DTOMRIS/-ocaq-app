@@ -8,7 +8,7 @@ import { inviteRateLimit } from '@/lib/rate-limit'
 import { sendInvitationEmail } from '@/lib/email'
 import { accessibleBranchIds, accessibleRegionIds } from '@/lib/branch-access'
 import { invitationScope, isInvitableRole } from './_scope'
-import crypto from 'crypto'
+import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 
 export async function GET() {
   const session = await auth()
@@ -79,12 +79,12 @@ export async function POST(req: NextRequest) {
     )).limit(1)
   if (pending) return NextResponse.json({ error: 'Bu e-poçt üçün gözləyən dəvət artıq mövcuddur' }, { status: 409 })
 
-  const token = crypto.randomBytes(32).toString('hex')
+  const token = createOneTimeToken()
   const [invitation] = await db.insert(invitations).values({
     tenant_id: session.user.tenant_id,
     email,
     role: body.role,
-    token,
+    token: hashOneTimeToken(token),
     invited_by: session.user.id,
     region_id: scope.regionId,
     branch_id: scope.branchId,

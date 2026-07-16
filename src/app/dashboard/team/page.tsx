@@ -22,18 +22,21 @@ export default async function TeamPage() {
   let invitations: unknown[] = []
   let users: unknown[] = []
   let branches: unknown[] = []
+  let regions: unknown[] = []
   let fetchError: string | null = null
 
   try {
-    const [invRes, usrRes, brRes] = await Promise.all([
+    const [invRes, usrRes, brRes, regRes] = await Promise.all([
       fetch(`${baseUrl}/api/invitations`, { headers: { cookie }, cache: 'no-store' }),
       fetch(`${baseUrl}/api/users`, { headers: { cookie }, cache: 'no-store' }),
       fetch(`${baseUrl}/api/branches`, { headers: { cookie }, cache: 'no-store' }),
+      fetch(`${baseUrl}/api/regions`, { headers: { cookie }, cache: 'no-store' }),
     ])
 
     if (invRes.ok) { const d = await invRes.json(); if (Array.isArray(d)) invitations = d }
     if (usrRes.ok) { const d = await usrRes.json(); if (Array.isArray(d)) users = d }
     if (brRes.ok) { const d = await brRes.json(); if (Array.isArray(d)) branches = d }
+    if (regRes.ok) { const d = await regRes.json(); if (Array.isArray(d)) regions = d }
   } catch {
     fetchError = 'Serverlə əlaqə qurulmadı'
   }
@@ -43,6 +46,7 @@ export default async function TeamPage() {
       invitations={invitations}
       users={users}
       branches={branches}
+      regions={regions}
       isSuperAdmin={role === 'super_admin'}
       fetchError={fetchError}
     />

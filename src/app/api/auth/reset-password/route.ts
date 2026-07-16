@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { password_reset_tokens, users } from '@/db/schema/auth'
-import { eq, and, gt, isNull } from 'drizzle-orm'
+import { eq, and, gt, inArray, isNull } from 'drizzle-orm'
 import { resetRateLimit } from '@/lib/rate-limit'
 import { sendPasswordResetEmail } from '@/lib/email'
-import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
+import { createOneTimeToken, hashOneTimeToken, oneTimeTokenCandidates } from '@/lib/one-time-token'
 
 // POST — Şifrə sıfırlama tələbi (e-poçta link göndər)
 export async function POST(req: NextRequest) {
@@ -38,12 +38,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Token yarat
-  const token = crypto.randomBytes(32).toString('hex')
+  const token = createOneTimeToken()
   const expires_at = new Date(Date.now() + 60 * 60 * 1000) // 1 saat
 
   await db.insert(password_reset_tokens).values({
     user_id: user.id,
-    token,
+    token: hashOneTimeToken(token),
     expires_at,
   })
 
@@ -78,7 +78,7 @@ export async function PUT(req: NextRequest) {
   const [record] = await db.update(password_reset_tokens)
     .set({ used_at: new Date() })
     .where(and(
-      eq(password_reset_tokens.token, token),
+      inArray(password_reset_tokens.token, oneTimeTokenCandidates(token)),
       isNull(password_reset_tokens.used_at),
       gt(password_reset_tokens.expires_at, new Date()),
     ))

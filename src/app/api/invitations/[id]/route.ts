@@ -6,7 +6,7 @@ import { branches } from '@/db/schema/branches'
 import { and, eq, isNull } from 'drizzle-orm'
 import { sendInvitationEmail } from '@/lib/email'
 import { canManageInvitation } from '../_scope'
-import crypto from 'crypto'
+import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 
 async function invitationForActor(id: string, tenantId: string) {
   const [invitation] = await db.select().from(invitations)
@@ -31,9 +31,10 @@ export async function PATCH(
     return NextResponse.json({ error: 'Qəbul edilmiş dəvət yenidən göndərilə bilməz' }, { status: 409 })
   }
 
-  const token = crypto.randomBytes(32).toString('hex')
+  const token = createOneTimeToken()
+  const tokenHash = hashOneTimeToken(token)
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
-  const [rotated] = await db.update(invitations).set({ token, expires_at: expiresAt })
+  const [rotated] = await db.update(invitations).set({ token: tokenHash, expires_at: expiresAt })
     .where(and(eq(invitations.id, id), isNull(invitations.accepted_at)))
     .returning({ id: invitations.id })
   if (!rotated) {
@@ -59,7 +60,7 @@ export async function PATCH(
   })
   if (error) {
     await db.update(invitations).set({ token: invitation.token, expires_at: invitation.expires_at })
-      .where(and(eq(invitations.id, id), eq(invitations.token, token)))
+      .where(and(eq(invitations.id, id), eq(invitations.token, tokenHash)))
     console.error('Invitation resend mail error:', error)
     return NextResponse.json({ error: 'Dəvət e-poçtu göndərilə bilmədi' }, { status: 502 })
   }
