@@ -12,14 +12,17 @@ export default function DashboardShell({
   user: { name?: string | null; email?: string | null; role: string }
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const isStaff = user.role === 'staff'
 
   return (
     <div className="dashboard-shell">
-      <div className="dashboard-sidebar-desktop">
-        <Sidebar role={user.role} />
-      </div>
+      {!isStaff && (
+        <div className="dashboard-sidebar-desktop">
+          <Sidebar role={user.role} />
+        </div>
+      )}
 
-      {menuOpen && (
+      {!isStaff && menuOpen && (
         <div className="dashboard-drawer-layer" role="presentation">
           <button
             type="button"
@@ -35,15 +38,17 @@ export default function DashboardShell({
 
       <div className="dashboard-content">
         <div className="dashboard-mobile-header">
-          <button
-            type="button"
-            className="dashboard-menu-button"
-            aria-label="Menyunu aç"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(true)}
-          >
-            ☰
-          </button>
+          {!isStaff && (
+            <button
+              type="button"
+              className="dashboard-menu-button"
+              aria-label="Menyunu aç"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(true)}
+            >
+              ☰
+            </button>
+          )}
           <span>OCAQ</span>
         </div>
         <Topbar user={user} />

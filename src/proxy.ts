@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { dashboardRedirectForRole } from '@/lib/dashboard-access'
 
 const PUBLIC_ROUTES = [
   '/login',
@@ -27,12 +28,9 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
-  if (session?.user.role === 'staff' && (pathname === '/dashboard/vardiya-checklist' || pathname === '/vardiya-checklist')) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
-  }
-
-  if (session && session.user.role !== 'branch_manager' && (pathname === '/dashboard/vardiya-checklist' || pathname === '/vardiya-checklist')) {
-    return NextResponse.redirect(new URL('/dashboard/checklists', req.url))
+  if (session) {
+    const redirectTo = dashboardRedirectForRole(session.user.role, pathname)
+    if (redirectTo) return NextResponse.redirect(new URL(redirectTo, req.url))
   }
 
   return NextResponse.next()

@@ -14,6 +14,18 @@ const NA = '—'
 const pctOf = (actual: number, target: number) =>
   target > 0 ? Math.round((actual / target) * 100) : 0
 
+const getTrainingPortalUrl = () => {
+  const configured = process.env.TRAINING_PORTAL_URL?.trim()
+  if (!configured) return null
+
+  try {
+    const url = new URL(configured)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
 export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect('/login')
@@ -21,55 +33,33 @@ export default async function DashboardPage() {
   const role = session.user.role
   const userName = session.user.name ?? 'İstifadəçi'
 
-  // 1. Staff üçün sadələşdirilmiş görünüş
+  // Əməkdaşın OCAQ daxilində əməliyyat rolu yoxdur. Bu səhifə yalnız
+  // ayrıca təlim portalına təhlükəsiz keçid nöqtəsidir.
   if (role === 'staff') {
+    const trainingPortalUrl = getTrainingPortalUrl()
+
     return (
-      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 10px' }}>
-        <div style={{ marginBottom: '32px', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a1a', margin: '0 0 6px' }}>
-            Xoş gəldiniz, {userName} 👋
-          </h2>
-          <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>
-            OCAQ Əməkdaş Portalı
+      <div className="mx-auto flex min-h-[65vh] max-w-xl items-center px-2">
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-7 text-center shadow-sm sm:p-10">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">🎓</div>
+          <h1 className="mb-2 text-2xl font-bold text-slate-900">Xoş gəldiniz, {userName}</h1>
+          <p className="mx-auto mb-6 max-w-md text-sm leading-6 text-slate-500">
+            Əməkdaş təlimləri ayrıca təlim portalında aparılır. OCAQ idarəetmə funksiyaları filial və bölgə rəhbərləri üçündür.
           </p>
-          <span style={{
-            display: 'inline-block', fontSize: '11px', padding: '3px 10px',
-            borderRadius: '12px', fontWeight: '600', marginTop: '10px',
-            background: '#05966915', color: '#059669',
-            border: '1px solid #05966930',
-          }}>
-            Əməkdaş
-          </span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <a href="/dashboard/bildirisler" style={{
-            display: 'flex', alignItems: 'center', gap: '16px',
-            background: 'linear-gradient(135deg, #1A1614 0%, #2A2422 100%)',
-            color: '#fff', padding: '24px', borderRadius: '16px',
-            textDecoration: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          }}>
-            <span style={{ fontSize: '32px', background: 'rgba(242,168,29,0.15)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🔔</span>
-            <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: '#F2A81D' }}>Bildirişlərim</h3>
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>
-                Müdürün göndərdiyi məlumat və tapşırıqları izləyin.
-              </p>
+          {trainingPortalUrl ? (
+            <a
+              href={trainingPortalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-xl bg-[var(--ocaq-red)] px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              Təlim portalına keç →
+            </a>
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Təlim portalının ünvanı hələ təyin edilməyib. Filial müdürünüzlə əlaqə saxlayın.
             </div>
-          </a>
-          <a href="/dashboard/complaints" style={{
-            display: 'flex', alignItems: 'center', gap: '16px',
-            background: '#fff', border: '1px solid #e8e8e8',
-            color: '#1a1a1a', padding: '24px', borderRadius: '16px',
-            textDecoration: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-          }}>
-            <span style={{ fontSize: '32px', background: 'rgba(200,16,46,0.1)', width: '56px', height: '56px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🚨</span>
-            <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: '#C8102E' }}>Şikayət / İnsident Bildir</h3>
-              <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
-                Kuryer, müştəri şikayətləri və ya daxili insidentləri qeyd edin.
-              </p>
-            </div>
-          </a>
+          )}
         </div>
       </div>
     )
@@ -166,14 +156,31 @@ export default async function DashboardPage() {
   }
 
   const roleLabels: Record<string, string> = {
-    super_admin: 'Süper Admin',
-    region_manager: 'Bölgə Meneceri',
-    branch_manager: 'Filial Meneceri',
+    super_admin: 'Süper admin',
+    region_manager: 'Bölgə müdiri',
+    branch_manager: 'Filial müdiri',
     staff: 'Əməkdaş',
   }
 
   const salesPct = pctOf(salesActual, salesTarget)
   const salesDiff = salesActual - salesTarget
+  const priorityActions = role === 'branch_manager'
+    ? [
+        { href: '/dashboard/vardiya-liderliyi', icon: '◆', title: 'Növbəni hazırla', desc: '5 dəqiqəlik görüşü, tapşırıqları və devir qeydini tamamla.' },
+        { href: '/dashboard/vardiya-checklist', icon: '✓', title: 'KXT doldur', desc: 'Cari növbənin yoxlamasını göndər.' },
+        { href: '/dashboard/complaints', icon: '🚨', title: 'Şikayətləri həll et', desc: 'Filialınızdakı açıq müştəri qeydlərini izləyin.' },
+      ]
+    : role === 'region_manager'
+      ? [
+          { href: '/dashboard/checklists', icon: '📋', title: 'Çatışmayan KXT-lər', desc: 'Bu gün göndərməyən filial və növbələri müəyyən et.' },
+          { href: '/dashboard/complaints', icon: '🚨', title: 'Açıq şikayətlər', desc: 'Bölgədə gecikən və kritik halları izləyin.' },
+          { href: '/dashboard/staff', icon: '⊙', title: 'Filial komandaları', desc: 'Bölgənizdəki əməkdaş və filial təyinatlarını yoxlayın.' },
+        ]
+      : [
+          { href: '/dashboard/team', icon: '✉', title: 'Hesab və səlahiyyət', desc: 'İstifadəçi dəvəti, rol və əhatəni idarə et.' },
+          { href: '/dashboard/checklists', icon: '📋', title: 'Şəbəkə KXT görünüşü', desc: 'Bütün filiallarda göndəriş və nəticələri izləyin.' },
+          { href: '/dashboard/regions', icon: '◉', title: 'Bölgə idarəetməsi', desc: 'Bölgə, filial və rəhbər təyinatlarını yoxlayın.' },
+        ]
 
   return (
     <div>
@@ -193,6 +200,18 @@ export default async function DashboardPage() {
             {new Date().toLocaleDateString("az-AZ", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3 mb-6">
+        {priorityActions.map((item) => (
+          <Link key={item.href} href={item.href} className="rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-[var(--ocaq-red)] hover:shadow-sm">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-lg">{item.icon}</span>
+              <h2 className="font-semibold text-slate-900">{item.title}</h2>
+            </div>
+            <p className="text-xs leading-5 text-slate-500">{item.desc}</p>
+          </Link>
+        ))}
       </div>
 
       {/* ═══ SATIŞ HƏDƏFİ — ana kart ═══ */}
@@ -319,13 +338,15 @@ export default async function DashboardPage() {
           { href: "/dashboard/vardiya-liderliyi", icon: "◆", title: "Növbə liderliyi" },
           { href: "/dashboard/hr", icon: "📋", title: "HR" },
           { href: "/dashboard/bildirisler", icon: "🔔", title: "Bildirişlər" },
-          { href: "/dashboard/komanda", icon: "👥", title: "Komanda" },
           { href: "/dashboard/sales", icon: "₼", title: "Satış Hədəfi" },
           { href: "/dashboard/complaints", icon: "🚨", title: "Şikayətlər" },
           { href: "/dashboard/staff", icon: "⊙", title: "Personel" },
           ...(role === 'super_admin' || role === 'region_manager' ? [
             { href: "/dashboard/branches", icon: "🏪", title: "Filiallar" },
             { href: "/dashboard/regions", icon: "◉", title: "Bölgələr" },
+          ] : []),
+          ...(role === 'super_admin' ? [
+            { href: "/dashboard/team", icon: "✉", title: "Hesab və dəvət" },
             { href: "/dashboard/settings", icon: "⚙", title: "Parametrlər" },
           ] : []),
         ].map((item) => (

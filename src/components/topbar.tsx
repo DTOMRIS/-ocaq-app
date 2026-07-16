@@ -4,9 +4,9 @@ import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin:    'Sistem Admini',
-  region_manager: 'Bölgə Meneceri',
-  branch_manager: 'Filial Müdürü',
+  super_admin:    'Sistem admini',
+  region_manager: 'Bölgə müdiri',
+  branch_manager: 'Filial müdiri',
   staff:          'İşçi',
 }
 
@@ -31,9 +31,15 @@ export default function Topbar({ user }: {
 
       <div className="ocaq-topbar-user" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {/* Ad — profil linki */}
-        <Link className="ocaq-topbar-name" href="/dashboard/profile" style={{ fontSize: '13px', color: '#555', textDecoration: 'none' }}>
-          {user.name ?? user.email}
-        </Link>
+        {user.role === 'staff' ? (
+          <span className="ocaq-topbar-name" style={{ fontSize: '13px', color: '#555' }}>
+            {user.name ?? user.email}
+          </span>
+        ) : (
+          <Link className="ocaq-topbar-name" href="/dashboard/profile" style={{ fontSize: '13px', color: '#555', textDecoration: 'none' }}>
+            {user.name ?? user.email}
+          </Link>
+        )}
         {/* Avatar */}
         <div style={{
           width: '32px', height: '32px', borderRadius: '50%',

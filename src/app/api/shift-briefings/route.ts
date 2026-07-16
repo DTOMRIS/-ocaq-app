@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 })
-  if (!['super_admin', 'region_manager', 'branch_manager'].includes(session.user.role)) {
+  if (session.user.role !== 'branch_manager') {
     return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   }
 

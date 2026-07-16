@@ -46,6 +46,8 @@ Next.js kodu dəyişməzdən əvvəl `node_modules/next/dist/docs/` daxilində u
 
 Preview Production-dan yaradıldığı andakı snapshot-dır. Preview-da yazılan məlumat Production-a getmir; Production-da sonradan dəyişən məlumat da Preview-a avtomatik gəlmir.
 
+Əməkdaşın ayrıca təlim portalına keçidini aktiv etmək üçün Vercel mühitində `TRAINING_PORTAL_URL` dəyişəni tam `https://...` ünvanı ilə təyin edilir. Dəyişən yoxdursa əməkdaşa saxta və ya təxmin edilən link göstərilmir; filial müdürü ilə əlaqə mesajı görünür.
+
 Heç bir connection string, parol və token bu sənədə və ya kod bazasına əlavə edilməməlidir. Mühit dəyişənləri Vercel/Neon daxilində saxlanılır.
 
 ## 4. Tamamlanan işlər

@@ -7,9 +7,9 @@ type NavItem = { href: string; icon: string; label: string; roles: string[] }
 
 const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   { label: 'Əsas', items: [
-    { href: '/dashboard', icon: '◈', label: 'İdarə paneli', roles: ['*'] },
-    { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
-    { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayətlər', roles: ['super_admin', 'region_manager', 'branch_manager', 'staff'] },
+    { href: '/dashboard', icon: '◈', label: 'İdarə paneli', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+    { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+    { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayətlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   ] },
   { label: 'Növbə', items: [
     { href: '/dashboard/vardiya-liderliyi', icon: '◆', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
@@ -36,7 +36,7 @@ export default function Sidebar({ role, onNavigate }: { role: string; onNavigate
   const path = usePathname()
 
   const visibleGroups = NAV_GROUPS
-    .map((group) => ({ ...group, items: group.items.filter((item) => item.roles.includes('*') || item.roles.includes(role)) }))
+    .map((group) => ({ ...group, items: group.items.filter((item) => item.roles.includes(role)) }))
     .filter((group) => group.items.length > 0)
 
   const isActive = (href: string) => path === href || (href !== '/dashboard' && path.startsWith(href))

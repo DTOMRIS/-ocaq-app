@@ -37,6 +37,9 @@ function responseDueFor(priority: Priority) {
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'staff') {
+    return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
+  }
 
   const { searchParams } = new URL(req.url)
   const branchId = searchParams.get('branch_id')
@@ -49,9 +52,7 @@ export async function GET(req: NextRequest) {
     ...(isOneOf(CHANNELS, channel) ? [eq(complaints.channel, channel)] : []),
   ]
 
-  if (session.user.role === 'staff') {
-    filters.push(eq(complaints.created_by, session.user.id))
-  } else if (session.user.role !== 'super_admin') {
+  if (session.user.role !== 'super_admin') {
     const branchIds = await accessibleBranchIds(session.user)
     if (branchIds.length === 0) return NextResponse.json([])
     if (branchId && !branchIds.includes(branchId)) {
@@ -105,6 +106,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'staff') {
+    return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
+  }
 
   const body = await req.json()
   const channel: Channel = isOneOf(CHANNELS, body.channel) ? body.channel : 'other'
@@ -144,7 +148,7 @@ export async function POST(req: NextRequest) {
       category,
       priority,
       status: session.user.role === 'super_admin' ? status : 'new',
-      fault: session.user.role === 'staff' ? 'unknown' : fault,
+      fault,
       customer_name: typeof body.customer_name === 'string' ? body.customer_name.trim() || null : null,
       customer_phone: typeof body.customer_phone === 'string' ? body.customer_phone.trim() || null : null,
       platform_order_id: typeof body.platform_order_id === 'string' ? body.platform_order_id.trim() || null : null,

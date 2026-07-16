@@ -34,12 +34,15 @@ export default function ShiftLeadershipPage() {
   const [briefingId, setBriefingId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [canEdit, setCanEdit] = useState(false)
 
   useEffect(() => {
     Promise.all([fetch('/api/notifications/audience'), fetch(`/api/shift-briefings?date=${today}`)])
       .then(async ([audienceResponse, briefingResponse]) => {
         if (!audienceResponse.ok || !briefingResponse.ok) throw new Error('Məlumatlar yüklənmədi')
-        const branchList = (await audienceResponse.json() as { branches: Branch[] }).branches
+        const audience = await audienceResponse.json() as { branches: Branch[]; capabilities?: { shiftBriefingWrite?: boolean } }
+        const branchList = audience.branches
+        setCanEdit(audience.capabilities?.shiftBriefingWrite === true)
         setBranches(branchList)
         setBriefings(await briefingResponse.json() as Briefing[])
         if (branchList[0]) setForm((current) => ({ ...current, branch_id: branchList[0].id }))
@@ -65,6 +68,10 @@ export default function ShiftLeadershipPage() {
 
   async function save(event?: FormEvent, complete = false) {
     event?.preventDefault()
+    if (!canEdit) {
+      setMessage('Növbə toplantısını yalnız filial müdürü yarada və dəyişə bilər.')
+      return
+    }
     setBusy(true)
     setMessage('')
     try {
@@ -99,13 +106,15 @@ export default function ShiftLeadershipPage() {
   }
 
   const update = (key: keyof typeof form, value: string | number) => setForm((current) => ({ ...current, [key]: value }))
-  const disabled = briefings.find((item) => item.id === briefingId)?.status === 'completed'
+  const disabled = !canEdit || briefings.find((item) => item.id === briefingId)?.status === 'completed'
 
   return <div className="space-y-6">
     <header>
       <h1 className="text-2xl font-bold text-slate-900">Vardiya liderliyi</h1>
-      <p className="mt-1 text-sm text-slate-500">5 dəqiqəlik motivasiya, günün prioritetləri və müştəri səsini bir yerdə idarə edin.</p>
+      <p className="mt-1 text-sm text-slate-500">{canEdit ? '5 dəqiqəlik motivasiya, günün prioritetləri və müştəri səsini bir yerdə idarə edin.' : 'Filialların növbə toplantılarını və devir qeydlərini izləyin.'}</p>
     </header>
+
+    {!canEdit && <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">İzləmə rejimi: qeydləri filial müdürü tamamlayır; bölgə müdürü və sistem admini nəticələri dəyişdirmədən izləyir.</div>}
 
     {briefings.length > 0 && <section className="rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="mb-3 text-sm font-semibold text-slate-700">Bugünkü toplantılar</h2>
@@ -116,18 +125,18 @@ export default function ShiftLeadershipPage() {
 
     <form onSubmit={(event) => save(event)} className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Filial"><select value={form.branch_id} onChange={(e) => update('branch_id', e.target.value)} disabled={Boolean(briefingId)} className="input" required><option value="">Seçin</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></Field>
-        <Field label="Tarix"><input type="date" value={form.shift_date} onChange={(e) => update('shift_date', e.target.value)} disabled={Boolean(briefingId)} className="input" required /></Field>
-        <Field label="Növbə"><select value={form.shift} onChange={(e) => update('shift', e.target.value)} disabled={Boolean(briefingId)} className="input"><option value="morning">Səhər</option><option value="evening">Axşam</option><option value="night">Gecə</option></select></Field>
+        <Field label="Filial"><select value={form.branch_id} onChange={(e) => update('branch_id', e.target.value)} disabled={!canEdit || Boolean(briefingId)} className="input" required><option value="">Seçin</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></Field>
+        <Field label="Tarix"><input type="date" value={form.shift_date} onChange={(e) => update('shift_date', e.target.value)} disabled={!canEdit || Boolean(briefingId)} className="input" required /></Field>
+        <Field label="Növbə"><select value={form.shift} onChange={(e) => update('shift', e.target.value)} disabled={!canEdit || Boolean(briefingId)} className="input"><option value="morning">Səhər</option><option value="evening">Axşam</option><option value="night">Gecə</option></select></Field>
       </div>
 
-      <div className="rounded-xl bg-red-50 p-4 text-sm text-red-900"><strong>Müdürün tonu:</strong> müfəttiş kimi deyil, komandanın yanında olan rol model kimi danışın. Dünəni qısa analiz edin, bu gün üçün aydın istiqamət verin.</div>
+      <div className="rounded-xl bg-red-50 p-4 text-sm text-red-900"><strong>Müdirin tonu:</strong> müfəttiş kimi deyil, komandanın yanında olan rol model kimi danışın. Dünəni qısa analiz edin, bu gün üçün aydın istiqamət verin.</div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <TextArea label="Servis fokusu" hint="Qarşılama, sifarişin düzgün alınması və vaxtında təqdimat" value={form.service_focus} onChange={(value) => update('service_focus', value)} disabled={disabled} />
         <TextArea label="Satış fokusu" hint="Tövsiyəli satış və komandanın bugünkü yanaşması" value={form.sales_focus} onChange={(value) => update('sales_focus', value)} disabled={disabled} />
         <TextArea label="Keyfiyyət fokusu" hint="Əl yuma, resept, porsiya və qramaja uyğunluq" value={form.quality_focus} onChange={(value) => update('quality_focus', value)} disabled={disabled} />
-        <TextArea label="Müdür qeydi" hint="Dünənin qısa analizi və komandaya motivasiya" value={form.manager_note} onChange={(value) => update('manager_note', value)} disabled={disabled} />
+        <TextArea label="Müdir qeydi" hint="Dünənin qısa analizi və komandaya motivasiya" value={form.manager_note} onChange={(value) => update('manager_note', value)} disabled={disabled} />
       </div>
       <Field label="Satış hədəfi"><input value={form.sales_target} onChange={(e) => update('sales_target', e.target.value)} disabled={disabled} placeholder="Məsələn: hər 3 sifarişdən 1-də əlavə məhsul təklif et" className="input" /></Field>
 
@@ -142,9 +151,9 @@ export default function ShiftLeadershipPage() {
         <div className="space-y-3">{notes.map((note, index) => <Field key={index} label={`${index + 1}. müştəri`}><textarea value={note} onChange={(e) => setNotes((current) => current.map((item, itemIndex) => itemIndex === index ? e.target.value : item))} disabled={disabled} rows={2} className="input resize-y" placeholder="Müştərinin fikri və görüləcək addım" /></Field>)}</div>
       </section>
 
-      <TextArea label="Növbə təhvil qeydi" hint="Növbəti müdür nələri bilməli və hansı işi davam etdirməlidir?" value={form.handover_note} onChange={(value) => update('handover_note', value)} disabled={disabled} />
+      <TextArea label="Növbə təhvil qeydi" hint="Növbəti müdir nələri bilməli və hansı işi davam etdirməlidir?" value={form.handover_note} onChange={(value) => update('handover_note', value)} disabled={disabled} />
       {message && <p role="status" className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">{message}</p>}
-      {!disabled && <div className="flex flex-col gap-2 sm:flex-row sm:justify-end"><button disabled={busy} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Qaralama saxla</button><button type="button" onClick={() => save(undefined, true)} disabled={busy || readyCount !== 5 || !form.handover_note.trim()} className="rounded-lg bg-[var(--ocaq-red)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Toplantını tamamla</button></div>}
+      {canEdit && !disabled && <div className="flex flex-col gap-2 sm:flex-row sm:justify-end"><button disabled={busy} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Qaralama saxla</button><button type="button" onClick={() => save(undefined, true)} disabled={busy || readyCount !== 5 || !form.handover_note.trim()} className="rounded-lg bg-[var(--ocaq-red)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Toplantını tamamla</button></div>}
     </form>
     <style jsx>{`.input{width:100%;border:1px solid #cbd5e1;border-radius:.5rem;padding:.625rem .75rem;font-size:.875rem;background:white}.input:focus{outline:2px solid #ef4444;outline-offset:1px}.input:disabled{background:#f1f5f9;color:#64748b}`}</style>
   </div>

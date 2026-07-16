@@ -23,30 +23,6 @@ const SLIDES = [
   },
 ]
 
-const ROLES = [
-  {
-    id: "staff",
-    title: "Personel",
-    desc: "Aşpaz, ofisiant, barmen və digər əməkdaşlar",
-    icon: "👤",
-    defaultEmail: "staff@ocaq.app"
-  },
-  {
-    id: "manager",
-    title: "Restoran Müdürü",
-    desc: "Filial müdürləri, növbə rəhbərləri və baş menecerlər",
-    icon: "👔",
-    defaultEmail: "manager@ocaq.app"
-  },
-  {
-    id: "admin",
-    title: "Şirkət İdarəçisi",
-    desc: "Sahiblər, operasyon direktorları və super admin",
-    icon: "🏢",
-    defaultEmail: "admin@ocaq.app"
-  },
-]
-
 const LANGS = ["AZ", "TR", "EN", "RU"] as const
 
 export default function LoginPage() {
@@ -54,7 +30,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
   const [lang, setLang] = useState<(typeof LANGS)[number]>("AZ")
-  const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const router = useRouter()
 
   const nextSlide = useCallback(() => {
@@ -71,8 +46,6 @@ export default function LoginPage() {
       router.push('/dashboard')
     }
   }, [state, router])
-
-  const selectedRoleData = ROLES.find((r) => r.id === selectedRole)
 
   return (
     <main style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', width: '100%', background: '#fff', margin: 0, padding: 0, boxSizing: 'border-box' }}>
@@ -166,113 +139,12 @@ export default function LoginPage() {
         <div className="login-form-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 48px 32px' }}>
           <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto' }}>
             
-            {!selectedRole ? (
-              <>
-                {/* === STEP 1: Role Selection === */}
-                <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 4px', textAlign: 'center' }}>
-                  Xoş gəldiniz
-                </h1>
-                <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px', textAlign: 'center' }}>
-                  Başlamaq üçün rolunuzu seçin:
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {ROLES.map((role) => (
-                    <button
-                      key={role.id}
-                      onClick={() => setSelectedRole(role.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '16px',
-                        padding: '16px',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '16px',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#fff';
-                        e.currentTarget.style.borderColor = '#C8102E';
-                        e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(200, 16, 46, 0.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#f8fafc';
-                        e.currentTarget.style.borderColor = '#e2e8f0';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      <span style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '12px',
-                        background: '#fff',
-                        fontSize: '20px',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                      }}>
-                        {role.icon}
-                      </span>
-                      <div style={{ flex: 1 }}>
-                        <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                          {role.title}
-                        </h2>
-                        <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>
-                          {role.desc}
-                        </p>
-                      </div>
-                      <span style={{ color: '#94a3b8', fontSize: '16px' }}>→</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                {/* === STEP 2: Login Form === */}
-                <button
-                  onClick={() => setSelectedRole(null)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '13px',
-                    color: '#64748b',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    marginBottom: '20px',
-                  }}
-                >
-                  <span>← Geri qayıt</span>
-                </button>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                  <span style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    background: '#f1f5f9',
-                    fontSize: '24px'
-                  }}>
-                    {selectedRoleData?.icon}
-                  </span>
-                  <div>
-                    <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
-                      {selectedRoleData?.title}
-                    </h1>
-                    <p style={{ color: '#64748b', fontSize: '13px', margin: '2px 0 0' }}>
-                      {selectedRoleData?.desc}
-                    </p>
-                  </div>
-                </div>
+            <h1 style={{ fontSize: '30px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 6px', textAlign: 'center' }}>
+              OCAQ Portalına giriş
+            </h1>
+            <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px', textAlign: 'center' }}>
+              E-poçt və şifrənizi daxil edin. Səlahiyyətiniz hesabınıza görə avtomatik açılır.
+            </p>
 
                 {/* Error message */}
                 {state?.error && (
@@ -309,7 +181,7 @@ export default function LoginPage() {
                         type="email"
                         required
                         autoComplete="email"
-                        placeholder={selectedRoleData?.defaultEmail}
+                        placeholder="ad@şirkət.az"
                         style={{
                           width: '100%',
                           padding: '12px 12px 12px 40px',
@@ -397,9 +269,6 @@ export default function LoginPage() {
                     {isPending ? "Daxil olunur..." : "Daxil ol"}
                   </button>
                 </form>
-              </>
-            )}
-
             {/* Security notice */}
             <p style={{ marginTop: '32px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
               Daxil olaraq <a href="#" style={{ color: '#64748b', textDecoration: 'underline' }}>Təhlükəsizlik Siyasəti</a>ni qəbul edirsiniz.

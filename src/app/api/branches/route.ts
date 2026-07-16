@@ -10,6 +10,9 @@ import { regions } from '@/db/schema/regions'
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'staff') {
+    return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
+  }
 
   const role = session.user.role
   const conditions = [

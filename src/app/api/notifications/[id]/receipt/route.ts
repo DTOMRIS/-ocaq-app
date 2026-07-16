@@ -9,6 +9,9 @@ type Context = { params: Promise<{ id: string }> }
 export async function PATCH(req: NextRequest, context: Context) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 })
+  if (session.user.role === 'staff') {
+    return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
+  }
   const { id } = await context.params
   const body = await req.json().catch(() => null) as { action?: unknown } | null
   if (body?.action !== 'read' && body?.action !== 'acknowledge') {

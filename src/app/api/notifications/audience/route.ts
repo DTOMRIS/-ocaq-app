@@ -58,6 +58,7 @@ export async function GET() {
       region: ['super_admin', 'region_manager'].includes(session.user.role),
       branch: true,
       selected: true,
+      shiftBriefingWrite: session.user.role === 'branch_manager',
     },
     roles: session.user.role === 'super_admin' ? [
       { id: 'super_admin', name: 'Baş administrator' },
