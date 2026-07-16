@@ -34,3 +34,20 @@ Yeni feature əlavə edərkən mövcud kod, komponent, route və UI elementləri
 
 **Bu qaydalar 02a4d34 commit-ində Claude Opus 4.6 tərəfindən bütün KPI dashboard, checklist, HR, ekipman səhifələrinin silinməsindən sonra qoyulmuşdur. Bir daha TƏKRARLANMAYACAĞINdan əmin olun!**
 <!-- END:ocaq-protection-rules -->
+
+<!-- BEGIN:ocaq-agent-handoff -->
+# OCAQ Agent Devir Qaydaları
+
+Yeni agent işə başlamazdan əvvəl `docs/NEXT-AGENT-HANDOFF.md` sənədini tam oxumalıdır.
+
+- Yeganə aktiv lokal qovluq: `/Volumes/NO NAME/codelar/ocaq-app-current`
+- Köhnə və qarışıq `/Volumes/NO NAME/codelar/ocaq-app` qovluğuna toxunma.
+- Aktiv iş budağı: `codex/shift-leadership`; əsas feature bazası: `c1167eb`.
+- İşə `git status`, `git log -1`, `npm test` və `npm run typecheck` ilə başla.
+- Açıq istifadəçi təsdiqi olmadan `main` merge, Production deploy və Production migration etmə.
+- Preview Vercel ayrıca `preview-codex` Neon budağından istifadə edir; Preview və Production məlumatları avtomatik sinxronlaşmır.
+- Heç bir parol, token və `DATABASE_URL` fayla, loga və cavaba yazılmamalıdır.
+- KPI bölmələri qorunur, lakin saxta `TODAY` rəqəmləri geri qaytarılmır; real data yoxdursa dürüst `—` göstərilir.
+- Köhnə mock Logbook/Təqvim ekranları real növbə liderliyi/personel axınlarına yönləndirilir; mock məlumatı geri qaytarma.
+- TQTA Shaurma yalnız məhsul nümunəsidir; reposunu və datasını OCAQ ilə qarışdırma.
+<!-- END:ocaq-agent-handoff -->
