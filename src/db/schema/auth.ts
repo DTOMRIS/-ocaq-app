@@ -1,6 +1,7 @@
 import {
-  pgTable, uuid, text, timestamp, boolean, pgEnum,
+  pgTable, uuid, text, timestamp, boolean, pgEnum, uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { regions } from './regions'
 import { branches } from './branches'
 
@@ -51,8 +52,16 @@ export const invitations = pgTable('invitations', {
   branch_id:   uuid('branch_id').references(() => branches.id),
   expires_at:  timestamp('expires_at').notNull(),   // +48 saat
   accepted_at: timestamp('accepted_at'),
+  revoked_at:  timestamp('revoked_at'),
+  revoked_by:  uuid('revoked_by').references(() => users.id),
+  revoked_reason: text('revoked_reason'),
+  replaces_manager_id: uuid('replaces_manager_id').references(() => users.id),
   created_at:  timestamp('created_at').notNull().defaultNow(),
-})
+}, (table) => [
+  uniqueIndex('invitations_live_branch_manager_uq')
+    .on(table.tenant_id, table.branch_id)
+    .where(sql`${table.role} = 'branch_manager' AND ${table.accepted_at} IS NULL AND ${table.revoked_at} IS NULL`),
+])
 
 // ─── E-poçt doğrulama tokenləri ──────────────────────────────────────────────
 export const email_verification_tokens = pgTable('email_verification_tokens', {

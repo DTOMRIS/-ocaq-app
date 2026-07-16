@@ -5,7 +5,7 @@ import * as checklistsSchema from './schema/checklists'
 
 const schema = { ...authSchema, ...checklistsSchema }
 
-const sql = neon(process.env.DATABASE_URL!)
+export const sqlClient = neon(process.env.DATABASE_URL!)
 
-export const db = drizzle(sql, { schema })
+export const db = drizzle(sqlClient, { schema })
 export type DB = typeof db

@@ -79,6 +79,8 @@ Heç bir connection string, parol və token bu sənədə və ya kod bazasına ə
 - Preview `/login`: HTTP 200
 - Oturumsuz `/api/notifications`: HTTP 401
 - Etap 1 authenticated rol qəbulu: 56/56 keçib
+- Etap 2A filial yaşam dövrü + KXT runtime qəbulu: 51/51 keçib
+- Preview `0005_branch_lifecycle` tətbiq edilib; Production tətbiq edilməyib
 - Dörd müvəqqəti rol hesabı pasivləşdirilib, üç test filialı arxivlənib və test
   tenantı bağlanıb
 - Production deploy, migration və məlumat yazısı edilməyib
@@ -86,7 +88,7 @@ Heç bir connection string, parol və token bu sənədə və ya kod bazasına ə
 ## 6. Açıq qalan işlər
 
 1. Preview Neon budağının müddətini 23 iyuldan əvvəl uzatmaq və ya testi tamamlayıb qərar vermək.
-2. Etap 2 filial yaşam dövrünü `docs/ETAP-2-PLAN.md` qəbul qapıları ilə həyata keçirmək.
+2. Etap 2B müdür atama/dəvət devrini `docs/ETAP-2-PLAN.md` qəbul qapıları ilə həyata keçirmək.
 3. TQTA portalından əvvəlki gün dərsə girən/tamamlayan əməkdaşları avtomatik gətirən inteqrasiya. Hazırda növbə ekranındakı təlim sayları manual daxil edilir.
 4. Resend/e-poçt servisini real Vercel dəyişənləri ilə qoşmaq və dəvət/reset mailini yoxlamaq.
 5. HACCP, avadanlıq, kasa, HR, fire/itki və satış təxmini modullarını field-by-field tamamlamaq; mock/local state borcunu aradan qaldırmaq.

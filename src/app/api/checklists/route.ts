@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Session } from 'next-auth'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { auth } from '@/auth'
-import { db } from '@/db'
-import { audit_logs } from '@/db/schema/auth'
+import { db, sqlClient } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { checklists } from '@/db/schema/checklists'
 import { regions } from '@/db/schema/regions'
@@ -116,37 +115,42 @@ export async function POST(req: NextRequest) {
     const businessDate = getBakuBusinessDate()
     const managerName = session.user.name?.trim() || session.user.email?.trim() || session.user.id
 
-    const entry = await db.transaction(async (tx) => {
-      const [created] = await tx.insert(checklists).values({
-        tenant_id: session.user.tenant_id,
-        branch_id: branchId,
-        completed_by: managerName,
-        checked_by: managerName,
-        completed_by_user_id: session.user.id,
-        business_date: businessDate,
-        idempotency_key: idempotencyKey,
-        shift,
-        score_pct: validation.scorePct,
-        items_json: JSON.stringify(validation.answers),
-      }).returning()
-
-      await tx.insert(audit_logs).values({
-        tenant_id: session.user.tenant_id,
-        user_id: session.user.id,
-        action: 'checklist.submit',
-        entity: 'checklist',
-        entity_id: created.id,
-        metadata: JSON.stringify({
-          branch_id: branchId,
-          business_date: businessDate,
-          shift,
-          score_pct: validation.scorePct,
-          checked_count: validation.checkedCount,
-        }),
-      })
-
-      return created
-    })
+    const rows = await sqlClient.query(`
+      with created as (
+        insert into checklists (
+          tenant_id, branch_id, completed_by, checked_by, completed_by_user_id,
+          business_date, idempotency_key, shift, score_pct, items_json
+        ) values (
+          $1::uuid, $2::uuid, $3::text, $3::text, $4::uuid,
+          $5::date, $6::text, $7::text, $8::integer, $9::text
+        )
+        returning *
+      ), audited as (
+        insert into audit_logs (tenant_id, user_id, action, entity, entity_id, metadata)
+        select $1::uuid, $4::uuid, 'checklist.submit', 'checklist', created.id::text,
+          jsonb_build_object(
+            'branch_id', $2::uuid,
+            'business_date', $5::date,
+            'shift', $7::text,
+            'score_pct', $8::integer,
+            'checked_count', $10::integer
+          )::text
+        from created
+      )
+      select * from created
+    `, [
+      session.user.tenant_id,
+      branchId,
+      managerName,
+      session.user.id,
+      businessDate,
+      idempotencyKey,
+      shift,
+      validation.scorePct,
+      JSON.stringify(validation.answers),
+      validation.checkedCount,
+    ])
+    const entry = rows[0]
 
     return NextResponse.json(entry, { status: 201 })
   } catch (error) {
