@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { getRequestOrigin } from '@/lib/request-origin'
 import BranchesClient from './branches-client'
 
 interface Branch {
@@ -37,7 +38,7 @@ export default async function BranchesPage() {
   let regions: { id: string; name: string }[] = []
   let fetchError: string | null = null
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl = getRequestOrigin(headersList)
 
   try {
     const [branchRes, regionRes] = await Promise.all([

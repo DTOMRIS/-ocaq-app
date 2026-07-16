@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { getRequestOrigin } from '@/lib/request-origin'
 import TeamClient from './team-client'
 
 export const metadata = { title: 'Komanda — OCAQ' }
@@ -16,7 +17,7 @@ export default async function TeamPage() {
 
   const headersList = await headers()
   const cookie = headersList.get('cookie') ?? ''
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl = getRequestOrigin(headersList)
 
   let invitations: unknown[] = []
   let users: unknown[] = []

@@ -7,7 +7,8 @@ import { WelcomeEmail } from '@/emails/WelcomeEmail'
 import { ChecklistReminderEmail } from '@/emails/ChecklistReminderEmail'
 
 const FROM   = process.env.SENDER_EMAIL ?? 'OCAQ <noreply@ocaq.app>'
-const BASE   = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+const BASE   = process.env.NEXTAUTH_URL
+  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
 function getResend() {
   const apiKey = process.env.RESEND_API_KEY

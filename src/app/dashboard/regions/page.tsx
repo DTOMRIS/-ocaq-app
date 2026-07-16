@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { getRequestOrigin } from '@/lib/request-origin'
 import RegionsClient from './regions-client'
 
 export const metadata = {
@@ -24,7 +25,7 @@ export default async function RegionsPage() {
   let branches: { id: string; code: string; name: string; region_id: string | null }[] = []
   let fetchError: string | null = null
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl = getRequestOrigin(headersList)
 
   try {
     const [regRes, mgrRes, brRes] = await Promise.all([

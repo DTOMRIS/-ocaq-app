@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { getRequestOrigin } from '@/lib/request-origin'
 import ComplaintsClient from './complaints-client'
 
 interface Branch {
@@ -46,7 +47,7 @@ export default async function ComplaintsPage() {
 
   const headersList = await headers()
   const cookie = headersList.get('cookie') ?? ''
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl = getRequestOrigin(headersList)
 
   const [branchesRes, complaintsRes] = await Promise.all([
     fetch(`${baseUrl}/api/branches`, { headers: { cookie }, cache: 'no-store' }),

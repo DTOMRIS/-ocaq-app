@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import StaffList from '@/components/staff-list'
+import { getRequestOrigin } from '@/lib/request-origin'
 
 interface Staff {
   id: string
@@ -38,7 +39,7 @@ export default async function StaffPage() {
   const headersList = await headers()
   const cookie = headersList.get('cookie') ?? ''
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl = getRequestOrigin(headersList)
 
   const [branchesRes, staffRes, regionsRes] = await Promise.all([
     fetch(`${baseUrl}/api/branches`, { headers: { cookie }, cache: 'no-store' }),
