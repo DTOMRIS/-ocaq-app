@@ -116,9 +116,15 @@ export async function POST(req: NextRequest) {
   const title = typeof body.title === 'string' ? body.title.trim() : ''
   const description = typeof body.description === 'string' ? body.description.trim() : ''
   const branchId = typeof body.branch_id === 'string' && body.branch_id ? body.branch_id : null
+  const rating = body.rating === null || body.rating === undefined || body.rating === ''
+    ? null
+    : Number(body.rating)
 
   if (!title || !description) {
     return NextResponse.json({ error: 'Başlıq və təsvir tələb olunur' }, { status: 400 })
+  }
+  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    return NextResponse.json({ error: 'Müştəri balı 1–5 arasında olmalıdır' }, { status: 400 })
   }
 
   if (branchId && !await canAccessBranch(session.user, branchId)) {
@@ -148,7 +154,7 @@ export async function POST(req: NextRequest) {
       description,
       action_taken: typeof body.action_taken === 'string' ? body.action_taken.trim() || null : null,
       response_due_at: responseDueFor(priority),
-      rating: Number.isInteger(body.rating) ? body.rating : null,
+      rating,
     })
     .returning()
 

@@ -124,6 +124,7 @@ const initialForm = {
   platform_order_id: '',
   order_total: '',
   refund_amount: '',
+  rating: '',
 }
 
 function formatDate(value: string | null) {
@@ -189,7 +190,11 @@ export default function ComplaintsClient({ branches, complaints }: Props) {
     const critical = complaints.filter((item) => item.priority === 'critical' && item.status !== 'closed').length
     const woltBolt = complaints.filter((item) => ['wolt', 'bolt'].includes(item.channel)).length
     const refund = complaints.reduce((sum, item) => sum + Number(item.refund_amount ?? 0), 0)
-    return { open, critical, woltBolt, refund }
+    const rated = complaints.filter((item) => item.rating !== null)
+    const averageRating = rated.length > 0
+      ? rated.reduce((sum, item) => sum + Number(item.rating), 0) / rated.length
+      : null
+    return { open, critical, woltBolt, refund, averageRating }
   }, [complaints])
 
   function updateForm(field: keyof typeof initialForm, value: string) {
@@ -215,6 +220,7 @@ export default function ComplaintsClient({ branches, complaints }: Props) {
           branch_id: form.branch_id || null,
           order_total: form.order_total || null,
           refund_amount: form.refund_amount || null,
+          rating: form.rating ? Number(form.rating) : null,
         }),
       })
 
@@ -289,6 +295,7 @@ export default function ComplaintsClient({ branches, complaints }: Props) {
           { label: 'Açıq şikayət', value: stats.open, color: '#C8102E' },
           { label: 'Kritik', value: stats.critical, color: '#B45309' },
           { label: 'Wolt/Bolt', value: stats.woltBolt, color: '#0369A1' },
+          { label: 'Orta müştəri balı', value: stats.averageRating === null ? '—' : `${stats.averageRating.toFixed(1)} / 5`, color: '#7C3AED' },
           { label: 'İade məbləği', value: `${stats.refund.toFixed(2)} ₼`, color: '#047857' },
         ].map((stat) => (
           <div key={stat.label} style={{
@@ -331,7 +338,7 @@ export default function ComplaintsClient({ branches, complaints }: Props) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
-                  {['Kanal', 'Şikayət', 'Filial', 'Prioritet', 'Status', 'Səbəb', 'SLA', 'Aksiyon'].map((col) => (
+                  {['Kanal', 'Şikayət', 'Filial', 'Bal', 'Prioritet', 'Status', 'Səbəb', 'SLA', 'Aksiyon'].map((col) => (
                     <th key={col} style={thStyle}>{col}</th>
                   ))}
                 </tr>
@@ -357,6 +364,9 @@ export default function ComplaintsClient({ branches, complaints }: Props) {
                     </td>
                     <td style={tdStyle}>
                       {item.branch_code ? `${item.branch_code} - ${item.branch_name}` : '-'}
+                    </td>
+                    <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontWeight: 700, color: item.rating ? '#7C3AED' : '#aaa' }}>
+                      {item.rating ? `${item.rating} / 5` : '—'}
                     </td>
                     <td style={tdStyle}>
                       <span style={pill(
@@ -428,6 +438,10 @@ export default function ComplaintsClient({ branches, complaints }: Props) {
                 </SelectField>
                 <SelectField label="Səbəb" value={form.fault} onChange={(value) => updateForm('fault', value)}>
                   {FAULTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </SelectField>
+                <SelectField label="Alınan müştəri balı" value={form.rating} onChange={(value) => updateForm('rating', value)}>
+                  <option value="">Bal yoxdur</option>
+                  {[1, 2, 3, 4, 5].map((value) => <option key={value} value={String(value)}>{value} / 5</option>)}
                 </SelectField>
               </div>
 

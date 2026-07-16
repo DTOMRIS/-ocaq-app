@@ -65,6 +65,13 @@ export async function PATCH(
   for (const field of ['action_taken', 'resolution_note']) {
     if (body[field] !== undefined) updates[field] = body[field] || null
   }
+  if (body.rating !== undefined) {
+    const rating = body.rating === null || body.rating === '' ? null : Number(body.rating)
+    if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+      return NextResponse.json({ error: 'Müştəri balı 1–5 arasında olmalıdır' }, { status: 400 })
+    }
+    updates.rating = rating
+  }
 
   if (body.assigned_to !== undefined && session.user.role !== 'branch_manager') {
     if (body.assigned_to) {

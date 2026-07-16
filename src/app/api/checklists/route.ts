@@ -57,8 +57,8 @@ async function accessibleBranchIds(session: Session): Promise<string[]> {
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 })
-  if (!MANAGER_ROLES.has(session.user.role)) {
-    return NextResponse.json({ error: 'Checklist yalnız menecerlər üçündür' }, { status: 403 })
+  if (session.user.role !== 'branch_manager') {
+    return NextResponse.json({ error: 'Gündəlik checklist-i yalnız filial müdiri göndərə bilər' }, { status: 403 })
   }
 
   let body: Record<string, unknown>

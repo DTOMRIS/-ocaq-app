@@ -1,7 +1,6 @@
 /**
- * KAHI HR Formları — OCAQ HR modülü üçün seed data
- * Mənbə: KAHI Restaurant F01-F19 (DK Agency © 2026)
- * AR Əmək Məcəlləsi, HACCP, AFSA, GDPR uyğun
+ * OCAQ üçün gələcək HR məzmun kataloqu.
+ * Bu fayl aktiv forma və ya hüquqi uyğunluq sübutu deyil.
  */
 
 // ═══ F08-F09 Oryentasiya Checklist ═══

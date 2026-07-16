@@ -5,6 +5,7 @@ import { checklists } from '@/db/schema/checklists'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
 import { eq, and, inArray, desc } from 'drizzle-orm'
+import { getBakuBusinessDate } from '@/lib/checklist-validation'
 
 export const metadata = { title: 'KXT Nəticələri — OCAQ' }
 
@@ -21,40 +22,40 @@ export default async function ChecklistsPage() {
 
   // ─── Rol əhatəsinə görə göndərilmiş checklist-lər ───
   let rows: Array<{
-    id: string; branchName: string | null; shift: string; score: number;
-    completedBy: string; checkedBy: string; createdAt: Date
+    id: string; branchId: string | null; branchName: string | null; shift: string; score: number;
+    completedBy: string; checkedBy: string; businessDate: string; createdAt: Date
   }> = []
+  let scopeBranches: Array<{ id: string; code: string; name: string }> = []
 
   try {
-    const conditions = [eq(checklists.tenant_id, session.user.tenant_id)]
-
-    if (role !== 'super_admin') {
-      let branchIds: string[] = []
-      if (role === 'region_manager') {
-        const myRegions = await db.select({ id: regions.id }).from(regions)
-          .where(and(eq(regions.tenant_id, session.user.tenant_id), eq(regions.manager_id, session.user.id)))
-        if (myRegions.length > 0) {
-          const regBranches = await db.select({ id: branches.id }).from(branches)
-            .where(and(eq(branches.tenant_id, session.user.tenant_id), inArray(branches.region_id, myRegions.map(r => r.id))))
-          branchIds = regBranches.map(b => b.id)
-        }
-      } else {
-        const myBranches = await db.select({ id: branches.id }).from(branches)
-          .where(and(eq(branches.tenant_id, session.user.tenant_id), eq(branches.manager_id, session.user.id)))
-        branchIds = myBranches.map(b => b.id)
-      }
-      // əhatəsində filial yoxdursa heç nə göstərmə (imkansız ID ilə)
-      conditions.push(inArray(checklists.branch_id, branchIds.length ? branchIds : ['00000000-0000-0000-0000-000000000000']))
+    if (role === 'super_admin') {
+      scopeBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name }).from(branches)
+        .where(and(eq(branches.tenant_id, session.user.tenant_id), eq(branches.is_active, true), eq(branches.is_archived, false)))
+    } else if (role === 'region_manager') {
+      scopeBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name }).from(branches)
+        .innerJoin(regions, eq(branches.region_id, regions.id))
+        .where(and(eq(branches.tenant_id, session.user.tenant_id), eq(branches.is_active, true), eq(branches.is_archived, false), eq(regions.manager_id, session.user.id)))
+    } else {
+      scopeBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name }).from(branches)
+        .where(and(eq(branches.tenant_id, session.user.tenant_id), eq(branches.is_active, true), eq(branches.is_archived, false), eq(branches.manager_id, session.user.id)))
     }
+
+    const branchIds = scopeBranches.map((branch) => branch.id)
+    const conditions = [
+      eq(checklists.tenant_id, session.user.tenant_id),
+      inArray(checklists.branch_id, branchIds.length ? branchIds : ['00000000-0000-0000-0000-000000000000']),
+    ]
 
     rows = await db
       .select({
         id: checklists.id,
+        branchId: checklists.branch_id,
         branchName: branches.name,
         shift: checklists.shift,
         score: checklists.score_pct,
         completedBy: checklists.completed_by,
         checkedBy: checklists.checked_by,
+        businessDate: checklists.business_date,
         createdAt: checklists.created_at,
       })
       .from(checklists)
@@ -67,23 +68,32 @@ export default async function ChecklistsPage() {
   }
 
   const count = rows.length
-  const avgScore = count > 0 ? Math.round(rows.reduce((s, r) => s + r.score, 0) / count) : 0
+  const today = getBakuBusinessDate()
+  const todayRows = rows.filter((row) => row.businessDate === today)
+  const submittedKeys = new Set(todayRows.map((row) => `${row.branchId ?? ''}:${row.shift}`))
+  const missing = scopeBranches.flatMap((branch) => ['sabah', 'axsam']
+    .filter((shift) => !submittedKeys.has(`${branch.id}:${shift}`))
+    .map((shift) => ({ ...branch, shift })))
+  const expectedToday = scopeBranches.length * 2
+  const avgScore = todayRows.length > 0 ? Math.round(todayRows.reduce((sum, row) => sum + row.score, 0) / todayRows.length) : 0
   const scoreColor = (s: number) => (s >= 90 ? '#166534' : s >= 70 ? '#b45309' : '#c0392b')
 
   return (
     <div>
       <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>
-        KXT Nəticələri
+        {role === 'branch_manager' ? 'KXT Nəticələri' : 'KXT İzləmə'}
       </h1>
       <p style={{ fontSize: '13px', color: '#888', margin: '0 0 24px' }}>
-        Filialların göndərdiyi vardiya checklist nəticələri
+        {role === 'branch_manager' ? 'Filialınızın göndərdiyi vardiya checklist nəticələri' : 'Bu gün hansı filial və növbənin göndərib-göndərmədiyini izləyin'}
       </p>
 
       {/* Xülasə */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '24px' }}>
         {[
-          { label: 'Göndərilən checklist', value: String(count), color: '#1a1a1a' },
-          { label: 'Ortalama skor', value: `${avgScore}%`, color: scoreColor(avgScore) },
+          { label: 'Əhatədə filial', value: String(scopeBranches.length), color: '#1a1a1a' },
+          { label: 'Bu gün göndərilən', value: `${todayRows.length}/${expectedToday}`, color: missing.length === 0 ? '#166534' : '#b45309' },
+          { label: 'Gözlənilən', value: String(missing.length), color: missing.length === 0 ? '#166534' : '#c0392b' },
+          { label: 'Bu gün orta skor', value: todayRows.length ? `${avgScore}%` : '—', color: todayRows.length ? scoreColor(avgScore) : '#94a3b8' },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: '10px', border: '0.5px solid #e8e8e8', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: '18px 20px' }}>
             <p style={{ fontSize: '12px', color: '#999', margin: '0 0 8px', fontWeight: 500 }}>{k.label}</p>
@@ -91,6 +101,18 @@ export default async function ChecklistsPage() {
           </div>
         ))}
       </div>
+
+      {role !== 'branch_manager' && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div><h2 className="font-bold text-slate-900">Bu gün göndərməyən filial/növbələr</h2><p className="mt-1 text-xs text-slate-500">Bakı iş günü: {today}</p></div>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${missing.length ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{missing.length ? `${missing.length} gözlənilir` : 'Hamısı tamamdır'}</span>
+          </div>
+          {missing.length > 0 && <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {missing.map((item) => <div key={`${item.id}-${item.shift}`} className="flex items-center justify-between rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm"><span className="font-medium text-slate-800">{item.code} · {item.name}</span><span className="text-xs font-bold text-red-700">{shiftLabel(item.shift)}</span></div>)}
+          </div>}
+        </div>
+      )}
 
       {/* Cədvəl */}
       <div style={{ background: '#fff', borderRadius: '10px', border: '0.5px solid #e8e8e8', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>

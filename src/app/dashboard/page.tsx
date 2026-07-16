@@ -313,15 +313,12 @@ export default async function DashboardPage() {
       <h2 className="text-lg font-semibold text-slate-900 mb-3">Tez Keçidlər</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { href: "/dashboard/vardiya-checklist", icon: "✅", title: "Checklist" },
-          { href: "/dashboard/haccp", icon: "🛡️", title: "Food Safety" },
-          { href: "/dashboard/kasa", icon: "💰", title: "Kasa" },
-          { href: "/dashboard/ekipman", icon: "🔧", title: "Ekipman" },
+          role === 'branch_manager'
+            ? { href: "/dashboard/vardiya-checklist", icon: "✅", title: "KXT doldur" }
+            : { href: "/dashboard/checklists", icon: "📋", title: "KXT izləmə" },
           { href: "/dashboard/vardiya-liderliyi", icon: "◆", title: "Növbə liderliyi" },
           { href: "/dashboard/hr", icon: "📋", title: "HR" },
           { href: "/dashboard/bildirisler", icon: "🔔", title: "Bildirişlər" },
-          { href: "/dashboard/fire", icon: "🔥", title: "Fire / İtki" },
-          { href: "/dashboard/tahmin", icon: "📊", title: "Satış Təxmini" },
           { href: "/dashboard/komanda", icon: "👥", title: "Komanda" },
           { href: "/dashboard/sales", icon: "₼", title: "Satış Hədəfi" },
           { href: "/dashboard/complaints", icon: "🚨", title: "Şikayətlər" },
@@ -330,7 +327,6 @@ export default async function DashboardPage() {
             { href: "/dashboard/branches", icon: "🏪", title: "Filiallar" },
             { href: "/dashboard/regions", icon: "◉", title: "Bölgələr" },
             { href: "/dashboard/settings", icon: "⚙", title: "Parametrlər" },
-            { href: "/dashboard/reports", icon: "📈", title: "Hesabatlar" },
           ] : []),
         ].map((item) => (
           <Link key={item.href} href={item.href}
