@@ -81,6 +81,7 @@ Heç bir connection string, parol və token bu sənədə və ya kod bazasına ə
 - Etap 1 authenticated rol qəbulu: 56/56 keçib
 - Etap 2A filial yaşam dövrü + KXT runtime qəbulu: 51/51 keçib
 - Preview `0005_branch_lifecycle` tətbiq edilib; Production tətbiq edilməyib
+- Bağlanmış test tenantlarındakı 8 arxiv filialı auditli təmizlənib; Preview preflight nəticəsi formatdan kənar kod 0, etibarsız müdür bağı 0-dır
 - Dörd müvəqqəti rol hesabı pasivləşdirilib, üç test filialı arxivlənib və test
   tenantı bağlanıb
 - Production deploy, migration və məlumat yazısı edilməyib

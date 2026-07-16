@@ -20,7 +20,9 @@ Durum: tamamlandı; Etap 2B müdür atama ve davet devri sıradaki kapıdır.
 
 - `0005_branch_lifecycle.sql` üretildi.
 - Preview preflight: exact kod duplicate 0, normalize kod duplicate 0, çift canlı müdür daveti 0.
-- Preview snapshotta sessizce düzeltilmeyen mevcut veri borcu: 6 kanonik format dışı kod ve 6 geçersiz müdür bağı.
+- İlk preflightta 6 kanonik format dışı kod ve 6 geçersiz müdür bağı görüldü. Ayrıntılı denetimde bunların gerçek OCAQ filialı değil, kapatılmış Etap 1 test tenantları olduğu doğrulandı.
+- Etap 2A kabul koşularından sonra toplam 8 arşivli test filialındaki pasif test müdürü bağı auditli olarak kaldırıldı; 6 `E1-*` kodu tenant içinde `F-01/F-02/F-03` biçimine getirildi.
+- Son readback: format dışı kod 0, geçersiz müdür bağı 0.
 - Preview şeması 0004'e sahip olmasına rağmen `drizzle.__drizzle_migrations` boştu. 0000–0004 mevcut şema baseline olarak kaydedildi; 0005 aynı transaction içinde uygulandı.
 - `version`, `activated_at`, arşiv kolonları ve iki unique index şema seviyesinde doğrulandı.
 - Production migration veya veri yazımı yapılmadı.
@@ -61,4 +63,3 @@ Preview kabulü sırasında Drizzle `neon-http` interaktif transaction API'sinin
 - Tek canlı müdür daveti, revoke/resend ve kabul anında compare-and-swap devri.
 - Orphan filial müdürünü role-wide bildirim alıcısından çıkar.
 - Mevcut Filiallar tasarımına müdür/status/action kolonları, next-code ve arşiv filtresi ekle.
-- 6 eski kod ve 6 geçersiz müdür bağı için Production öncesi kullanıcı onaylı veri düzeltme planı hazırla.
