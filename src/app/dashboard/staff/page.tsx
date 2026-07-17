@@ -47,9 +47,9 @@ export default async function StaffPage() {
     fetch(`${baseUrl}/api/regions`, { headers: { cookie }, cache: 'no-store' }),
   ])
 
-  const branches: Branch[] = branchesRes.ok ? await branchesRes.json() : []
-  const staffList: Staff[] = staffRes.ok ? await staffRes.json() : []
-  const regionsList: Region[] = regionsRes.ok ? await regionsRes.json() : []
+  const branches: Branch[] = branchesRes.ok ? await branchesRes.json().catch(() => []) : []
+  const staffList: Staff[] = staffRes.ok ? await staffRes.json().catch(() => []) : []
+  const regionsList: Region[] = regionsRes.ok ? await regionsRes.json().catch(() => []) : []
 
   return (
     <div>

@@ -378,7 +378,8 @@ export default function StaffList({ staff, branches, regions, userRole }: StaffL
               <tbody>
                 {displayedStaff.map((member, idx) => {
                   const statusCfg = STATUS_CONFIG[member.status]
-                  const contractLabel = CONTRACT_CONFIG[member.contract_type]
+                    ?? { label: member.status ?? '—', bg: '#F1F5F9', color: '#64748B' }
+                  const contractLabel = CONTRACT_CONFIG[member.contract_type] ?? '—'
                   const branchName = member.branch_id
                     ? (branchMap.get(member.branch_id) ?? '—')
                     : '—'
