@@ -164,14 +164,14 @@ export async function POST(req: NextRequest) {
           region.id = $3::uuid and
           region.tenant_id = $1::uuid and
           region.is_active = true
-        where $8::uuid is null or exists (
+        where ($8::uuid is null or exists (
           select 1 from users manager
           where manager.id = $8::uuid
             and manager.tenant_id = $1::uuid
             and manager.role = 'branch_manager'
             and manager.is_active = true
             and manager.is_email_verified = true
-        )
+        ))
           and ($2::text <> '' or candidate.sequence <= 999999)
       ), created as (
         insert into branches (
