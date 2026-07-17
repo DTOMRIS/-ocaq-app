@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-
-interface Region {
-  id: string
-  name: string
-}
+import { isBranchReadModel, type BranchReadModel, type RegionOption } from '@/app/dashboard/branches/types'
 
 interface BranchFormProps {
+  mode?: 'create' | 'edit'
+  branch?: BranchReadModel
   onClose: () => void
-  regions?: Region[]
+  onManagerStep?: (branch: BranchReadModel) => void
+  regions?: RegionOption[]
 }
 
 interface FormState {
@@ -24,404 +23,201 @@ interface FormState {
   region_id: string
 }
 
-const INITIAL_STATE: FormState = {
-  code: '',
-  name: '',
-  city: 'Bakı',
-  address: '',
-  phone: '',
-  open_time: '',
-  close_time: '',
-  region_id: '',
+const EMPTY_FORM: FormState = {
+  code: '', name: '', city: 'Bakı', address: '', phone: '',
+  open_time: '09:00', close_time: '23:00', region_id: '',
 }
 
-export default function BranchForm({ onClose, regions = [] }: BranchFormProps) {
+function initialForm(branch?: BranchReadModel): FormState {
+  if (!branch) return EMPTY_FORM
+  return {
+    code: branch.code,
+    name: branch.name,
+    city: branch.city,
+    address: branch.address ?? '',
+    phone: branch.phone ?? '',
+    open_time: branch.open_time ?? '09:00',
+    close_time: branch.close_time ?? '23:00',
+    region_id: branch.region_id ?? '',
+  }
+}
+
+export default function BranchForm({ mode = 'create', branch, onClose, onManagerStep, regions = [] }: BranchFormProps) {
   const router = useRouter()
-  const [form, setForm] = useState<FormState>(INITIAL_STATE)
+  const firstFieldRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [form, setForm] = useState<FormState>(() => initialForm(branch))
+  const [phase, setPhase] = useState<'loading_code' | 'details' | 'created'>(mode === 'create' ? 'loading_code' : 'details')
+  const [created, setCreated] = useState<BranchReadModel | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const overlayRef = useRef<HTMLDivElement>(null)
+  const [codeError, setCodeError] = useState<string | null>(null)
+  const activeRegions = useMemo(() => regions.filter((region) => region.is_active), [regions])
+  const pristine = useMemo(() => JSON.stringify(form) === JSON.stringify(initialForm(branch)), [branch, form])
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    const { name, value } = e.target
-    setForm(prev => ({ ...prev, [name]: value }))
+  async function loadNextCode() {
+    setPhase('loading_code')
+    setCodeError(null)
+    try {
+      const response = await fetch('/api/branches/next-code', { cache: 'no-store' })
+      const data = await response.json().catch(() => ({})) as { code?: string; error?: string }
+      if (!response.ok || !data.code) throw new Error(data.error ?? 'Filial kodu alınmadı')
+      setForm((current) => ({ ...current, code: data.code ?? '' }))
+      setPhase('details')
+      requestAnimationFrame(() => firstFieldRef.current?.focus())
+    } catch (caught) {
+      setCodeError(caught instanceof Error ? caught.message : 'Filial kodu alınmadı')
+      setPhase('details')
+    }
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (mode === 'create') void loadNextCode()
+      else firstFieldRef.current?.focus()
+    }, 0)
+    return () => window.clearTimeout(timer)
+    // Modal instance is intentionally initialized once per open dialog.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !loading) onClose()
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])')]
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [loading, onClose])
+
+  function requestClose() {
+    if (loading) return
+    if (!pristine && phase === 'details' && !window.confirm('Yadda saxlanılmamış dəyişikliklər itəcək. Bağlamaq istəyirsiniz?')) return
+    onClose()
+  }
+
+  function handleChange(event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setError(null)
-
-    if (!form.code.trim()) {
-      setError('Filial kodu tələb olunur')
-      return
-    }
-    if (!form.name.trim()) {
-      setError('Filial adı tələb olunur')
-      return
-    }
-
-    // F-XX formatını yoxla
-    if (!/^F-\d{2,}$/.test(form.code.trim())) {
-      setError('Kod formatı: F-01, F-02 ... şəklində olmalıdır')
-      return
-    }
+    if (!/^F-\d{2,6}$/.test(form.code.trim())) return setError('Kod formatı F-01, F-02 şəklində olmalıdır')
+    if (form.name.trim().length < 2) return setError('Filial adı tələb olunur')
+    if (!form.region_id) return setError('Bölgə seçilməlidir')
+    if (form.open_time === form.close_time) return setError('Açılış və bağlanış saatı eyni ola bilməz')
 
     setLoading(true)
     try {
-      const res = await fetch('/api/branches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code:       form.code.trim(),
-          name:       form.name.trim(),
-          city:       form.city.trim() || 'Bakı',
-          address:    form.address.trim() || null,
-          phone:      form.phone.trim() || null,
-          open_time:  form.open_time.trim() || null,
-          close_time: form.close_time.trim() || null,
-          region_id:  form.region_id || null,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error ?? `Xəta: ${res.status}`)
+      const body = mode === 'create' ? {
+        code: form.code.trim(), name: form.name.trim(), region_id: form.region_id,
+        city: form.city.trim() || 'Bakı', address: form.address.trim() || null,
+        phone: form.phone.trim() || null, open_time: form.open_time, close_time: form.close_time,
+      } : {
+        action: 'update_details', expected_version: branch?.version,
+        name: form.name.trim(), region_id: form.region_id, city: form.city.trim() || 'Bakı',
+        address: form.address.trim() || null, phone: form.phone.trim() || null,
+        open_time: form.open_time, close_time: form.close_time,
       }
-
+      const response = await fetch(mode === 'create' ? '/api/branches' : `/api/branches/${branch?.id}`, {
+        method: mode === 'create' ? 'POST' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await response.json().catch(() => ({})) as { branch?: unknown; code?: string; error?: string }
+      if (!response.ok) {
+        if (data.code === 'BRANCH_VERSION_CONFLICT') router.refresh()
+        throw new Error(data.error ?? 'Filial yadda saxlanılmadı')
+      }
+      if (!isBranchReadModel(data.branch)) throw new Error('Filial yaradıldı, lakin server nəticəsi təsdiqlənmədi. Siyahını yeniləyin.')
       router.refresh()
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bilinməyən xəta')
-    } finally {
-      setLoading(false)
-    }
+      if (mode === 'edit') { onClose(); return }
+      setCreated(data.branch)
+      setPhase('created')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Filial yadda saxlanılmadı')
+    } finally { setLoading(false) }
   }
 
-  function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (e.target === overlayRef.current) onClose()
-  }
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '9px 12px',
-    border: '1px solid #e0e0e0',
-    borderRadius: '7px',
-    fontSize: '13px',
-    color: '#1a1a1a',
-    background: '#fafafa',
-    outline: 'none',
-    boxSizing: 'border-box',
-    transition: 'border-color .15s',
-  }
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: '12px',
-    fontWeight: '500',
-    color: '#555',
-    marginBottom: '5px',
-  }
-
-  const fieldStyle: React.CSSProperties = {
-    marginBottom: '16px',
-  }
-
-  return (
-    <div
-      ref={overlayRef}
-      onClick={handleOverlayClick}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(26,22,20,0.55)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '16px',
-      }}
-    >
-      <div
-        style={{
-          background: '#fff',
-          borderRadius: '12px',
-          width: '100%',
-          maxWidth: '500px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px 24px 16px',
-          borderBottom: '1px solid #f0f0f0',
-        }}>
-          <div>
-            <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>
-              Yeni filial
-            </h2>
-            <p style={{ fontSize: '12px', color: '#999', margin: '3px 0 0' }}>
-              Bütün filiallar aktiv yaradılır
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Bağla"
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              border: 'none',
-              background: '#f5f5f5',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px',
-              color: '#888',
-              flexShrink: 0,
-            }}
-          >
-            ×
-          </button>
+  return <div className="branch-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && pristine) requestClose() }}>
+    <div ref={dialogRef} className="branch-modal" role="dialog" aria-modal="true" aria-labelledby="branch-dialog-title">
+      <div className="branch-modal-header">
+        <div>
+          <h2 id="branch-dialog-title">{phase === 'created' ? 'Filial yaradıldı' : mode === 'edit' ? 'Filialı düzəlt' : 'Yeni filial'}</h2>
+          <p>{phase === 'created' ? 'Növbəti addım: filial müdiri təyin edin' : mode === 'edit' ? `${branch?.code} məlumatları` : 'Filial hazırlıq vəziyyətində yaradılacaq'}</p>
         </div>
-
-        {/* Qızılı xətt */}
-        <div style={{ height: '3px', background: 'linear-gradient(90deg, #C8102E 0%, #F2A81D 100%)' }} />
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} noValidate style={{ padding: '20px 24px 24px' }}>
-
-          {/* Kod + Ad */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', marginBottom: '16px' }}>
-            <div>
-              <label htmlFor="bf-code" style={labelStyle}>
-                Kod <span style={{ color: '#C8102E' }}>*</span>
-              </label>
-              <input
-                id="bf-code"
-                name="code"
-                type="text"
-                placeholder="F-01"
-                value={form.code}
-                onChange={handleChange}
-                maxLength={10}
-                disabled={loading}
-                style={inputStyle}
-                autoFocus
-              />
-            </div>
-            <div>
-              <label htmlFor="bf-name" style={labelStyle}>
-                Ad <span style={{ color: '#C8102E' }}>*</span>
-              </label>
-              <input
-                id="bf-name"
-                name="name"
-                type="text"
-                placeholder="Nərimanov, Xətai..."
-                value={form.name}
-                onChange={handleChange}
-                maxLength={80}
-                disabled={loading}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          {/* Bölgə */}
-          {regions.length > 0 && (
-            <div style={fieldStyle}>
-              <label htmlFor="bf-region" style={labelStyle}>
-                Bölgə
-              </label>
-              <select
-                id="bf-region"
-                name="region_id"
-                value={form.region_id}
-                onChange={handleChange}
-                disabled={loading}
-                style={{ ...inputStyle, cursor: 'pointer' }}
-              >
-                <option value="">Bölgə seçin (istəyə bağlı)</option>
-                {regions.map(r => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Şəhər */}
-          <div style={fieldStyle}>
-            <label htmlFor="bf-city" style={labelStyle}>
-              Şəhər
-            </label>
-            <input
-              id="bf-city"
-              name="city"
-              type="text"
-              placeholder="Bakı"
-              value={form.city}
-              onChange={handleChange}
-              maxLength={60}
-              disabled={loading}
-              style={inputStyle}
-            />
-          </div>
-
-          {/* Ünvan */}
-          <div style={fieldStyle}>
-            <label htmlFor="bf-address" style={labelStyle}>
-              Ünvan
-            </label>
-            <input
-              id="bf-address"
-              name="address"
-              type="text"
-              placeholder="Küçə, ev nömrəsi..."
-              value={form.address}
-              onChange={handleChange}
-              maxLength={160}
-              disabled={loading}
-              style={inputStyle}
-            />
-          </div>
-
-          {/* Telefon */}
-          <div style={fieldStyle}>
-            <label htmlFor="bf-phone" style={labelStyle}>
-              Telefon
-            </label>
-            <input
-              id="bf-phone"
-              name="phone"
-              type="tel"
-              placeholder="+994 XX XXX XX XX"
-              value={form.phone}
-              onChange={handleChange}
-              maxLength={20}
-              disabled={loading}
-              style={inputStyle}
-            />
-          </div>
-
-          {/* İş saatları */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-            <div>
-              <label htmlFor="bf-open" style={labelStyle}>
-                Açılış saatı
-              </label>
-              <input
-                id="bf-open"
-                name="open_time"
-                type="time"
-                value={form.open_time}
-                onChange={handleChange}
-                disabled={loading}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label htmlFor="bf-close" style={labelStyle}>
-                Bağlanış saatı
-              </label>
-              <input
-                id="bf-close"
-                name="close_time"
-                type="time"
-                value={form.close_time}
-                onChange={handleChange}
-                disabled={loading}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          {/* Xəta mesajı */}
-          {error && (
-            <div style={{
-              padding: '10px 14px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '7px',
-              marginBottom: '16px',
-              fontSize: '13px',
-              color: '#C8102E',
-            }}>
-              {error}
-            </div>
-          )}
-
-          {/* Düymələr */}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              style={{
-                padding: '9px 20px',
-                fontSize: '13px',
-                border: '1px solid #e0e0e0',
-                borderRadius: '7px',
-                background: '#fff',
-                color: '#555',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                minWidth: '88px',
-                minHeight: '44px',
-                opacity: loading ? 0.6 : 1,
-              }}
-            >
-              Ləğv et
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: '9px 20px',
-                fontSize: '13px',
-                fontWeight: '600',
-                border: 'none',
-                borderRadius: '7px',
-                background: loading ? '#e0a0aa' : '#C8102E',
-                color: '#fff',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                minWidth: '120px',
-                minHeight: '44px',
-                transition: 'background .15s',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-              }}
-            >
-              {loading ? (
-                <>
-                  <span style={{
-                    width: '14px',
-                    height: '14px',
-                    border: '2px solid rgba(255,255,255,0.35)',
-                    borderTopColor: '#fff',
-                    borderRadius: '50%',
-                    display: 'inline-block',
-                    animation: 'spin 0.7s linear infinite',
-                  }} />
-                  Saxlanılır...
-                </>
-              ) : (
-                'Filial əlavə et'
-              )}
-            </button>
-          </div>
-        </form>
+        <button type="button" onClick={requestClose} disabled={loading} className="branch-modal-close" aria-label="Bağla">×</button>
       </div>
+      <div className="branch-modal-accent" />
 
-      {/* Spinner animasiyası */}
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {phase === 'created' && created ? <div className="branch-success" role="status">
+        <div className="branch-success-icon">✓</div>
+        <h3>{created.code} · {created.name}</h3>
+        <p>Filial hazırlıq vəziyyətində saxlanıldı. Aktivləşdirmək üçün filial müdiri təyin olunmalıdır.</p>
+        <div className="branch-modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>Hələlik bağla</button>
+          <button type="button" className="primary-button" onClick={() => onManagerStep?.(created)}>Filial müdiri təyin et</button>
+        </div>
+      </div> : <form onSubmit={handleSubmit} noValidate>
+        <div className="branch-modal-body">
+          <div className="branch-grid branch-code-name">
+            <Field label="Kod" required>
+              <input name="code" value={form.code} onChange={handleChange} disabled={loading || mode === 'edit' || phase === 'loading_code'} placeholder={phase === 'loading_code' ? 'Hazırlanır...' : 'F-01'} maxLength={10} />
+            </Field>
+            <Field label="Ad" required><input ref={firstFieldRef} name="name" value={form.name} onChange={handleChange} disabled={loading} placeholder="Nərimanov, Xətai..." maxLength={80} /></Field>
+          </div>
+          {codeError && <div className="inline-warning" role="alert">{codeError}<button type="button" onClick={() => void loadNextCode()}>Yenidən yoxla</button></div>}
+          <Field label="Bölgə" required>
+            <select name="region_id" value={form.region_id} onChange={handleChange} disabled={loading || !activeRegions.length}>
+              <option value="">Bölgə seçin</option>
+              {activeRegions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
+            </select>
+          </Field>
+          {!activeRegions.length && <div className="inline-warning" role="alert">Aktiv bölgə yoxdur. Əvvəlcə Bölgələr səhifəsində aktiv bölgə yaradın.</div>}
+          <Field label="Şəhər"><input name="city" value={form.city} onChange={handleChange} disabled={loading} maxLength={80} /></Field>
+          <Field label="Ünvan"><input name="address" value={form.address} onChange={handleChange} disabled={loading} placeholder="Küçə, ev nömrəsi..." maxLength={300} /></Field>
+          <Field label="Telefon"><input name="phone" type="tel" value={form.phone} onChange={handleChange} disabled={loading} placeholder="+994 XX XXX XX XX" maxLength={20} /></Field>
+          <div className="branch-grid">
+            <Field label="Açılış saatı"><input name="open_time" type="time" value={form.open_time} onChange={handleChange} disabled={loading} /></Field>
+            <Field label="Bağlanış saatı"><input name="close_time" type="time" value={form.close_time} onChange={handleChange} disabled={loading} /></Field>
+          </div>
+          {error && <div className="branch-error" role="alert">{error}</div>}
+        </div>
+        <div className="branch-modal-footer">
+          <button type="button" className="secondary-button" onClick={requestClose} disabled={loading}>Ləğv et</button>
+          <button type="submit" className="primary-button" disabled={loading || phase === 'loading_code' || !activeRegions.length}>{loading ? 'Saxlanılır...' : mode === 'edit' ? 'Dəyişiklikləri saxla' : 'Filial əlavə et'}</button>
+        </div>
+      </form>}
     </div>
-  )
+    <style jsx>{`
+      .branch-modal-overlay{position:fixed;inset:0;background:rgba(26,22,20,.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
+      .branch-modal{background:#fff;border-radius:12px;width:100%;max-width:500px;max-height:calc(100dvh - 32px);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.2);display:flex;flex-direction:column}
+      .branch-modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid #f0f0f0;flex-shrink:0}.branch-modal-header h2{font-size:16px;font-weight:700;color:#1a1a1a;margin:0}.branch-modal-header p{font-size:12px;color:#999;margin:3px 0 0}
+      .branch-modal-close{width:32px;height:32px;border-radius:8px;border:0;background:#f5f5f5;cursor:pointer;font-size:16px;color:#888}.branch-modal-close:disabled{cursor:not-allowed;opacity:.5}
+      .branch-modal-accent{height:3px;background:linear-gradient(90deg,#C8102E 0%,#F2A81D 100%);flex-shrink:0}.branch-modal form{min-height:0;display:flex;flex-direction:column}.branch-modal-body{padding:20px 24px 4px;overflow-y:auto}.branch-modal-footer{padding:12px 24px 24px;display:flex;gap:10px;justify-content:flex-end;background:#fff;flex-shrink:0}
+      .branch-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.branch-code-name{grid-template-columns:1fr 2fr}.branch-error,.inline-warning{padding:10px 14px;border-radius:7px;margin-bottom:16px;font-size:13px}.branch-error{background:#fef2f2;border:1px solid #fecaca;color:#C8102E}.inline-warning{background:#fffbeb;border:1px solid #fde68a;color:#92400e}.inline-warning button{border:0;background:none;color:#C8102E;font-weight:600;margin-left:8px;cursor:pointer}
+      .primary-button,.secondary-button{padding:9px 20px;font-size:13px;border-radius:7px;min-height:44px;cursor:pointer}.primary-button{font-weight:600;border:0;background:#C8102E;color:#fff}.secondary-button{border:1px solid #e0e0e0;background:#fff;color:#555}.primary-button:disabled,.secondary-button:disabled{cursor:not-allowed;opacity:.55}
+      .branch-success{padding:36px 24px 24px;text-align:center}.branch-success-icon{width:52px;height:52px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;background:#ecfdf5;color:#059669;font-size:24px;font-weight:700}.branch-success h3{margin:0 0 8px;color:#1a1a1a;font-size:18px}.branch-success p{margin:0 auto 28px;color:#777;font-size:13px;max-width:360px;line-height:1.5}.branch-success .branch-modal-actions{display:flex;justify-content:center;gap:10px}
+      @media(max-width:480px){.branch-modal-overlay{padding:12px;align-items:flex-end}.branch-modal{max-height:calc(100dvh - 24px)}.branch-modal-header{padding:16px 18px 13px}.branch-modal-body{padding:16px 18px 4px}.branch-modal-footer{padding:12px 18px 18px;flex-direction:column-reverse}.branch-grid,.branch-code-name{grid-template-columns:1fr}.primary-button,.secondary-button{width:100%}.branch-success{padding:28px 18px 18px}.branch-success .branch-modal-actions{flex-direction:column-reverse}}
+    `}</style>
+  </div>
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return <label className="field"><span>{label}{required && <b> *</b>}</span>{children}<style jsx>{`
+    .field{display:block;margin-bottom:16px}.field>span{display:block;font-size:12px;font-weight:500;color:#555;margin-bottom:5px}.field b{color:#C8102E}.field :global(input),.field :global(select){width:100%;padding:9px 12px;border:1px solid #e0e0e0;border-radius:7px;font-size:13px;color:#1a1a1a;background:#fafafa;outline:none;box-sizing:border-box;min-height:40px}.field :global(input:focus),.field :global(select:focus){border-color:#C8102E;box-shadow:0 0 0 2px rgba(200,16,46,.08)}.field :global(input:disabled),.field :global(select:disabled){color:#888;background:#f3f3f3}
+  `}</style></label>
 }

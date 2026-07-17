@@ -54,12 +54,15 @@ export async function accessibleBranchIds(actor: Actor): Promise<string[]> {
 export async function resolveAudience(actor: Actor, selection: AudienceSelection): Promise<string[]> {
   if (actor.role === 'staff') throw new Error('FORBIDDEN')
 
-  const activeTenantUsers = await db.select({ id: users.id }).from(users).where(and(
+  const activeTenantUsers = await db.select({ id: users.id, role: users.role }).from(users).where(and(
     eq(users.tenant_id, actor.tenant_id),
     eq(users.is_active, true),
     inArray(users.role, OPERATIONAL_ROLES),
   ))
-  const tenantUserIds = new Set(activeTenantUsers.map((user) => user.id))
+  const activeBranchManagerIds = new Set(await activeManagerIds(actor.tenant_id))
+  const tenantUserIds = new Set(activeTenantUsers
+    .filter((user) => user.role !== 'branch_manager' || activeBranchManagerIds.has(user.id))
+    .map((user) => user.id))
 
   if (selection.kind === 'all') {
     if (actor.role !== 'super_admin') throw new Error('FORBIDDEN')
@@ -76,6 +79,7 @@ export async function resolveAudience(actor: Actor, selection: AudienceSelection
       eq(users.role, role),
     ))
     return rows.map((row) => row.id)
+      .filter((id) => role !== 'branch_manager' || activeBranchManagerIds.has(id))
   }
 
   const allowedBranches = new Set(await accessibleBranchIds(actor))
@@ -120,6 +124,23 @@ export async function resolveAudience(actor: Actor, selection: AudienceSelection
   const scopedManagerIds = new Set(await managerIdsForBranches(actor.tenant_id, [...allowedBranches]))
   scopedManagerIds.add(actor.id)
   return requested.filter((id) => scopedManagerIds.has(id))
+}
+
+async function activeManagerIds(tenantId: string) {
+  const rows = await db.select({ manager_id: branches.manager_id }).from(branches).innerJoin(
+    users,
+    and(
+      eq(users.id, branches.manager_id),
+      eq(users.tenant_id, tenantId),
+      eq(users.is_active, true),
+      eq(users.role, 'branch_manager'),
+    ),
+  ).where(and(
+    eq(branches.tenant_id, tenantId),
+    eq(branches.is_active, true),
+    eq(branches.is_archived, false),
+  ))
+  return [...new Set(rows.flatMap((row) => row.manager_id ? [row.manager_id] : []))]
 }
 
 async function managerIdsForBranches(tenantId: string, branchIds: string[]) {

@@ -10,6 +10,7 @@ import {
   hasOnlyKeys,
   isBranchCode,
   isUniqueViolation,
+  nextBranchCode,
   normalizeAzerbaijanPhone,
   normalizeBranchCode,
   normalizeOptionalText,
@@ -66,12 +67,19 @@ export async function GET(req: NextRequest) {
     created_at: branches.created_at,
     updated_at: branches.updated_at,
   }).from(branches)
-    .leftJoin(regions, eq(regions.id, branches.region_id))
-    .leftJoin(users, eq(users.id, branches.manager_id))
+    .leftJoin(regions, and(
+      eq(regions.id, branches.region_id),
+      eq(regions.tenant_id, branches.tenant_id),
+    ))
+    .leftJoin(users, and(
+      eq(users.id, branches.manager_id),
+      eq(users.tenant_id, branches.tenant_id),
+    ))
     .where(and(...conditions))
     .orderBy(branches.code)
 
-  const pending = list.length ? await db.select({
+  const canViewPendingManagerInvitation = session.user.role === 'super_admin'
+  const pending = list.length && canViewPendingManagerInvitation ? await db.select({
     id: invitations.id,
     branch_id: invitations.branch_id,
     email: invitations.email,
@@ -145,20 +153,36 @@ export async function POST(req: NextRequest) {
       with locked as (
         select pg_advisory_xact_lock(hashtextextended($1::text, 0))
       ), candidate as (
-        select coalesce(max(substring(code from 3)::integer)
-          filter (where code ~ '^F-[0-9]{2,}$'), 0) + 1 as sequence
+        select coalesce(max(substring(code from 3)::bigint)
+          filter (where code ~ '^F-[0-9]{2,6}$'), 0) + 1 as sequence
         from branches, locked
         where tenant_id = $1::uuid
+      ), eligible as (
+        select candidate.sequence
+        from candidate
+        inner join regions region on
+          region.id = $3::uuid and
+          region.tenant_id = $1::uuid and
+          region.is_active = true
+        where $8::uuid is null or exists (
+          select 1 from users manager
+          where manager.id = $8::uuid
+            and manager.tenant_id = $1::uuid
+            and manager.role = 'branch_manager'
+            and manager.is_active = true
+            and manager.is_email_verified = true
+        )
+          and ($2::text <> '' or candidate.sequence <= 999999)
       ), created as (
         insert into branches (
           tenant_id, region_id, code, name, city, address, phone, manager_id,
           open_time, close_time, is_active, is_archived
         )
         select $1::uuid, $3::uuid,
-          coalesce(nullif($2::text, ''), 'F-' || lpad(candidate.sequence::text, 2, '0')),
+          coalesce(nullif($2::text, ''), 'F-' || lpad(eligible.sequence::text, 2, '0')),
           $4::text, $5::text, $6::text, $7::text, $8::uuid,
           $9::text, $10::text, false, false
-        from candidate
+        from eligible
         returning *
       ), audited as (
         insert into audit_logs (tenant_id, user_id, action, entity, entity_id, metadata)
@@ -186,8 +210,58 @@ export async function POST(req: NextRequest) {
       session.user.id,
     ])
     const created = createdRows[0]
+    if (!created) {
+      if (!requestedCode) {
+        const existingCodes = await db.select({ code: branches.code }).from(branches)
+          .where(eq(branches.tenant_id, session.user.tenant_id))
+        try {
+          nextBranchCode(existingCodes.map((branch) => branch.code))
+        } catch (error) {
+          if (error instanceof Error && error.message === 'BRANCH_SEQUENCE_INVALID') {
+            return NextResponse.json(
+              { code: 'BRANCH_CODE_EXHAUSTED', error: 'Yeni filial kodu üçün sıra tükənib' },
+              { status: 409 },
+            )
+          }
+          throw error
+        }
+      }
+      return NextResponse.json(
+        { code: 'BRANCH_SETUP_CHANGED', error: 'Bölgə və ya filial müdiri məlumatı dəyişib' },
+        { status: 409 },
+      )
+    }
 
-    return NextResponse.json({ branch: created }, { status: 201 })
+    const [canonical] = await db.select({
+      id: branches.id,
+      code: branches.code,
+      name: branches.name,
+      region_id: branches.region_id,
+      region_name: regions.name,
+      city: branches.city,
+      address: branches.address,
+      phone: branches.phone,
+      open_time: branches.open_time,
+      close_time: branches.close_time,
+      manager_id: branches.manager_id,
+      manager_name: users.name,
+      manager_email: users.email,
+      is_active: branches.is_active,
+      is_archived: branches.is_archived,
+      version: branches.version,
+      activated_at: branches.activated_at,
+      archived_at: branches.archived_at,
+      archive_reason: branches.archive_reason,
+      created_at: branches.created_at,
+      updated_at: branches.updated_at,
+    }).from(branches)
+      .leftJoin(regions, and(eq(regions.id, branches.region_id), eq(regions.tenant_id, branches.tenant_id)))
+      .leftJoin(users, and(eq(users.id, branches.manager_id), eq(users.tenant_id, branches.tenant_id)))
+      .where(and(eq(branches.id, String(created.id)), eq(branches.tenant_id, session.user.tenant_id)))
+      .limit(1)
+    if (!canonical) throw new Error('BRANCH_READBACK_FAILED')
+
+    return NextResponse.json({ branch: { ...canonical, pending_manager_invitation: null } }, { status: 201 })
   } catch (error) {
     if (isUniqueViolation(error, 'branches_tenant_code_uq')) {
       return NextResponse.json({ code: 'BRANCH_CODE_CONFLICT', error: 'Bu filial kodu artıq istifadə olunur' }, { status: 409 })

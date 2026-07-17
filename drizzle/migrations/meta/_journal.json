@@ -43,6 +43,13 @@
       "when": 1784206669774,
       "tag": "0005_branch_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784227367000,
+      "tag": "0006_branch_activation_backfill",
+      "breakpoints": true
     }
   ]
 }

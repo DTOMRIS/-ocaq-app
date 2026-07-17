@@ -176,7 +176,16 @@ export async function PATCH(req: NextRequest, { params }: Context) {
       if (hasBlockers(blockers)) {
         return NextResponse.json({ code: 'BRANCH_HAS_ACTIVE_OPERATIONS', error: 'Filialda açıq əməliyyatlar var', blockers }, { status: 409 })
       }
-      return mutateBranch({ id, tenantId: session.user.tenant_id, userId: session.user.id, expectedVersion, action: 'branch.deactivate', existing, updates: { is_active: false } })
+      return mutateBranch({
+        id,
+        tenantId: session.user.tenant_id,
+        userId: session.user.id,
+        expectedVersion,
+        action: 'branch.deactivate',
+        existing,
+        updates: { is_active: false },
+        requireNoBlockers: true,
+      })
     }
 
     if (!existing.is_archived) return NextResponse.json({ error: 'Filial arxivdə deyil' }, { status: 409 })
@@ -247,6 +256,7 @@ export async function DELETE(req: NextRequest, { params }: Context) {
       archived_by: session.user.id,
       archive_reason: reason,
     },
+    requireNoBlockers: true,
   })
 }
 
@@ -258,6 +268,7 @@ async function mutateBranch({
   action,
   existing,
   updates,
+  requireNoBlockers = false,
 }: {
   id: string
   tenantId: string
@@ -266,14 +277,33 @@ async function mutateBranch({
   action: string
   existing: typeof branches.$inferSelect
   updates: Record<string, unknown>
+  requireNoBlockers?: boolean
 }) {
   void existing
   const rows = await sqlClient.query(`
-    with payload as (
+    with locked as (
+      select pg_advisory_xact_lock(hashtextextended($1::text, 1))
+    ), payload as (
       select $5::jsonb value
     ), before as (
-      select * from branches
+      select branches.* from branches, locked
       where id = $1::uuid and tenant_id = $2::uuid and version = $3::integer
+    ), blockers as (
+      select
+        (select count(*) from invitations invitation
+          where invitation.tenant_id = $2::uuid
+            and invitation.branch_id = $1::uuid
+            and invitation.accepted_at is null
+            and invitation.revoked_at is null
+            and invitation.expires_at > now()) as pending_invitations,
+        (select count(*) from shift_briefings briefing
+          where briefing.tenant_id = $2::uuid
+            and briefing.branch_id = $1::uuid
+            and briefing.status = 'draft') as draft_shift_briefings,
+        (select count(*) from complaints complaint
+          where complaint.tenant_id = $2::uuid
+            and complaint.branch_id = $1::uuid
+            and complaint.status in ('new', 'in_review', 'sent_to_branch')) as open_complaints
     ), updated as (
       update branches branch set
         name = case when payload.value ? 'name' then payload.value ->> 'name' else branch.name end,
@@ -291,8 +321,15 @@ async function mutateBranch({
         archive_reason = case when payload.value ? 'archive_reason' then payload.value ->> 'archive_reason' else branch.archive_reason end,
         version = branch.version + 1,
         updated_at = now()
-      from before, payload
+      from before, payload, blockers
       where branch.id = before.id
+        and (
+          not ($7::boolean) or (
+            blockers.pending_invitations = 0 and
+            blockers.draft_shift_briefings = 0 and
+            blockers.open_complaints = 0
+          )
+        )
       returning branch.*
     ), audited as (
       insert into audit_logs (tenant_id, user_id, action, entity, entity_id, metadata)
@@ -303,6 +340,10 @@ async function mutateBranch({
             'manager_id', before.manager_id,
             'is_active', before.is_active,
             'is_archived', before.is_archived,
+            'activated_at', before.activated_at,
+            'archived_at', before.archived_at,
+            'archived_by', before.archived_by,
+            'archive_reason', before.archive_reason,
             'version', before.version
           ),
           'after', jsonb_build_object(
@@ -310,14 +351,29 @@ async function mutateBranch({
             'manager_id', updated.manager_id,
             'is_active', updated.is_active,
             'is_archived', updated.is_archived,
+            'activated_at', updated.activated_at,
+            'archived_at', updated.archived_at,
+            'archived_by', updated.archived_by,
+            'archive_reason', updated.archive_reason,
             'version', updated.version
           )
         )::text
       from before join updated on true
     )
     select * from updated
-  `, [id, tenantId, expectedVersion, action, JSON.stringify(updates), userId])
+  `, [id, tenantId, expectedVersion, action, JSON.stringify(updates), userId, requireNoBlockers])
   const updated = rows[0] ?? null
+  if (!updated && requireNoBlockers) {
+    const current = await findBranch(id, tenantId)
+    if (!current || current.version !== expectedVersion) return staleVersion()
+    const blockers = await operationBlockers(id, tenantId)
+    if (hasBlockers(blockers)) {
+      return NextResponse.json(
+        { code: 'BRANCH_HAS_ACTIVE_OPERATIONS', error: 'Filialda açıq əməliyyatlar var', blockers },
+        { status: 409 },
+      )
+    }
+  }
   if (!updated) return staleVersion()
   return NextResponse.json({ branch: updated })
 }

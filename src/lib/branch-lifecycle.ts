@@ -1,4 +1,5 @@
-export const BRANCH_CODE_PATTERN = /^F-[0-9]{2,}$/
+export const MAX_BRANCH_SEQUENCE = 999_999
+export const BRANCH_CODE_PATTERN = /^F-[0-9]{2,6}$/
 export const BRANCH_ACTIONS = [
   'update_details',
   'activate',
@@ -17,7 +18,7 @@ export function isBranchCode(value: string): boolean {
 }
 
 export function formatBranchCode(sequence: number): string {
-  if (!Number.isSafeInteger(sequence) || sequence < 1) {
+  if (!Number.isSafeInteger(sequence) || sequence < 1 || sequence > MAX_BRANCH_SEQUENCE) {
     throw new Error('BRANCH_SEQUENCE_INVALID')
   }
   return `F-${String(sequence).padStart(2, '0')}`

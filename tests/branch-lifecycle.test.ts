@@ -14,6 +14,8 @@ import {
 test('branch code is normalized and validated', () => {
   assert.equal(normalizeBranchCode(' f-031 '), 'F-031')
   assert.equal(isBranchCode('F-01'), true)
+  assert.equal(isBranchCode('F-999999'), true)
+  assert.equal(isBranchCode('F-1000000'), false)
   assert.equal(isBranchCode('F-1'), false)
   assert.equal(isBranchCode('A-01'), false)
 })
@@ -22,6 +24,8 @@ test('next branch code ignores noncanonical values and never reuses archived num
   assert.equal(nextBranchCode(['F-01', 'legacy', 'F-12', 'F-03']), 'F-13')
   assert.equal(nextBranchCode([]), 'F-01')
   assert.equal(formatBranchCode(101), 'F-101')
+  assert.throws(() => formatBranchCode(1_000_000), /BRANCH_SEQUENCE_INVALID/)
+  assert.throws(() => nextBranchCode(['F-999999']), /BRANCH_SEQUENCE_INVALID/)
 })
 
 test('Azerbaijan phone numbers are normalized', () => {

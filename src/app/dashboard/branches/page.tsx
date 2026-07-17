@@ -3,84 +3,42 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getRequestOrigin } from '@/lib/request-origin'
 import BranchesClient from './branches-client'
+import type { BranchFilter, BranchReadModel, RegionOption } from './types'
 
-interface Branch {
-  id: string
-  tenant_id: string
-  region_id: string | null
-  code: string
-  name: string
-  city: string
-  address: string | null
-  phone: string | null
-  manager_id: string | null
-  iiko_org_id: string | null
-  open_time: string | null
-  close_time: string | null
-  is_active: boolean
-  is_archived: boolean
-  created_at: string
-  updated_at: string
-}
+export const metadata = { title: 'Filiallar — OCAQ' }
 
-export const metadata = {
-  title: 'Filiallar — OCAQ',
-}
+const FILTERS = new Set<BranchFilter>(['current', 'active', 'inactive', 'archived'])
 
-export default async function BranchesPage() {
+export default async function BranchesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const session = await auth()
   if (!session) redirect('/login')
 
+  const requested = (await searchParams).status
+  const filter: BranchFilter = requested && FILTERS.has(requested as BranchFilter) ? requested as BranchFilter : 'current'
+  const effectiveFilter: BranchFilter = session.user.role === 'super_admin' ? filter : 'active'
   const headersList = await headers()
   const cookie = headersList.get('cookie') ?? ''
-
-  let branches: Branch[] = []
-  let regions: { id: string; name: string }[] = []
-  let fetchError: string | null = null
-
   const baseUrl = getRequestOrigin(headersList)
+  let branches: BranchReadModel[] = []
+  let regions: RegionOption[] = []
+  let fetchError: string | null = null
 
   try {
     const [branchRes, regionRes] = await Promise.all([
-      fetch(`${baseUrl}/api/branches`, {
-        headers: { cookie },
-        cache: 'no-store',
-      }),
-      fetch(`${baseUrl}/api/regions`, {
-        headers: { cookie },
-        cache: 'no-store',
-      }),
+      fetch(`${baseUrl}/api/branches?status=${effectiveFilter}`, { headers: { cookie }, cache: 'no-store' }),
+      fetch(`${baseUrl}/api/regions`, { headers: { cookie }, cache: 'no-store' }),
     ])
-
-    if (!branchRes.ok) {
-      fetchError = `Filiallar yüklənmədi (${branchRes.status})`
-    } else {
+    if (!branchRes.ok) fetchError = `Filiallar yüklənmədi (${branchRes.status})`
+    else {
       const data: unknown = await branchRes.json()
-      if (Array.isArray(data)) {
-        branches = data as Branch[]
-      } else {
-        fetchError = 'API cavabı gözlənilməz formatdadır'
-      }
+      if (Array.isArray(data)) branches = data as BranchReadModel[]
+      else fetchError = 'API cavabı gözlənilməz formatdadır'
     }
-
     if (regionRes.ok) {
-      const rData: unknown = await regionRes.json()
-      if (Array.isArray(rData)) {
-        regions = rData as { id: string; name: string }[]
-      }
+      const data: unknown = await regionRes.json()
+      if (Array.isArray(data)) regions = (data as Array<{ id: string; name: string; is_active?: boolean }>).map((region) => ({ id: region.id, name: region.name, is_active: region.is_active === true }))
     }
-  } catch {
-    fetchError = 'Serverlə əlaqə qurulmadı'
-  }
+  } catch { fetchError = 'Serverlə əlaqə qurulmadı' }
 
-  const isSuperAdmin = session.user.role === 'super_admin'
-
-  return (
-    <BranchesClient
-      branches={branches}
-      regions={regions}
-      isSuperAdmin={isSuperAdmin}
-      fetchError={fetchError}
-    />
-  )
+  return <BranchesClient branches={branches} regions={regions} isSuperAdmin={session.user.role === 'super_admin'} fetchError={fetchError} filter={effectiveFilter} />
 }

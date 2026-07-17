@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { db } from '@/db'
+import { db, sqlClient } from '@/db'
 import { complaints } from '@/db/schema/complaints'
 import { branches } from '@/db/schema/branches'
 import { audit_logs } from '@/db/schema/auth'
@@ -138,9 +138,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Filial tələb olunur' }, { status: 400 })
   }
 
-  const [complaint] = await db
-    .insert(complaints)
-    .values({
+  const values = {
       tenant_id: session.user.tenant_id,
       branch_id: branchId,
       created_by: session.user.id,
@@ -159,8 +157,72 @@ export async function POST(req: NextRequest) {
       action_taken: typeof body.action_taken === 'string' ? body.action_taken.trim() || null : null,
       response_due_at: responseDueFor(priority),
       rating,
-    })
-    .returning()
+    }
+
+  if (branchId) {
+    const rows = await sqlClient.query(`
+      with locked as (
+        select pg_advisory_xact_lock(hashtextextended($1::text, 1))
+      ), eligible as (
+        select branch.id from branches branch, locked
+        where branch.id = $1::uuid
+          and branch.tenant_id = $2::uuid
+          and branch.is_active = true
+          and branch.is_archived = false
+      ), created as (
+        insert into complaints (
+          tenant_id, branch_id, created_by, channel, category, priority, status, fault,
+          customer_name, customer_phone, platform_order_id, order_total, refund_amount,
+          title, description, action_taken, response_due_at, rating
+        )
+        select $2::uuid, eligible.id, $3::uuid,
+          $4::complaint_channel, $5::complaint_category, $6::complaint_priority,
+          $7::complaint_status, $8::complaint_fault,
+          $9::text, $10::text, $11::text, $12::numeric, $13::numeric,
+          $14::text, $15::text, $16::text, $17::timestamp, $18::integer
+        from eligible
+        returning *
+      ), audited as (
+        insert into audit_logs (tenant_id, user_id, action, entity, entity_id, metadata)
+        select $2::uuid, $3::uuid, 'complaint.create', 'complaint', created.id::text,
+          jsonb_build_object(
+            'channel', created.channel,
+            'category', created.category,
+            'priority', created.priority,
+            'branch_id', created.branch_id
+          )::text
+        from created
+        returning id
+      )
+      select created.* from created, audited
+    `, [
+      branchId,
+      session.user.tenant_id,
+      session.user.id,
+      values.channel,
+      values.category,
+      values.priority,
+      values.status,
+      values.fault,
+      values.customer_name,
+      values.customer_phone,
+      values.platform_order_id,
+      values.order_total,
+      values.refund_amount,
+      values.title,
+      values.description,
+      values.action_taken,
+      values.response_due_at,
+      values.rating,
+    ])
+    const complaint = rows[0]
+    if (!complaint) {
+      return NextResponse.json({ error: 'Filial artıq aktiv deyil' }, { status: 409 })
+    }
+    return NextResponse.json(complaint, { status: 201 })
+  }
+
+  const [complaint] = await db.insert(complaints).values(values).returning()
 
   await db.insert(audit_logs).values({
     tenant_id: session.user.tenant_id,
@@ -168,7 +230,7 @@ export async function POST(req: NextRequest) {
     action: 'complaint.create',
     entity: 'complaint',
     entity_id: complaint.id,
-    metadata: JSON.stringify({ channel, category, priority, branch_id: branchId }),
+    metadata: JSON.stringify({ channel, category, priority, branch_id: null }),
   })
 
   return NextResponse.json(complaint, { status: 201 })

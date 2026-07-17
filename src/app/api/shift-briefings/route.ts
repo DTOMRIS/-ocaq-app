@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { auth } from '@/auth'
-import { db } from '@/db'
+import { db, sqlClient } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { shift_briefings, shift_customer_conversations } from '@/db/schema/operations'
 import { accessibleBranchIds } from '@/lib/message-audience'
@@ -91,21 +91,48 @@ export async function POST(req: NextRequest) {
   if (existing.length) return NextResponse.json({ error: 'Bu filial, tarix və növbə üçün toplantı artıq mövcuddur', id: existing[0].id }, { status: 409 })
 
   try {
-    const [created] = await db.insert(shift_briefings).values({
-      tenant_id: session.user.tenant_id,
-      branch_id: branchId,
-      shift_date: shiftDate,
+    const rows = await sqlClient.query(`
+      with locked as (
+        select pg_advisory_xact_lock(hashtextextended($1::text, 1))
+      ), eligible as (
+        select branch.id from branches branch, locked
+        where branch.id = $1::uuid
+          and branch.tenant_id = $2::uuid
+          and branch.manager_id = $3::uuid
+          and branch.is_active = true
+          and branch.is_archived = false
+      ), created as (
+        insert into shift_briefings (
+          tenant_id, branch_id, shift_date, shift, created_by,
+          service_focus, sales_focus, sales_target, quality_focus,
+          manager_note, handover_note, training_completed_count, training_pending_count
+        )
+        select $2::uuid, eligible.id, $4::date, $5::text, $3::uuid,
+          $6::text, $7::text, $8::text, $9::text,
+          $10::text, $11::text, $12::integer, $13::integer
+        from eligible
+        returning *
+      )
+      select * from created
+    `, [
+      branchId,
+      session.user.tenant_id,
+      session.user.id,
+      shiftDate,
       shift,
-      created_by: session.user.id,
-      service_focus: cleanText(body?.service_focus, 1000),
-      sales_focus: cleanText(body?.sales_focus, 1000),
-      sales_target: cleanText(body?.sales_target, 200),
-      quality_focus: cleanText(body?.quality_focus, 1000),
-      manager_note: cleanText(body?.manager_note, 2000),
-      handover_note: cleanText(body?.handover_note, 3000),
-      training_completed_count: nonNegativeInteger(body?.training_completed_count),
-      training_pending_count: nonNegativeInteger(body?.training_pending_count),
-    }).returning()
+      cleanText(body?.service_focus, 1000),
+      cleanText(body?.sales_focus, 1000),
+      cleanText(body?.sales_target, 200),
+      cleanText(body?.quality_focus, 1000),
+      cleanText(body?.manager_note, 2000),
+      cleanText(body?.handover_note, 3000),
+      nonNegativeInteger(body?.training_completed_count),
+      nonNegativeInteger(body?.training_pending_count),
+    ])
+    const created = rows[0]
+    if (!created) {
+      return NextResponse.json({ error: 'Filial artıq aktiv deyil və ya müdür təyinatı dəyişib' }, { status: 409 })
+    }
     return NextResponse.json(created, { status: 201 })
   } catch (error) {
     if (isUniqueViolation(error)) return NextResponse.json({ error: 'Bu növbə toplantısı artıq mövcuddur' }, { status: 409 })
