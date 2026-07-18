@@ -32,8 +32,12 @@ export function dashboardRedirectForRole(role: string, pathname: string) {
   if (isLegacyMockRoute(pathname)) return '/dashboard'
 
   // Əməkdaş OCAQ əməliyyat modullarından istifadə etmir. Yalnız təlim
-  // portalına keçid verən /dashboard başlanğıc səhifəsi açıqdır.
-  if (role === 'staff' && pathname.startsWith('/dashboard/')) return '/dashboard'
+  // portalına keçid verən başlanğıc səhifəsi və öz profil səhifəsi açıqdır.
+  if (
+    role === 'staff'
+    && pathname.startsWith('/dashboard/')
+    && pathname !== '/dashboard/profile'
+  ) return '/dashboard'
 
   const superAdminOnly = ['/dashboard/settings']
   if (superAdminOnly.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {

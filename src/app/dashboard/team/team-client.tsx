@@ -11,6 +11,9 @@ interface Invitation {
   region_id: string | null
   expires_at: string
   accepted_at: string | null
+  revoked_at: string | null
+  revoked_reason: string | null
+  replaces_manager_id: string | null
   created_at: string
 }
 
@@ -64,16 +67,17 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
 
   const [showInvite, setShowInvite] = useState(false)
   const [invEmail, setInvEmail] = useState('')
-  const [invRole, setInvRole] = useState('branch_manager')
+  const [invRole, setInvRole] = useState('staff')
   const [invBranch, setInvBranch] = useState('')
   const [invRegion, setInvRegion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const pending = invitations.filter(i => !i.accepted_at && new Date(i.expires_at) > new Date())
-  const expired = invitations.filter(i => !i.accepted_at && new Date(i.expires_at) <= new Date())
+  const pending = invitations.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) > new Date())
+  const expired = invitations.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) <= new Date())
   const accepted = invitations.filter(i => !!i.accepted_at)
+  const revoked = invitations.filter(i => !i.accepted_at && !!i.revoked_at)
 
   const branchName = (id: string | null) => {
     if (!id) return null
@@ -92,7 +96,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
     setSuccess(null)
 
     if (!invEmail.trim()) { setError('E-poçt daxil edin'); return }
-    if ((invRole === 'branch_manager' || invRole === 'staff') && !invBranch) { setError('Filial seçin'); return }
+    if (invRole === 'staff' && !invBranch) { setError('Filial seçin'); return }
     if (invRole === 'region_manager' && !invRegion) { setError('Bölgə seçin'); return }
 
     setLoading(true)
@@ -103,7 +107,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         body: JSON.stringify({
           email: invEmail.trim(),
           role: invRole,
-          branch_id: invRole === 'branch_manager' || invRole === 'staff' ? invBranch : null,
+          branch_id: invRole === 'staff' ? invBranch : null,
           region_id: invRole === 'region_manager' ? invRegion : null,
         }),
       })
@@ -191,6 +195,12 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         Qəbul edilib
       </span>
     )
+    if (inv.revoked_at) return (
+      <span title={inv.revoked_reason ?? undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '500', background: '#fef2f2', color: '#C8102E' }}>
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C8102E' }} />
+        Ləğv edilib
+      </span>
+    )
     if (new Date(inv.expires_at) <= new Date()) return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '500', background: '#f5f5f5', color: '#888' }}>
         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#bbb' }} />
@@ -237,6 +247,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           { label: 'Gözləyən dəvət', value: pending.length, color: '#d97706' },
           { label: 'Qəbul edilən', value: accepted.length, color: '#2563EB' },
           { label: 'Müddəti bitən', value: expired.length, color: '#888' },
+          { label: 'Ləğv edilən', value: revoked.length, color: '#C8102E' },
         ].map(s => (
           <div key={s.label} style={{ ...cardStyle, padding: '16px 20px' }}>
             <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>{s.label}</p>
@@ -305,7 +316,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                       {new Date(inv.created_at).toLocaleDateString('az-AZ')}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      {!inv.accepted_at && (
+                      {!inv.accepted_at && !inv.revoked_at && (
                         <div style={{ display: 'flex', gap: '6px', whiteSpace: 'nowrap' }}>
                           <button onClick={() => handleResend(inv)} disabled={loading} style={{
                             padding: '5px 12px', fontSize: '11px', border: '1px solid #e0e0e0',
@@ -371,12 +382,19 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                   setInvBranch('')
                   setInvRegion('')
                 }} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="branch_manager">Filial Meneceri</option>
                   <option value="staff">Əməkdaş</option>
                   {isSuperAdmin && <option value="region_manager">Bölgə Meneceri</option>}
                 </select>
               </div>
-              {(invRole === 'branch_manager' || invRole === 'staff') && (
+              {isSuperAdmin && (
+                <div style={{
+                  padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe',
+                  borderRadius: '7px', marginBottom: '16px', fontSize: '12px', color: '#1d4ed8',
+                }}>
+                  Filial müdiri dəyişiklikləri təhlükəsizlik üçün Komanda ekranından deyil, Filiallar ekranında müvafiq filialın “⋯” menyusundan edilir.
+                </div>
+              )}
+              {invRole === 'staff' && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
                     Filial <span style={{ color: '#C8102E' }}>*</span>

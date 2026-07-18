@@ -51,6 +51,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name:      user.name,
           role:      user.role,
           tenant_id: user.tenant_id,
+          must_change_password: user.must_change_password,
           session_version: user.updated_at.toISOString(),
         }
       },
@@ -63,6 +64,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id        = user.id as string
         token.role      = (user as Record<string, unknown>).role as string
         token.tenant_id = (user as Record<string, unknown>).tenant_id as string
+        token.must_change_password = (user as Record<string, unknown>).must_change_password as boolean
         token.session_version = (user as Record<string, unknown>).session_version as string
       } else if (token.id && !token.session_version) {
         // Deploydən əvvəl yaradılmış JWT-ləri cari DB versiyası ilə möhürlə.
@@ -81,6 +83,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             is_active: users.is_active,
             role: users.role,
             tenant_id: users.tenant_id,
+            must_change_password: users.must_change_password,
             updated_at: users.updated_at,
           })
           .from(users)
@@ -99,6 +102,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id        = token.id as string
         session.user.role      = dbUser.role
         session.user.tenant_id = dbUser.tenant_id
+        session.user.must_change_password = dbUser.must_change_password
       }
       return session
     },

@@ -13,6 +13,7 @@ export default async function ProfilePage() {
       name={session.user.name ?? ''}
       email={session.user.email ?? ''}
       role={session.user.role}
+      mustChangePassword={session.user.must_change_password}
     />
   )
 }

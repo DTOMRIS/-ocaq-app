@@ -13,9 +13,10 @@ interface Props {
   name: string
   email: string
   role: string
+  mustChangePassword: boolean
 }
 
-export default function ProfileClient({ name, email, role }: Props) {
+export default function ProfileClient({ name, email, role, mustChangePassword }: Props) {
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
@@ -48,6 +49,9 @@ export default function ProfileClient({ name, email, role }: Props) {
       setCurrentPw('')
       setNewPw('')
       setConfirmPw('')
+      window.setTimeout(() => {
+        window.location.assign('/login')
+      }, 1200)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xəta baş verdi')
     } finally {
@@ -69,6 +73,15 @@ export default function ProfileClient({ name, email, role }: Props) {
   return (
     <div style={{ maxWidth: '560px' }}>
       <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 24px' }}>Profil</h1>
+
+      {mustChangePassword && (
+        <div style={{
+          padding: '14px 18px', background: '#fffbeb', border: '1px solid #fde68a',
+          borderRadius: '8px', marginBottom: '20px', fontSize: '13px', color: '#92400e',
+        }}>
+          Bu, müvəqqəti şifrə ilə ilk girişinizdir. Davam etmək üçün aşağıda şəxsi şifrənizi təyin edin.
+        </div>
+      )}
 
       {/* Info kartı */}
       <div style={{ ...cardStyle, marginBottom: '24px' }}>
