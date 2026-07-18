@@ -40,7 +40,7 @@ Son güncelleme: 18 iyul 2026. Toplantı: Pazartesi (20 iyul). Vaktimiz: hafta s
 - Onboarding önce **Preview**'da test, sonra Production.
 - Şifreler **güvenli rastgele** (123456 değil) — script üretir, kişilere dağıtılır.
 - **Direktörler + Oktay → super_admin** (her şeyi görür).
-- Mail: **Resend**, gönderen domain **shaurma.az**, DNS'i **DK Agency** ekler.
+- Mail: **DK'nın yönettiği kurumsal SMTP**, gönderen domain **shaurma.az**.
 - Production'a **açık onay + DB yedeği olmadan** dokunulmaz.
 
 ---
@@ -64,15 +64,17 @@ npm run db:import-staff
 - APPLY çıktısındaki **email → şifre** listesini kaydet (dağıtacaksın).
 - Geçici şifreyle ilk giriş yapan kullanıcı, başka sayfaya geçmeden kendi şifresini değiştirmek zorundadır.
 
-### ADIM 2 — Mail'i kur (Resend + DK Agency)
-1. **resend.com** hesap aç.
-2. Domain ekle: `shaurma.az` → Resend sana DNS kayıtları (SPF/DKIM) verir.
-3. O kayıtları shaurma.az DNS'ine ekle → **DK Agency yapar**.
-4. Doğrulanınca API key al.
-5. **Vercel** → OCAQ projesi → Settings → Environment Variables:
-   - `RESEND_API_KEY` = `<key>` (Preview + Production)
-   - `SENDER_EMAIL` = `OCAQ <noreply@shaurma.az>`
-6. Kodda değişiklik YOK — key gelince davet + "şifremi unuttum" çalışır.
+### ADIM 2 — Mail'i kur (DK kurumsal SMTP)
+1. DK'dan SMTP host, port, kullanıcı adı ve yalnız uygulamaya özel parola alınır.
+2. DK, `shaurma.az` için SPF/DKIM/DMARC kayıtlarını doğrular.
+3. **Vercel** → OCAQ projesi → Settings → Environment Variables:
+   - `SMTP_HOST` = DK'nın verdiği sunucu
+   - `SMTP_PORT` = çoğunlukla `465` veya `587`
+   - `SMTP_SECURE` = port 465 için `true`, 587 için `false`
+   - `SMTP_USER` = DK'nın verdiği tam e-posta adresi
+   - `SMTP_PASS` = uygulama parolası (söhbətə/Git-ə yazılmaz)
+   - `SMTP_FROM` = `OCAQ <noreply@shaurma.az>`
+4. Önce Preview'da bağlantı doğrulama ve gerçek test maili yapılır; sonra aynı ayarlar Production'a eklenir.
 
 ### ADIM 3 — Production cutover (tek-dal canlıya) — SADECE onayınla
 1. **Neon'da Production DB'nin yedeğini al** (branch/snapshot — 30 saniye).
@@ -92,6 +94,6 @@ npm run db:import-staff
 ## 5. UNUTMA
 
 - ✅ "Şifre değiştir" (giriş yapınca) → mailsiz çalışıyor.
-- ⏳ "Şifremi unuttum" → mail (Resend) kurulunca çalışır.
+- ⏳ "Şifremi unuttum" → DK SMTP kurulunca çalışır.
 - 🔴 Production'a her `main` push'u = otomatik canlı deploy. Yedeksiz dokunma.
 - 📁 Her şey `codex/etap-2bc-wip-backup-20260717` dalında yedekli.

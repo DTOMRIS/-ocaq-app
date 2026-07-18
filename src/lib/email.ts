@@ -1,4 +1,4 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 import { render } from '@react-email/render'
 import { InvitationEmail } from '@/emails/InvitationEmail'
 import { VerifyEmail } from '@/emails/VerifyEmail'
@@ -6,14 +6,55 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail'
 import { WelcomeEmail } from '@/emails/WelcomeEmail'
 import { ChecklistReminderEmail } from '@/emails/ChecklistReminderEmail'
 
-const FROM   = process.env.SENDER_EMAIL ?? 'OCAQ <noreply@ocaq.app>'
+const FROM   = process.env.SMTP_FROM ?? 'OCAQ <noreply@shaurma.az>'
 const BASE   = process.env.NEXTAUTH_URL
   ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
-function getResend() {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) throw new Error('E-poçt xidməti qoşulmayıb')
-  return new Resend(apiKey)
+let smtpTransport: nodemailer.Transporter | null = null
+
+function getSmtpTransport() {
+  if (smtpTransport) return smtpTransport
+
+  const host = process.env.SMTP_HOST
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  const port = Number(process.env.SMTP_PORT ?? 465)
+  if (!host || !user || !pass || !Number.isInteger(port) || port <= 0) {
+    throw new Error('DK SMTP xidməti tam qoşulmayıb')
+  }
+
+  smtpTransport = nodemailer.createTransport({
+    host,
+    port,
+    secure: process.env.SMTP_SECURE
+      ? process.env.SMTP_SECURE === 'true'
+      : port === 465,
+    auth: { user, pass },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
+  })
+  return smtpTransport
+}
+
+async function deliverEmail({
+  to,
+  subject,
+  html,
+}: {
+  to: string
+  subject: string
+  html: string
+}) {
+  try {
+    const result = await getSmtpTransport().sendMail({ from: FROM, to, subject, html })
+    return { data: { id: result.messageId }, error: null }
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'DK SMTP göndəriş xətası',
+    }
+  }
 }
 
 // ─── Hoş Gəldiniz maili ──────────────────────────────────────────────────────
@@ -28,8 +69,7 @@ export async function sendWelcomeEmail({
     })
   )
 
-  return getResend().emails.send({
-    from: FROM,
+  return deliverEmail({
     to: email,
     subject: `🔥 OCAQ-a xoş gəldiniz, ${name}!`,
     html,
@@ -64,8 +104,7 @@ export async function sendInvitationEmail({
     })
   )
 
-  return getResend().emails.send({
-    from: FROM,
+  return deliverEmail({
     to: email,
     subject: `${inviterName} sizi OCAQ-a dəvət edir`,
     html,
@@ -82,8 +121,7 @@ export async function sendVerificationEmail({
     VerifyEmail({ name, verifyUrl })
   )
 
-  return getResend().emails.send({
-    from: FROM,
+  return deliverEmail({
     to: email,
     subject: 'OCAQ — E-poçt adresinizi doğrulayın',
     html,
@@ -116,8 +154,7 @@ export async function sendPasswordResetEmail({
     })
   )
 
-  return getResend().emails.send({
-    from: FROM,
+  return deliverEmail({
     to: email,
     subject: 'OCAQ — Şifrə sıfırlama',
     html,
@@ -146,15 +183,14 @@ export async function sendChecklistReminderEmail({
     })
   )
 
-  return getResend().emails.send({
-    from: FROM,
+  return deliverEmail({
     to: email,
     subject: `⚠️ KXT yoxlaması gecikir — ${branchName}`,
     html,
   })
 }
 
-// ─── Toplu mail (Resend Batch API) ───────────────────────────────────────────
+// ─── Toplu mail (DK SMTP; kontrollü paralellik) ───────────────────────────────
 export async function sendBulkEmail({
   emails, subject, html,
 }: {
@@ -162,20 +198,16 @@ export async function sendBulkEmail({
   subject: string
   html: string
 }) {
-  // Resend batch max 100 per request
-  const chunks: string[][] = []
-  for (let i = 0; i < emails.length; i += 100) {
-    chunks.push(emails.slice(i, i + 100))
-  }
-
-  for (const chunk of chunks) {
-    await getResend().batch.send(
-      chunk.map((email) => ({
-        from: FROM,
+  // DK serverini yükləməmək üçün eyni anda maksimum 5 məktub.
+  for (let i = 0; i < emails.length; i += 5) {
+    const results = await Promise.all(
+      emails.slice(i, i + 5).map((email) => deliverEmail({
         to: email,
         subject,
         html,
-      }))
+      })),
     )
+    const failed = results.find((result) => result.error)
+    if (failed?.error) throw new Error(failed.error)
   }
 }

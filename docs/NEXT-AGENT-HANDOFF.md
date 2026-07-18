@@ -91,7 +91,7 @@ Heç bir connection string, parol və token bu sənədə və ya kod bazasına ə
 1. Preview Neon budağının müddətini 23 iyuldan əvvəl uzatmaq və ya testi tamamlayıb qərar vermək.
 2. Etap 2B müdür atama/dəvət devrini `docs/ETAP-2-PLAN.md` qəbul qapıları ilə həyata keçirmək.
 3. TQTA portalından əvvəlki gün dərsə girən/tamamlayan əməkdaşları avtomatik gətirən inteqrasiya. Hazırda növbə ekranındakı təlim sayları manual daxil edilir.
-4. Resend/e-poçt servisini real Vercel dəyişənləri ilə qoşmaq və dəvət/reset mailini yoxlamaq.
+4. DK SMTP dəyişənlərini Vercel-ə qoşmaq və dəvət/reset mailini Preview-da yoxlamaq.
 5. HACCP, avadanlıq, kasa, HR, fire/itki və satış təxmini modullarını field-by-field tamamlamaq; mock/local state borcunu aradan qaldırmaq.
 6. Mövcud GitHub credential-da `workflow` scope olmadığı üçün əlavə edilə bilməyən CI workflow-unu səlahiyyətli hesabla ayrıca əlavə etmək.
 7. Production migrationdan əvvəl `0004_bent_mojo.sql` üçün real DB data audit və backup planı hazırlamaq.

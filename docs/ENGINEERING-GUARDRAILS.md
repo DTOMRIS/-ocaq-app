@@ -86,7 +86,7 @@ GitHub branch protection rules ilə: [1][2]
 - **Env doğrulaması boot-da** (məs. Zod ilə): tələb olunan dəyişən yoxdursa
   tətbiq **aydın xəta ilə dayanır**, səssizcə sınmır.
 - **Sentry** (Next.js SDK) ilə xəta izləmə + strukturlaşdırılmış log.
-- **Xəta heç vaxt udulmur.** (Bu layihədə davət maili Resend xətasını udurdu
+- **Xəta heç vaxt udulmur.** (Bu layihədə davət maili provider xətasını udurdu
   və UI "getdi" deyirdi — bax cədvəl.) Hər xarici çağırışın nəticəsi yoxlanır.
 - **DORA metrikləri** hədəf kimi: deployment tezliyi, dəyişiklik lead-time,
   **change-failure rate**, MTTR (bərpa müddəti).

@@ -11,7 +11,8 @@
 - ✅ Tətbiq canlıdadır (Vercel + Neon), giriş işləyir, satış/hesabat/checklist var.
 - ⚠️ Guardrail **yoxdur**: birbaşa main-ə merge, CI qapısı yox, staging yox.
 - ⚠️ Məlumat prod-a **ad-hoc skript**lə girildi (versiyasız).
-- ⚠️ Davət maili sınıq (Resend domain doğrulanmayıb) və **xəta udulur**.
+- ⚠️ Davət maili DK SMTP məlumatları qoşulana qədər hazır deyil; uğursuz
+  göndəriş artıq UI-da uğur kimi göstərilmir.
 - ✅ Staff OCAQ əməliyyatından ayrılıb; yalnız ayrıca təlim portalına yönləndirilir.
 
 ---
@@ -23,10 +24,10 @@
       check-lər məcburi, `Do not allow bypassing` aktiv.
 - [ ] **Env fail-fast**: tələb olunan env dəyişənlərini boot-da Zod ilə yoxla
       (yoxdursa aydın xəta). Səssiz build sınığını bitirir.
-- [ ] **Xəta udma düzəlişi**: davət maili (və bütün email) Resend nəticəsini
-      yoxlasın; uğursuzsa real xəta qaytarsın + davət linkini UI-da göstərsin.
-- [ ] **Resend domain**: `ocaq.app`-i doğrula (SPF/DKIM/DMARC) və ya keçici
-      olaraq `onboarding@resend.dev`-dən göndər.
+- [x] **Xəta udma düzəlişi**: davət maili uğursuzsa davət ləğv edilir və UI
+      real xəta qaytarır.
+- [ ] **DK SMTP**: `shaurma.az` göndəricisini SMTP host/port/istifadəçi/app
+      parolu ilə qoş; DK SPF/DKIM/DMARC qeydlərini doğrulasın.
 
 ## Faz 1 — Ortam ayrımı və məlumat təhlükəsizliyi
 
