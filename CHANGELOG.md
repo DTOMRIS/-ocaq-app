@@ -7,6 +7,15 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
+- **DK Agency → OCAQ ticari ürün temeli:** idempotent
+  `POST /api/integrations/dk/provision-tenant` endpoint'i, harici DK müşteri
+  kimliği, paket kodu, provisyon kaynağı/tarihi ve ilk süper yönetici davet
+  akışı eklendi.
+- `docs/SYSTEM-TREE.md` — DK Agency, OCAQ ve TQTA arasındaki ürün sınırları,
+  tek veri sahibi kuralı, canlı altyapı ve satıştan tenant açılışına kadar
+  sistem ağacı belgelendi.
+- `drizzle/migrations/0008_dk_commercial_foundation.sql` — tenant provisyon
+  alanları, benzersiz harici müşteri indeksi ve davet kaynağı eklendi.
 - `src/app/dashboard/checklists/page.tsx` — **Çekirdek akışı tamamlayan görünüm:** bölgə müdiri/filial müdiri göndərilmiş vardiya checklist nəticələrini (filial, vardiya, skor, dolduran, tarix) görür. Rol əhatəsinə görə scoped (region_manager yalnız öz bölgəsi). Əvvəl boş placeholder idi.
 - `src/db/schema/checklists.ts` — Created checklists table schema for persisting vardiya checklist responses.
 - `src/app/api/checklists/route.ts` — Implemented GET/POST endpoints for checklists with automatic audit logging on submit.
@@ -14,6 +23,16 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - `drizzle/migrations/0003_black_whistler.sql` — Generated and pushed database migration for checklists table.
 
 ### Changed
+- **OCAQ yönetici erişimi:** oturum açma, davet, parola sıfırlama ve session
+  akışları yalnız `super_admin`, `region_manager` ve `branch_manager`
+  rollerine sınırlandı; personel için OCAQ hesabı açılması engellendi.
+- Canlı ürün alan adı `ocaq.dkagency.com.tr` olarak belirlendi. Hostinger
+  CNAME → Vercel bağlantısı ve HTTPS doğrulandı.
+- Davet/parola e-postaları için `ocaq@dkagency.com.tr` Hostinger SMTP
+  (`smtp.hostinger.com`, SSL/465) yapılandırması Preview ve Production
+  ortamlarına eklendi ve kimlik doğrulama testi başarılı oldu.
+- Production Neon veritabanına `0008_dk_commercial_foundation.sql`, öncesinde
+  `pre-dk-commercial-2026-07-25` snapshot'ı alınarak uygulandı.
 - `src/app/dashboard/page.tsx` — Günlük/aylıq satış rakamları mock `TODAY` obyektindən real DB verisinə bağlandı (daily_sales + sales_targets, rol əhatəsinə görə). Digər KPI/cost göstəriciləri toxunulmadı (data mənbəyi yoxdur). AGENTS.md qorunub.
 - `src/app/api/sales/daily/route.ts` & `targets/route.ts` — Added strict region/branch validation checks for region managers and branch managers preventing cross-region data queries and target updates.
 - `src/app/dashboard/vardiya-checklist/page.tsx` — Replaced client-side mockup submission with database persistence, complete with dynamic branch fetching and dropdown selection.

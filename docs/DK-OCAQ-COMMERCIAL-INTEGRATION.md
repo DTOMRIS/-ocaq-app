@@ -1,5 +1,8 @@
 # DK Agency → OCAQ ticari entegrasyonu
 
+Ana sistem ve veri sahipliği ağacı için
+[`SYSTEM-TREE.md`](./SYSTEM-TREE.md) belgesine bakın.
+
 ## Kesin sınır
 
 - DK Agency müşteri, paket, abonelik ve faturanın sahibidir.
@@ -55,3 +58,16 @@ Sırlar Git'e ve istemci koduna yazılmaz. DK provisioning isteği tarayıcıdan
 3. SSL aktif olduktan sonra `NEXTAUTH_URL` ve `AUTH_URL` yeni alan adına çevrilir.
 4. `ocaq@dkagency.com.tr` için DKIM/SPF; `dkagency.com.tr` için DMARC doğrulanır.
 5. Login, davet, şifre sıfırlama ve DK provisioning smoke testleri çalıştırılır.
+
+## Kurulum durumu — 25 Temmuz 2026
+
+- `ocaq.dkagency.com.tr` Vercel projesine bağlandı; Hostinger CNAME ve HTTPS
+  doğrulandı.
+- `ocaq@dkagency.com.tr` posta kutusu oluşturuldu.
+- Hostinger SMTP girişi `smtp.hostinger.com:465` üzerinde doğrulandı.
+- SMTP ve `DK_PROVISIONING_SECRET` değişkenleri Vercel Preview ve Production
+  ortamlarına sır olarak eklendi.
+- Production migration `0008_dk_commercial_foundation.sql`, migration öncesi
+  Neon snapshot alındıktan sonra başarıyla uygulandı.
+- Production doğrulamasında personel girişi görünmemeli; yalnız yönetici
+  e-posta/parola akışı bulunmalıdır.
