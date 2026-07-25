@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { db, sqlClient } from '@/db'
-import { invitations, users, audit_logs } from '@/db/schema/auth'
+import { invitations, users, audit_logs, tenants } from '@/db/schema/auth'
 import { regions } from '@/db/schema/regions'
 import { branches } from '@/db/schema/branches'
-import { staff_profiles } from '@/db/schema/staff'
 import { and, eq, gt, inArray, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { sendWelcomeEmail } from '@/lib/email'
@@ -38,7 +37,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Dəvət tapılmadı və ya müddəti bitib' }, { status: 404 })
   }
 
-  if (!['region_manager', 'branch_manager', 'staff'].includes(candidate.role)) {
+  const isDkOwnerInvitation = candidate.role === 'super_admin'
+    && candidate.source === 'dk_provisioning'
+    && !candidate.invited_by
+    && !candidate.region_id
+    && !candidate.branch_id
+  if (!['region_manager', 'branch_manager'].includes(candidate.role) && !isDkOwnerInvitation) {
     return NextResponse.json({ error: 'Dəvət rolu etibarsızdır' }, { status: 400 })
   }
 
@@ -61,10 +65,9 @@ export async function POST(req: NextRequest) {
           { status: 409 },
         )
       }
-      try {
-        await sendWelcomeEmail({ email: candidate.email, name, role: candidate.role })
-      } catch (error) {
-        console.error('Welcome mail göndərilmədi (qeydiyyat uğurlu):', error)
+      const welcomeDelivery = await sendWelcomeEmail({ email: candidate.email, name, role: candidate.role })
+      if (welcomeDelivery.error) {
+        console.error('Welcome mail göndərilmədi (qeydiyyat uğurlu):', welcomeDelivery.error)
       }
       return NextResponse.json({ success: true, userId: accepted.user_id })
     } catch (error) {
@@ -78,7 +81,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (candidate.role === 'region_manager') {
+  if (isDkOwnerInvitation) {
+    const [tenant] = await db.select({ id: tenants.id }).from(tenants)
+      .where(and(
+        eq(tenants.id, candidate.tenant_id),
+        eq(tenants.provisioned_by, 'dk_agency'),
+        eq(tenants.is_active, true),
+      ))
+      .limit(1)
+    if (!tenant) {
+      return NextResponse.json({ error: 'Müştəri hesabı aktiv deyil' }, { status: 409 })
+    }
+  } else if (candidate.role === 'region_manager') {
     if (!candidate.region_id || candidate.branch_id) {
       return NextResponse.json({ error: 'Dəvət əhatəsi etibarsızdır' }, { status: 400 })
     }
@@ -129,7 +143,9 @@ export async function POST(req: NextRequest) {
     }).returning({ id: users.id })
     createdUserId = created.id
 
-    if (claimed.role === 'region_manager' && claimed.region_id) {
+    if (claimed.role === 'super_admin' && claimed.source === 'dk_provisioning') {
+      // DK tərəfindən yaradılan tenant-in ilk sahibi üçün ayrıca əhatə təyinatı yoxdur.
+    } else if (claimed.role === 'region_manager' && claimed.region_id) {
       const assigned = await db.update(regions)
         .set({ manager_id: created.id, updated_at: new Date() })
         .where(and(
@@ -147,13 +163,6 @@ export async function POST(req: NextRequest) {
           isNull(branches.manager_id),
         )).returning({ id: branches.id })
       if (assigned.length === 0) throw new AcceptError('SCOPE_TAKEN')
-    } else if (claimed.role === 'staff' && claimed.branch_id) {
-      await db.insert(staff_profiles).values({
-        user_id: created.id,
-        tenant_id: claimed.tenant_id,
-        branch_id: claimed.branch_id,
-        status: 'active',
-      })
     } else {
       throw new AcceptError('INVALID_SCOPE')
     }
@@ -171,10 +180,9 @@ export async function POST(req: NextRequest) {
       console.error('Audit log onboarding write error:', error)
     }
 
-    try {
-      await sendWelcomeEmail({ email: candidate.email, name, role: candidate.role })
-    } catch (error) {
-      console.error('Welcome mail göndərilmədi (qeydiyyat uğurlu):', error)
+    const welcomeDelivery = await sendWelcomeEmail({ email: candidate.email, name, role: candidate.role })
+    if (welcomeDelivery.error) {
+      console.error('Welcome mail göndərilmədi (qeydiyyat uğurlu):', welcomeDelivery.error)
     }
 
     return NextResponse.json({ success: true, userId: created.id })
@@ -186,7 +194,6 @@ export async function POST(req: NextRequest) {
         db.update(branches).set({ manager_id: null, updated_at: new Date() })
           .where(eq(branches.manager_id, createdUserId)),
       ])
-      await db.delete(staff_profiles).where(eq(staff_profiles.user_id, createdUserId)).catch(() => undefined)
       await db.delete(users).where(eq(users.id, createdUserId)).catch(() => undefined)
     }
     await db.update(invitations).set({ accepted_at: null }).where(and(

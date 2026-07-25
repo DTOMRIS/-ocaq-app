@@ -284,26 +284,26 @@ export default function StaffList({ staff, branches, regions, userRole }: StaffL
         </select>
 
         {(userRole === 'super_admin' || userRole === 'region_manager') && (
-          <button
-            type="button"
-            onClick={() => setShowInviteModal(true)}
+          <a
+            href="/dashboard/team"
             style={{
               padding: '9px 18px',
-              background: '#C8102E',
-              color: '#fff',
-              border: 'none',
+              background: '#fff',
+              color: '#C8102E',
+              border: '1px solid #C8102E',
               borderRadius: '8px',
               fontSize: '13px',
               fontWeight: '600',
               cursor: 'pointer',
               minHeight: '44px',
               transition: 'opacity .15s',
+              display: 'inline-flex',
+              alignItems: 'center',
+              textDecoration: 'none',
             }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.88' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
           >
-            + Yeni Dəvət
-          </button>
+            Menecer hesabları
+          </a>
         )}
       </div>
 

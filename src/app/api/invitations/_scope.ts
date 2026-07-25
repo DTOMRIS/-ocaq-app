@@ -3,12 +3,19 @@ import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
 import { and, eq } from 'drizzle-orm'
 import { canAccessBranch, canAccessRegion, type ScopedUser } from '@/lib/branch-access'
+import {
+  isManagerInvitableRole,
+  MANAGER_INVITABLE_ROLES,
+  type ManagerInvitableRole,
+} from '@/lib/operational-roles'
 
-export const INVITABLE_ROLES = ['staff', 'branch_manager', 'region_manager'] as const
-export type InvitableRole = typeof INVITABLE_ROLES[number]
+// Əməkdaşlar OCAQ-a daxil olmur. Filial müdiri xüsusi filial axınından,
+// bölgə müdiri isə ümumi dəvət axınından yaradılır.
+export const INVITABLE_ROLES = MANAGER_INVITABLE_ROLES
+export type InvitableRole = ManagerInvitableRole
 
 export function isInvitableRole(value: unknown): value is InvitableRole {
-  return typeof value === 'string' && INVITABLE_ROLES.includes(value as InvitableRole)
+  return isManagerInvitableRole(value)
 }
 
 export async function invitationScope(

@@ -18,6 +18,10 @@ export const tenants = pgTable('tenants', {
   id:          uuid('id').primaryKey().defaultRandom(),
   name:        text('name').notNull(),
   slug:        text('slug').notNull().unique(),     // ocaq, brand-x
+  external_customer_id: text('external_customer_id').unique(), // DK Agency müştəri ID-si
+  plan_code:   text('plan_code'),
+  provisioned_by: text('provisioned_by'),
+  provisioned_at: timestamp('provisioned_at'),
   iiko_org_id: text('iiko_org_id'),                 // iiko inteqrasiyası üçün
   is_active:   boolean('is_active').notNull().default(true),
   created_at:  timestamp('created_at').notNull().defaultNow(),
@@ -31,7 +35,7 @@ export const users = pgTable('users', {
   name:              text('name'),
   password_hash:     text('password_hash'),           // bcrypt
   must_change_password: boolean('must_change_password').notNull().default(false),
-  role:              roleEnum('role').notNull().default('staff'),
+  role:              roleEnum('role').notNull(),
   is_active:         boolean('is_active').notNull().default(true),
   is_email_verified: boolean('is_email_verified').notNull().default(false),
   email_verified_at: timestamp('email_verified_at'),
@@ -46,7 +50,7 @@ export const invitations = pgTable('invitations', {
   id:          uuid('id').primaryKey().defaultRandom(),
   tenant_id:   uuid('tenant_id').notNull().references(() => tenants.id),
   email:       text('email').notNull(),
-  role:        roleEnum('role').notNull().default('staff'),
+  role:        roleEnum('role').notNull(),
   token:       text('token').notNull().unique(),    // crypto.randomBytes(32)
   invited_by:  uuid('invited_by').references(() => users.id),
   region_id:   uuid('region_id').references(() => regions.id),
@@ -57,6 +61,7 @@ export const invitations = pgTable('invitations', {
   revoked_by:  uuid('revoked_by').references(() => users.id),
   revoked_reason: text('revoked_reason'),
   replaces_manager_id: uuid('replaces_manager_id').references(() => users.id),
+  source:      text('source').notNull().default('manual'),
   created_at:  timestamp('created_at').notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('invitations_live_branch_manager_uq')

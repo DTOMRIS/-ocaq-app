@@ -6,6 +6,7 @@ import { resetRateLimit } from '@/lib/rate-limit'
 import { sendPasswordResetEmail } from '@/lib/email'
 import bcrypt from 'bcryptjs'
 import { createOneTimeToken, hashOneTimeToken, oneTimeTokenCandidates } from '@/lib/one-time-token'
+import { isOperationalRole } from '@/lib/operational-roles'
 
 // POST — Şifrə sıfırlama tələbi (e-poçta link göndər)
 export async function POST(req: NextRequest) {
@@ -27,13 +28,13 @@ export async function POST(req: NextRequest) {
 
   // İstifadəçini tap
   const [user] = await db
-    .select({ id: users.id })
+    .select({ id: users.id, role: users.role, is_active: users.is_active })
     .from(users)
     .where(eq(users.email, email))
     .limit(1)
 
   // Güvənlik: istifadəçi tapılmasa belə, eyni cavab ver
-  if (!user) {
+  if (!user || !user.is_active || !isOperationalRole(user.role)) {
     return NextResponse.json({ success: true })
   }
 
@@ -56,7 +57,14 @@ export async function POST(req: NextRequest) {
     : userAgent.includes('Edge') ? 'Edge'
     : 'Bilinmir'
 
-  await sendPasswordResetEmail({ email, token, ip, device })
+  const delivery = await sendPasswordResetEmail({ email, token, ip, device })
+  if (delivery.error) {
+    console.error('Password reset mail göndərilmədi:', delivery.error)
+    return NextResponse.json(
+      { error: 'E-poçt göndərilə bilmədi. Bir az sonra yenidən cəhd edin.' },
+      { status: 502 },
+    )
+  }
 
   return NextResponse.json({ success: true })
 }

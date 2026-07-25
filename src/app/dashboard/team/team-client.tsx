@@ -67,8 +67,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
 
   const [showInvite, setShowInvite] = useState(false)
   const [invEmail, setInvEmail] = useState('')
-  const [invRole, setInvRole] = useState('staff')
-  const [invBranch, setInvBranch] = useState('')
+  const [invRole, setInvRole] = useState('region_manager')
   const [invRegion, setInvRegion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -96,7 +95,6 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
     setSuccess(null)
 
     if (!invEmail.trim()) { setError('E-poçt daxil edin'); return }
-    if (invRole === 'staff' && !invBranch) { setError('Filial seçin'); return }
     if (invRole === 'region_manager' && !invRegion) { setError('Bölgə seçin'); return }
 
     setLoading(true)
@@ -107,7 +105,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         body: JSON.stringify({
           email: invEmail.trim(),
           role: invRole,
-          branch_id: invRole === 'staff' ? invBranch : null,
+          branch_id: null,
           region_id: invRole === 'region_manager' ? invRegion : null,
         }),
       })
@@ -117,7 +115,6 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
       }
       setSuccess(`${invEmail} adresinə dəvət göndərildi!`)
       setInvEmail('')
-      setInvBranch('')
       setInvRegion('')
       setTimeout(() => { setShowInvite(false); setSuccess(null); router.refresh() }, 2000)
     } catch (err) {
@@ -225,13 +222,15 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
             İstifadəçilər və dəvətlər — {users.length} aktiv, {pending.length} gözləyir
           </p>
         </div>
-        <button type="button" onClick={() => { setShowInvite(true); setError(null); setSuccess(null) }} style={{
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
-          padding: '9px 18px', background: '#C8102E', color: '#fff', border: 'none',
-          borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: '44px',
-        }}>
-          + Dəvət göndər
-        </button>
+        {isSuperAdmin && (
+          <button type="button" onClick={() => { setShowInvite(true); setError(null); setSuccess(null) }} style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '9px 18px', background: '#C8102E', color: '#fff', border: 'none',
+            borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: '44px',
+          }}>
+            + Bölgə meneceri dəvət et
+          </button>
+        )}
       </div>
 
       {fetchError && (
@@ -379,11 +378,9 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                 </label>
                 <select value={invRole} onChange={e => {
                   setInvRole(e.target.value)
-                  setInvBranch('')
                   setInvRegion('')
                 }} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="staff">Əməkdaş</option>
-                  {isSuperAdmin && <option value="region_manager">Bölgə Meneceri</option>}
+                  <option value="region_manager">Bölgə Meneceri</option>
                 </select>
               </div>
               {isSuperAdmin && (
@@ -392,19 +389,6 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                   borderRadius: '7px', marginBottom: '16px', fontSize: '12px', color: '#1d4ed8',
                 }}>
                   Filial müdiri dəyişiklikləri təhlükəsizlik üçün Komanda ekranından deyil, Filiallar ekranında müvafiq filialın “⋯” menyusundan edilir.
-                </div>
-              )}
-              {invRole === 'staff' && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
-                    Filial <span style={{ color: '#C8102E' }}>*</span>
-                  </label>
-                  <select value={invBranch} onChange={e => setInvBranch(e.target.value)} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    <option value="">Filial seçin</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
-                    ))}
-                  </select>
                 </div>
               )}
               {invRole === 'region_manager' && (

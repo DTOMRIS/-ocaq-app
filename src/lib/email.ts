@@ -6,7 +6,7 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail'
 import { WelcomeEmail } from '@/emails/WelcomeEmail'
 import { ChecklistReminderEmail } from '@/emails/ChecklistReminderEmail'
 
-const FROM   = process.env.SMTP_FROM ?? 'OCAQ <noreply@shaurma.az>'
+const FROM   = process.env.SMTP_FROM ?? 'OCAQ <ocaq@dkagency.com.tr>'
 const BASE   = process.env.NEXTAUTH_URL
   ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
@@ -92,13 +92,12 @@ export async function sendInvitationEmail({
     super_admin:    'Süper Admin',
     region_manager: 'Bölgə Meneceri',
     branch_manager: 'Filial Meneceri',
-    staff:          'Əməkdaş',
   }
 
   const html = await render(
     InvitationEmail({
       inviterName,
-      recipientRole: roleLabels[recipientRole ?? 'staff'] ?? recipientRole ?? 'Əməkdaş',
+      recipientRole: roleLabels[recipientRole ?? 'branch_manager'] ?? recipientRole ?? 'Menecer',
       branchName,
       inviteUrl,
     })
