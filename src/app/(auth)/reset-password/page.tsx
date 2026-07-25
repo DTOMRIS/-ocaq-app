@@ -131,7 +131,7 @@ function ResetPasswordContent() {
               <span className="text-3xl block mb-2">✅</span>
               <p className="text-sm" style={{ color: '#86efac' }}>
                 {step === 'request' 
-                  ? 'Sıfırlama linki e-poçt adresinizə göndərildi!'
+                  ? 'E-poçt aktiv idarəçi hesabına bağlıdırsa, sıfırlama linki göndərildi. 5 dəqiqə ərzində gəlməzsə Spam qovluğunu yoxlayın; hesabınız hələ yaradılmamış ola bilər.'
                   : 'Şifrəniz uğurla dəyişdirildi!'}
               </p>
               <a href="/login" className="inline-block mt-3 text-sm text-red-400 hover:text-red-300 transition-colors">
@@ -155,6 +155,12 @@ function ResetPasswordContent() {
           {/* Request Reset Form */}
           {step === 'request' && !success && (
             <form onSubmit={handleRequestReset} className="space-y-5">
+              <div className="p-3 rounded-lg text-xs leading-5"
+                   style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#fcd34d' }}>
+                Bu səhifə yalnız əvvəlcədən dəvəti qəbul edilmiş aktiv idarəçi
+                hesabları üçündür. İlk dəfə daxil olacaqsınızsa, süper
+                yöneticinizdən dəvət istəyin.
+              </div>
               <div>
                 <label htmlFor="reset-email" className="block text-sm font-medium mb-2" style={{ color: '#ccc' }}>E-poçt</label>
                 <input

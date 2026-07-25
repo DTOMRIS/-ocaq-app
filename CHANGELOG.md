@@ -23,6 +23,10 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - `drizzle/migrations/0003_black_whistler.sql` — Generated and pushed database migration for checklists table.
 
 ### Changed
+- Şifrə sıfırlama ekranı artıq təhlükəsiz hesab-enumerasiyasını qoruyaraq
+  istifadəçiyə açıq şəkildə bildirir: link yalnız aktiv idarəçi hesabına
+  göndərilir; mail gəlməzsə Spam yoxlanmalı və hesabın hələ yaradılmamış
+  ola biləcəyi nəzərə alınmalıdır. İlk giriş üçün dəvət axını göstərilir.
 - **OCAQ yönetici erişimi:** oturum açma, davet, parola sıfırlama ve session
   akışları yalnız `super_admin`, `region_manager` ve `branch_manager`
   rollerine sınırlandı; personel için OCAQ hesabı açılması engellendi.
@@ -51,6 +55,11 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - **ENCRYPTION_KEY fail-fast** (`lib/encryption.ts`): əvvəl açar yoxdursa səssizcə sıfır (proqnozlaşdırıla bilən) AES açarı işlədilirdi. İndi prod-da açar yoxdursa throw; oxumada çökmə yox.
 
 ### Fixed
+- Production'da yeni auth kodunun tələb etdiyi
+  `users.must_change_password` kolonu eksikdi; idempotent
+  `0007_thin_firestar.sql` uygulandı. OCAQ tenant'ının ilk platform sahibi
+  doğrulanmış `super_admin` olarak bootstrap edildi ve tek kullanımlık parola
+  sıfırlama akışıyla parolasını kendisinin belirlemesi sağlandı.
 - Fixed cross-region sales leakages and target manipulation vulnerabilities in sales API endpoints.
 - **`/dashboard/staff` render çökməsi düzəldildi** (`components/staff-list.tsx`, `dashboard/staff/page.tsx`): personalın `status` sahəsi boş/naməlum olanda `STATUS_CONFIG[status]` undefined olub səhifəni çökdürürdü → indi nötr rozet göstərilir. Həmçinin staff səhifəsinin self-fetch cavabı JSON olmayanda (qorunmuş Preview HTML qaytara bilər) boş siyahıya düşür, çökmür. typecheck / test(24) / build hamısı yaşıl. (commit `cb8643c`)
 
