@@ -58,6 +58,10 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - **ENCRYPTION_KEY fail-fast** (`lib/encryption.ts`): əvvəl açar yoxdursa səssizcə sıfır (proqnozlaşdırıla bilən) AES açarı işlədilirdi. İndi prod-da açar yoxdursa throw; oxumada çökmə yox.
 
 ### Fixed
+- Şifre sıfırlama formunda iki parola alanı için ortak
+  “Yazdığım şifrəni göstər” kontrolü eklendi. Kullanıcı yeni parolayı
+  kaydetmeden önce iki alanı görsel olarak karşılaştırabilir; klavye düzeni ve
+  karakter farkından kaynaklanan başarısız ilk giriş riski azaltıldı.
 - Production'da yeni auth kodunun tələb etdiyi
   `users.must_change_password` kolonu eksikdi; idempotent
   `0007_thin_firestar.sql` uygulandı. OCAQ tenant'ının ilk platform sahibi

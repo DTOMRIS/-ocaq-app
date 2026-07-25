@@ -28,6 +28,7 @@ function ResetPasswordContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -189,18 +190,28 @@ function ResetPasswordContent() {
             <form onSubmit={handleResetPassword} className="space-y-5">
               <div>
                 <label htmlFor="new-pw" className="block text-sm font-medium mb-2" style={{ color: '#ccc' }}>Yeni Şifrə</label>
-                <input id="new-pw" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                <input id="new-pw" type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimum 8 simvol"
+                  autoComplete="new-password"
                   className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-gray-500 outline-none"
                   style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }} />
               </div>
               <div>
                 <label htmlFor="confirm-pw" className="block text-sm font-medium mb-2" style={{ color: '#ccc' }}>Şifrəni Təsdiqlə</label>
-                <input id="confirm-pw" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                <input id="confirm-pw" type={showPassword ? 'text' : 'password'} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Yenidən daxil edin"
+                  autoComplete="new-password"
                   className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-gray-500 outline-none"
                   style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }} />
               </div>
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="w-full py-2 rounded-lg text-xs font-medium"
+                style={{ color: '#fcd34d', background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.2)' }}
+              >
+                {showPassword ? 'Şifrəni gizlət' : 'Yazdığım şifrəni göstər'}
+              </button>
               <button type="submit" disabled={loading}
                 className="w-full py-3 rounded-xl text-sm font-semibold text-white relative overflow-hidden group disabled:opacity-60 cursor-pointer"
                 style={{ background: 'linear-gradient(135deg, #C8102E, #E8112D)', boxShadow: '0 4px 20px rgba(200,16,46,0.3)' }}>
