@@ -30,9 +30,13 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
   CNAME → Vercel bağlantısı ve HTTPS doğrulandı.
 - Davet/parola e-postaları için `ocaq@dkagency.com.tr` Hostinger SMTP
   (`smtp.hostinger.com`, SSL/465) yapılandırması Preview ve Production
-  ortamlarına eklendi ve kimlik doğrulama testi başarılı oldu.
+  ortamlarına eklendi; kimlik doğrulama ve gerçek test mesajı gönderimi
+  başarılı oldu.
 - Production Neon veritabanına `0008_dk_commercial_foundation.sql`, öncesinde
   `pre-dk-commercial-2026-07-25` snapshot'ı alınarak uygulandı.
+- Ticari temel production'a dağıtıldı. Canlı smoke testte login HTTP 200,
+  yönetici-only arayüz ve secretsiz DK provisioning isteğinde HTTP 401
+  doğrulandı.
 - `src/app/dashboard/page.tsx` — Günlük/aylıq satış rakamları mock `TODAY` obyektindən real DB verisinə bağlandı (daily_sales + sales_targets, rol əhatəsinə görə). Digər KPI/cost göstəriciləri toxunulmadı (data mənbəyi yoxdur). AGENTS.md qorunub.
 - `src/app/api/sales/daily/route.ts` & `targets/route.ts` — Added strict region/branch validation checks for region managers and branch managers preventing cross-region data queries and target updates.
 - `src/app/dashboard/vardiya-checklist/page.tsx` — Replaced client-side mockup submission with database persistence, complete with dynamic branch fetching and dropdown selection.

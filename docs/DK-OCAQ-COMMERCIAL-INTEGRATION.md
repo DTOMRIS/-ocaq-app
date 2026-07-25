@@ -69,5 +69,9 @@ Sırlar Git'e ve istemci koduna yazılmaz. DK provisioning isteği tarayıcıdan
   ortamlarına sır olarak eklendi.
 - Production migration `0008_dk_commercial_foundation.sql`, migration öncesi
   Neon snapshot alındıktan sonra başarıyla uygulandı.
-- Production doğrulamasında personel girişi görünmemeli; yalnız yönetici
-  e-posta/parola akışı bulunmalıdır.
+- Ticari temel production'a dağıtıldı. `ocaq.dkagency.com.tr/login` HTTP 200
+  döndürüyor; yalnız yönetici e-posta/parola akışı var ve personel rol seçimi
+  görünmüyor.
+- Secretsiz DK provisioning isteği HTTP 401 ile reddediliyor.
+- SMTP bağlantısı doğrulandı; `ocaq@dkagency.com.tr` adresinden aynı posta
+  kutusuna gönderilen test mesajı Hostinger tarafından kabul edildi.
