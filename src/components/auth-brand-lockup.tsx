@@ -20,7 +20,7 @@ export default function AuthBrandLockup({
       }}
     >
       <Image
-        src="/images/shaurma-n1-logo.png"
+        src="/images/shaurma-logo.jpg"
         alt="Shaurma No1"
         width={size}
         height={size}

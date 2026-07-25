@@ -26,6 +26,9 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - `drizzle/migrations/0003_black_whistler.sql` — Generated and pushed database migration for checklists table.
 
 ### Changed
+- Giriş, davet, parola sıfırlama ve markalı e-posta şablonlarındaki geçici
+  Shaurma görseli, restoranın onaylı dairesel “Shaurma Restoran & Café”
+  logosuyla değiştirildi.
 - Şifrə sıfırlama ekranı artıq təhlükəsiz hesab-enumerasiyasını qoruyaraq
   istifadəçiyə açıq şəkildə bildirir: link yalnız aktiv idarəçi hesabına
   göndərilir; mail gəlməzsə Spam yoxlanmalı və hesabın hələ yaradılmamış
@@ -58,6 +61,10 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - **ENCRYPTION_KEY fail-fast** (`lib/encryption.ts`): əvvəl açar yoxdursa səssizcə sıfır (proqnozlaşdırıla bilən) AES açarı işlədilirdi. İndi prod-da açar yoxdursa throw; oxumada çökmə yox.
 
 ### Fixed
+- Parola sıfırlamasından sonra giriş yapamayan ilk süper yönetici için
+  kontrollü kurtarma akışı eklendi: sistem üretimli geçici parola doğrudan
+  hesaba atanır, markalı e-postayla yalnız hesap sahibine gönderilir ve
+  başarılı girişten sonra zorunlu parola değiştirme ekranına yönlendirilir.
 - Şifre sıfırlama formunda iki parola alanı için ortak
   “Yazdığım şifrəni göstər” kontrolü eklendi. Kullanıcı yeni parolayı
   kaydetmeden önce iki alanı görsel olarak karşılaştırabilir; klavye düzeni ve

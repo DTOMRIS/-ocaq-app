@@ -18,7 +18,7 @@ export const COLORS = {
 }
 
 // Logo URL — production-da CDN, dev-da localhost
-const LOGO_URL = `${process.env.NEXTAUTH_URL ?? 'https://ocaq.app'}/images/shaurma-n1-logo.png`
+const LOGO_URL = `${process.env.NEXTAUTH_URL ?? 'https://ocaq.dkagency.com.tr'}/images/shaurma-logo.jpg`
 
 interface LayoutProps {
   preview: string
