@@ -7,6 +7,9 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
+- Shaurma No1 müşteri markası için ortak auth marka bileşeni eklendi; mevcut
+  logo giriş, davet kabulü ve şifre sıfırlama ekranlarında OCAQ ürün
+  kimliğiyle birlikte gösteriliyor.
 - **DK Agency → OCAQ ticari ürün temeli:** idempotent
   `POST /api/integrations/dk/provision-tenant` endpoint'i, harici DK müşteri
   kimliği, paket kodu, provisyon kaynağı/tarihi ve ilk süper yönetici davet

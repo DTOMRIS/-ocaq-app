@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import AuthBrandLockup from '@/components/auth-brand-lockup'
 
 function ResetPasswordLoading() {
   return (
@@ -112,10 +113,7 @@ function ResetPasswordContent() {
           
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
-                 style={{ background: 'linear-gradient(135deg, #C8102E 0%, #8B0000 100%)' }}>
-              <span className="text-3xl">🔐</span>
-            </div>
+            <div className="mb-5"><AuthBrandLockup dark /></div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
               {step === 'request' ? 'Şifrəni Sıfırla' : 'Yeni Şifrə'}
             </h1>

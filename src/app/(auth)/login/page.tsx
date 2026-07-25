@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { loginAction } from './actions'
+import AuthBrandLockup from '@/components/auth-brand-lockup'
 
 const SLIDES = [
   {
@@ -101,14 +102,7 @@ export default function LoginPage() {
       <div className="login-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', minHeight: '100vh', width: '50%' }}>
         {/* Top bar: logo + language */}
         <div className="login-topbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 48px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '12px', background: '#C8102E', color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>
-              O
-            </div>
-            <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a', letterSpacing: '-0.5px' }}>
-              OCAQ
-            </span>
-          </div>
+          <AuthBrandLockup compact />
 
           {/* Language selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', borderRadius: '8px', padding: '2px' }}>
