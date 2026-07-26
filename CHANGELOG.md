@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-26 — Rəsmi keyfiyyət formaları təməli
+
+- 25 mənbə PDF-dən SHA-256 ilə doğrulanan 18 unikal SH-KN formu kanonik kataloqa əlavə edildi.
+- Eyni `SH-KN-F-034` nömrəli Bükmə, Lahmacun, Pide, Pizza və Shaurma formaları beş ayrı mənbə kimi qorundu.
+- Mənbə sahələri, sabit ölçmə saatları, hazırlama/reviziya məlumatları və F-041-dəki ziddiyyətli temperatur qeydləri itkisiz qeydə alındı.
+- Filial müdiri → öz filialı, bölgə müdiri → bağlı filiallar, super admin → bütün tenant əhatəsi rol müqaviləsi əlavə edildi; ümumi personelə OCAQ forma icazəsi verilmədi.
+- Göndərilmiş qeydi dəyişdirməyən, düzəlişi yeni reviziya kimi saxlayan və fiziki silmə əvəzinə auditli ləğv istifadə edən add-only DB migration hazırlandı.
+- Yaratma, göndərmə, təsdiq, düzəliş, çap və ləğv üçün append-only hadisə jurnalı modelləşdirildi.
+- Dashboard menyusuna KXT-dən ayrı `Keyfiyyət formaları` kataloqu əlavə edildi.
+- Production migration və deploy edilmədi.
+
 Bu faylın formatı [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 əsasındadır və layihə [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtomatik yox).
