@@ -64,14 +64,17 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
 
   const [showInvite, setShowInvite] = useState(false)
   const [invEmail, setInvEmail] = useState('')
-  const [invRole, setInvRole] = useState('branch_manager')
-  const [invBranch, setInvBranch] = useState('')
+  const invRole = 'region_manager'
   const [invRegion, setInvRegion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const pending = invitations.filter(i => !i.accepted_at && new Date(i.expires_at) > new Date())
+  const pending = invitations.filter(i =>
+    (i.role === 'region_manager' || i.role === 'branch_manager')
+    && !i.accepted_at
+    && new Date(i.expires_at) > new Date(),
+  )
   const expired = invitations.filter(i => !i.accepted_at && new Date(i.expires_at) <= new Date())
   const accepted = invitations.filter(i => !!i.accepted_at)
 
@@ -92,7 +95,6 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
     setSuccess(null)
 
     if (!invEmail.trim()) { setError('E-poçt daxil edin'); return }
-    if ((invRole === 'branch_manager' || invRole === 'staff') && !invBranch) { setError('Filial seçin'); return }
     if (invRole === 'region_manager' && !invRegion) { setError('Bölgə seçin'); return }
 
     setLoading(true)
@@ -103,7 +105,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         body: JSON.stringify({
           email: invEmail.trim(),
           role: invRole,
-          branch_id: invRole === 'branch_manager' || invRole === 'staff' ? invBranch : null,
+          branch_id: null,
           region_id: invRole === 'region_manager' ? invRegion : null,
         }),
       })
@@ -113,7 +115,6 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
       }
       setSuccess(`${invEmail} adresinə dəvət göndərildi!`)
       setInvEmail('')
-      setInvBranch('')
       setInvRegion('')
       setTimeout(() => { setShowInvite(false); setSuccess(null); router.refresh() }, 2000)
     } catch (err) {
@@ -191,6 +192,11 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         Qəbul edilib
       </span>
     )
+    if (inv.role !== 'region_manager' && inv.role !== 'branch_manager') return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '500', background: '#f1f5f9', color: '#475569' }}>
+        Giriş bağlanıb
+      </span>
+    )
     if (new Date(inv.expires_at) <= new Date()) return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '500', background: '#f5f5f5', color: '#888' }}>
         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#bbb' }} />
@@ -215,13 +221,19 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
             İstifadəçilər və dəvətlər — {users.length} aktiv, {pending.length} gözləyir
           </p>
         </div>
-        <button type="button" onClick={() => { setShowInvite(true); setError(null); setSuccess(null) }} style={{
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
-          padding: '9px 18px', background: '#C8102E', color: '#fff', border: 'none',
-          borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: '44px',
-        }}>
-          + Dəvət göndər
-        </button>
+        {isSuperAdmin ? (
+          <button type="button" onClick={() => { setShowInvite(true); setError(null); setSuccess(null) }} style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '9px 18px', background: '#C8102E', color: '#fff', border: 'none',
+            borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: '44px',
+          }}>
+            + Bölgə müdiri dəvət et
+          </button>
+        ) : (
+          <span style={{ maxWidth: '320px', fontSize: '12px', lineHeight: 1.5, color: '#64748b', textAlign: 'right' }}>
+            Filial müdiri hesabı Filiallar səhifəsindən, bölgə müdiri hesabı isə süper admin tərəfindən açılır.
+          </span>
+        )}
       </div>
 
       {fetchError && (
@@ -307,12 +319,14 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                     <td style={{ padding: '12px 16px' }}>
                       {!inv.accepted_at && (
                         <div style={{ display: 'flex', gap: '6px', whiteSpace: 'nowrap' }}>
-                          <button onClick={() => handleResend(inv)} disabled={loading} style={{
-                            padding: '5px 12px', fontSize: '11px', border: '1px solid #e0e0e0',
-                            borderRadius: '6px', background: '#fff', color: '#555', cursor: 'pointer',
-                          }}>
-                            Yenidən göndər
-                          </button>
+                          {(inv.role === 'region_manager' || inv.role === 'branch_manager') && (
+                            <button onClick={() => handleResend(inv)} disabled={loading} style={{
+                              padding: '5px 12px', fontSize: '11px', border: '1px solid #e0e0e0',
+                              borderRadius: '6px', background: '#fff', color: '#555', cursor: 'pointer',
+                            }}>
+                              Yenidən göndər
+                            </button>
+                          )}
                           <button onClick={() => handleCancel(inv)} disabled={loading} style={{
                             padding: '5px 12px', fontSize: '11px', border: '1px solid #fecaca',
                             borderRadius: '6px', background: '#fff', color: '#C8102E', cursor: 'pointer',
@@ -366,29 +380,10 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
                   Rol <span style={{ color: '#C8102E' }}>*</span>
                 </label>
-                <select value={invRole} onChange={e => {
-                  setInvRole(e.target.value)
-                  setInvBranch('')
-                  setInvRegion('')
-                }} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="branch_manager">Filial Meneceri</option>
-                  <option value="staff">Əməkdaş</option>
-                  {isSuperAdmin && <option value="region_manager">Bölgə Meneceri</option>}
+                <select value={invRole} disabled style={{ ...inputStyle, cursor: 'not-allowed', background: '#f8fafc' }}>
+                  <option value="region_manager">Bölgə Meneceri</option>
                 </select>
               </div>
-              {(invRole === 'branch_manager' || invRole === 'staff') && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
-                    Filial <span style={{ color: '#C8102E' }}>*</span>
-                  </label>
-                  <select value={invBranch} onChange={e => setInvBranch(e.target.value)} disabled={loading} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    <option value="">Filial seçin</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               {invRole === 'region_manager' && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>

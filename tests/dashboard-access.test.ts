@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { dashboardRedirectForRole, isLegacyMockRoute } from '../src/lib/dashboard-access'
 
-test('staff can only remain on the dashboard training landing', () => {
-  assert.equal(dashboardRedirectForRole('staff', '/dashboard'), null)
+test('staff cannot enter the OCAQ dashboard', () => {
+  assert.equal(dashboardRedirectForRole('staff', '/dashboard'), '/login')
   for (const path of [
     '/dashboard/complaints',
     '/dashboard/bildirisler',
@@ -11,7 +11,7 @@ test('staff can only remain on the dashboard training landing', () => {
     '/dashboard/profile',
     '/dashboard/vardiya-liderliyi',
   ]) {
-    assert.equal(dashboardRedirectForRole('staff', path), '/dashboard')
+    assert.equal(dashboardRedirectForRole('staff', path), '/login')
   }
 })
 

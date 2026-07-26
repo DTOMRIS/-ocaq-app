@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema/auth'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
+import { isOperationalRole } from '@/lib/operational-roles'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: 'jwt' },
@@ -32,6 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user || !user.password_hash) return null
         if (!user.is_active) throw new Error('ACCOUNT_DISABLED')
         if (!user.is_email_verified) throw new Error('EMAIL_NOT_VERIFIED')
+        if (!isOperationalRole(user.role)) throw new Error('ROLE_NOT_ALLOWED')
 
         const valid = await bcrypt.compare(
           credentials.password as string,
@@ -90,6 +92,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (
           !dbUser ||
           !dbUser.is_active ||
+          !isOperationalRole(dbUser.role) ||
           dbUser.updated_at.toISOString() !== token.session_version
         ) {
           // Force session logout by returning an empty session object

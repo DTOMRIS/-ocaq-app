@@ -39,6 +39,9 @@ export async function loginAction(_prevState: unknown, formData: FormData) {
       if (err.cause?.err?.message === 'EMAIL_NOT_VERIFIED') {
         return { error: 'E-poçt adresiniz doğrulanmayıb. Zəhmət olmasa gələn qutunuzu yoxlayın.' }
       }
+      if (err.cause?.err?.message === 'ROLE_NOT_ALLOWED') {
+        return { error: 'OCAQ girişi yalnız filial, bölgə və sistem rəhbərləri üçündür.' }
+      }
       return { error: 'E-poçt və ya şifrə yanlışdır.' }
     }
     return { error: 'Giriş zamanı xəta baş verdi.' }

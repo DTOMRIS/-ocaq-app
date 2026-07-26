@@ -10,6 +10,10 @@ DK Agency
     └── OCAQ-a keçid / tenant provision
 
 OCAQ
+├── Giriş rolları
+│   ├── süper admin
+│   ├── bölgə müdiri
+│   └── filial müdiri
 ├── KXT
 │   └── gündəlik əməliyyat checklisti
 ├── Rəsmi keyfiyyət formaları
@@ -20,11 +24,16 @@ OCAQ
     └── super admin → tenant üzrə bütün aktiv filialların eyni şəbəkə görünüşü
 
 TQTA
-└── şəxsiyyət və təlim xətti
+└── personel şəxsiyyəti və təlim xətti
 
 shaurma-analiz-sistemi (ayrı repo)
 └── iiko Excel/PDF idxalı və analitik mühərriklər
 ```
+
+OCAQ personel məlumatını rəhbərlərə göstərə bilər, lakin ümumi personel üçün
+OCAQ giriş hesabı yaratmır. Mövcud personel sətrləri və köhnə dəvət tarixçəsi
+silinmir. Filial müdiri dəvəti filial ekranından, bölgə müdiri dəvəti yalnız
+süper adminin hesab/dəvət ekranından göndərilir.
 
 ## Rəsmi keyfiyyət formaları
 

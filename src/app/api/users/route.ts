@@ -6,6 +6,7 @@ import { staff_profiles } from '@/db/schema/staff'
 import { branches } from '@/db/schema/branches'
 import { eq, and, inArray } from 'drizzle-orm'
 import { accessibleBranchIds } from '@/lib/branch-access'
+import { OPERATIONAL_ROLES } from '@/lib/operational-roles'
 
 // GET — istifadəçi listini al (role filter ilə)
 export async function GET(req: NextRequest) {
@@ -22,14 +23,15 @@ export async function GET(req: NextRequest) {
   const conditions = [
     eq(users.tenant_id, session.user.tenant_id),
     eq(users.is_active, true),
+    inArray(users.role, OPERATIONAL_ROLES),
   ]
 
-  const validRoles = ['super_admin', 'region_manager', 'branch_manager', 'staff'] as const
+  const validRoles = OPERATIONAL_ROLES
   if (role && !validRoles.includes(role as typeof validRoles[number])) {
     return NextResponse.json({ error: 'Yanlış rol' }, { status: 400 })
   }
   if (role) {
-    conditions.push(eq(users.role, role as 'super_admin' | 'region_manager' | 'branch_manager' | 'staff'))
+    conditions.push(eq(users.role, role as typeof OPERATIONAL_ROLES[number]))
   }
 
   if (session.user.role === 'region_manager') {

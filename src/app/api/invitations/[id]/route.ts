@@ -34,6 +34,12 @@ export async function PATCH(
   if (invitation.revoked_at) {
     return NextResponse.json({ error: 'Ləğv edilmiş dəvət yenidən göndərilə bilməz' }, { status: 409 })
   }
+  if (!['branch_manager', 'region_manager'].includes(invitation.role)) {
+    return NextResponse.json(
+      { code: 'ROLE_NOT_ALLOWED', error: 'Köhnə əməkdaş dəvəti yenidən göndərilə bilməz' },
+      { status: 410 },
+    )
+  }
 
   if (isBranchManagerInvitation(invitation.role)) {
     if (!invitation.branch_id) {

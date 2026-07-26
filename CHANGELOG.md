@@ -23,6 +23,9 @@
 - Filial müdürü təyin edilməyən filial idarəetmə istisnası kimi görünür; məlumat olmayan göstəricidə skor uydurulmur.
 - Rəsmi forma tezlik/təyinat cədvəli təsdiqlənmədiyi üçün “çatışmayan forma” göstəricisi qəsdən hesablanmır; bu, növbəti ayrıca addımdır.
 - Dashboard filial/bölgə və müdür join-larında tenant şərti sərtləşdirildi; super admin sorğusu da yalnız öz tenantındakı aktiv filialları hesablayır.
+- OCAQ giriş sərhədi qəti şəkildə rəhbər rolları ilə məhdudlaşdırıldı: süper admin, bölgə müdiri və filial müdiri. Mövcud personel qeydləri silinmir, lakin `staff` hesabı giriş edə, şifrə sıfırlama e-poçtu ala və yeni OCAQ dəvəti qəbul edə bilməz.
+- Ümumi dəvət axını yalnız süper adminin bölgə müdiri dəvətinə ayrıldı; filial müdiri dəvəti filialın öz auditli müdür təyinatı ekranından gedir. Köhnə personel dəvəti yenidən göndərilə bilməz, amma audit/tarixçə üçün saxlanır.
+- Personel səhifəsindəki OCAQ hesabı yaratma modali çıxarıldı; səhifə personel məlumatını itirmədən yalnız idarəetmə siyahısı kimi qalır.
 - Production migration və deploy edilmədi.
 
 Bu faylın formatı [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)

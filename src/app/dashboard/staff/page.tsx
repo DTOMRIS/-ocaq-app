@@ -27,11 +27,6 @@ interface Branch {
   name: string
 }
 
-interface Region {
-  id: string
-  name: string
-}
-
 export default async function StaffPage() {
   const session = await auth()
   if (!session) redirect('/login')
@@ -41,15 +36,13 @@ export default async function StaffPage() {
 
   const baseUrl = getRequestOrigin(headersList)
 
-  const [branchesRes, staffRes, regionsRes] = await Promise.all([
+  const [branchesRes, staffRes] = await Promise.all([
     fetch(`${baseUrl}/api/branches`, { headers: { cookie }, cache: 'no-store' }),
     fetch(`${baseUrl}/api/staff`, { headers: { cookie }, cache: 'no-store' }),
-    fetch(`${baseUrl}/api/regions`, { headers: { cookie }, cache: 'no-store' }),
   ])
 
   const branches: Branch[] = branchesRes.ok ? await branchesRes.json().catch(() => []) : []
   const staffList: Staff[] = staffRes.ok ? await staffRes.json().catch(() => []) : []
-  const regionsList: Region[] = regionsRes.ok ? await regionsRes.json().catch(() => []) : []
 
   return (
     <div>
@@ -91,7 +84,6 @@ export default async function StaffPage() {
       <StaffList
         staff={staffList}
         branches={branches}
-        regions={regionsList}
         userRole={session.user.role}
       />
     </div>

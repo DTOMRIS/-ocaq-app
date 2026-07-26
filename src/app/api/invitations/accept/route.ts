@@ -4,7 +4,6 @@ import { db, sqlClient } from '@/db'
 import { invitations, users, audit_logs } from '@/db/schema/auth'
 import { regions } from '@/db/schema/regions'
 import { branches } from '@/db/schema/branches'
-import { staff_profiles } from '@/db/schema/staff'
 import { and, eq, gt, inArray, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { sendWelcomeEmail } from '@/lib/email'
@@ -38,8 +37,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Dəvət tapılmadı və ya müddəti bitib' }, { status: 404 })
   }
 
-  if (!['region_manager', 'branch_manager', 'staff'].includes(candidate.role)) {
-    return NextResponse.json({ error: 'Dəvət rolu etibarsızdır' }, { status: 400 })
+  if (!['region_manager', 'branch_manager'].includes(candidate.role)) {
+    return NextResponse.json(
+      { code: 'ROLE_NOT_ALLOWED', error: 'OCAQ hesabı yalnız rəhbər rolları üçün yaradıla bilər' },
+      { status: 410 },
+    )
   }
 
   const passwordHash = await bcrypt.hash(password, 12)
@@ -88,16 +90,6 @@ export async function POST(req: NextRequest) {
     if (!region || region.manager_id) {
       return NextResponse.json({ error: 'Bölgə tapılmadı və ya artıq müdiri var' }, { status: 409 })
     }
-  } else {
-    if (!candidate.branch_id) {
-      return NextResponse.json({ error: 'Dəvət filialı etibarsızdır' }, { status: 400 })
-    }
-    const [branch] = await db.select({ id: branches.id, manager_id: branches.manager_id }).from(branches)
-      .where(and(eq(branches.id, candidate.branch_id), eq(branches.tenant_id, candidate.tenant_id)))
-      .limit(1)
-    if (!branch) {
-      return NextResponse.json({ error: 'Filial tapılmadı və ya artıq müdiri var' }, { status: 409 })
-    }
   }
 
   const claimedAt = new Date()
@@ -138,22 +130,6 @@ export async function POST(req: NextRequest) {
           isNull(regions.manager_id),
         )).returning({ id: regions.id })
       if (assigned.length === 0) throw new AcceptError('SCOPE_TAKEN')
-    } else if (claimed.role === 'branch_manager' && claimed.branch_id) {
-      const assigned = await db.update(branches)
-        .set({ manager_id: created.id, updated_at: new Date() })
-        .where(and(
-          eq(branches.id, claimed.branch_id),
-          eq(branches.tenant_id, claimed.tenant_id),
-          isNull(branches.manager_id),
-        )).returning({ id: branches.id })
-      if (assigned.length === 0) throw new AcceptError('SCOPE_TAKEN')
-    } else if (claimed.role === 'staff' && claimed.branch_id) {
-      await db.insert(staff_profiles).values({
-        user_id: created.id,
-        tenant_id: claimed.tenant_id,
-        branch_id: claimed.branch_id,
-        status: 'active',
-      })
     } else {
       throw new AcceptError('INVALID_SCOPE')
     }
@@ -186,7 +162,6 @@ export async function POST(req: NextRequest) {
         db.update(branches).set({ manager_id: null, updated_at: new Date() })
           .where(eq(branches.manager_id, createdUserId)),
       ])
-      await db.delete(staff_profiles).where(eq(staff_profiles.user_id, createdUserId)).catch(() => undefined)
       await db.delete(users).where(eq(users.id, createdUserId)).catch(() => undefined)
     }
     await db.update(invitations).set({ accepted_at: null }).where(and(

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db, sqlClient } from '@/db'
-import { invitations, users, audit_logs } from '@/db/schema/auth'
-import { branches } from '@/db/schema/branches'
+import { invitations, users } from '@/db/schema/auth'
 import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import { inviteRateLimit } from '@/lib/rate-limit'
 import { sendInvitationEmail } from '@/lib/email'
@@ -62,15 +61,14 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
-  if (!email || !/^\S+@\S+\.\S+$/.test(email) || !isInvitableRole(body.role)) {
-    return NextResponse.json({ error: 'Düzgün e-poçt və rol tələb olunur' }, { status: 400 })
-  }
-
   if (isBranchManagerInvitation(body.role)) {
     return NextResponse.json(
       { code: 'USE_BRANCH_MANAGER_FLOW', error: 'Filial müdiri dəvəti filial idarəetmə axınından göndərilməlidir' },
       { status: 409 },
     )
+  }
+  if (!email || !/^\S+@\S+\.\S+$/.test(email) || !isInvitableRole(body.role)) {
+    return NextResponse.json({ error: 'Düzgün e-poçt və rol tələb olunur' }, { status: 400 })
   }
 
   const scope = await invitationScope(session.user, body.role, body.region_id, body.branch_id)
@@ -94,60 +92,51 @@ export async function POST(req: NextRequest) {
   const token = createOneTimeToken()
   const tokenHash = hashOneTimeToken(token)
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
-  let invitation: { id: string }
-  let auditWritten = false
-  if (scope.branchId) {
-    const rows = await sqlClient.query(`
-      with locked as (
-        select pg_advisory_xact_lock(hashtextextended($1::text, 1))
-      ), eligible as (
-        select branch.id, branch.region_id from branches branch, locked
-        where branch.id = $1::uuid
-          and branch.tenant_id = $2::uuid
-          and branch.is_active = true
-          and branch.is_archived = false
-      ), created as (
-        insert into invitations (
-          tenant_id, email, role, token, invited_by, region_id, branch_id, expires_at
+  const createdRows = await sqlClient.query(`
+    with locked as (
+      select pg_advisory_xact_lock(hashtextextended($1::text, 2))
+    ), eligible as (
+      select region.id from regions region, locked
+      where region.id = $1::uuid
+        and region.tenant_id = $2::uuid
+        and region.is_active = true
+        and region.manager_id is null
+        and not exists (
+          select 1 from invitations live
+          where live.tenant_id = $2::uuid
+            and live.region_id = region.id
+            and live.role = 'region_manager'
+            and live.accepted_at is null
+            and live.revoked_at is null
+            and live.expires_at > now()
         )
-        select $2::uuid, $3::text, $4::role, $5::text, $6::uuid,
-          eligible.region_id, eligible.id, $7::timestamp
-        from eligible
-        returning id
-      ), audited as (
-        insert into audit_logs (tenant_id, user_id, action, entity, entity_id, metadata)
-        select $2::uuid, $6::uuid, 'user.invite', 'invitation', created.id::text,
-          jsonb_build_object('email', $3::text, 'role', $4::text, 'branch_id', $1::uuid)::text
-        from created
-        returning id
+    ), created as (
+      insert into invitations (
+        tenant_id, email, role, token, invited_by, region_id, branch_id, expires_at
       )
-      select created.id from created, audited
-    `, [scope.branchId, session.user.tenant_id, email, body.role, tokenHash, session.user.id, expiresAt])
-    if (!rows[0]) {
-      return NextResponse.json({ error: 'Filial artıq aktiv deyil' }, { status: 409 })
-    }
-    invitation = { id: String(rows[0].id) }
-    auditWritten = true
-  } else {
-    const [created] = await db.insert(invitations).values({
-      tenant_id: session.user.tenant_id,
-      email,
-      role: body.role,
-      token: tokenHash,
-      invited_by: session.user.id,
-      region_id: scope.regionId,
-      branch_id: null,
-      expires_at: expiresAt,
-    }).returning({ id: invitations.id })
-    invitation = created
-  }
-
-  let branchName: string | undefined
-  if (scope.branchId) {
-    const [branch] = await db.select({ name: branches.name }).from(branches)
-      .where(and(eq(branches.id, scope.branchId), eq(branches.tenant_id, session.user.tenant_id)))
-      .limit(1)
-    branchName = branch?.name
+      select $2::uuid, $3::text, 'region_manager', $4::text, $5::uuid,
+        eligible.id, null, $6::timestamp
+      from eligible
+      returning id
+    ), audited as (
+      insert into audit_logs (tenant_id, user_id, action, entity, entity_id, metadata)
+      select $2::uuid, $5::uuid, 'user.invite', 'invitation', created.id::text,
+        jsonb_build_object(
+          'email', $3::text,
+          'role', 'region_manager',
+          'region_id', $1::uuid
+        )::text
+      from created
+      returning id
+    )
+    select created.id from created, audited
+  `, [scope.regionId, session.user.tenant_id, email, tokenHash, session.user.id, expiresAt])
+  const invitation = createdRows[0] ? { id: String(createdRows[0].id) } : null
+  if (!invitation) {
+    return NextResponse.json(
+      { code: 'REGION_MANAGER_INVITATION_CONFLICT', error: 'Bölgə artıq aktiv deyil, müdiri var və ya gözləyən dəvət mövcuddur' },
+      { status: 409 },
+    )
   }
 
   const { error } = await sendInvitationEmail({
@@ -155,7 +144,6 @@ export async function POST(req: NextRequest) {
     token,
     inviterName: session.user.name ?? 'Admin',
     recipientRole: body.role,
-    branchName,
   })
   if (error) {
     await sqlClient.query(`
@@ -173,21 +161,6 @@ export async function POST(req: NextRequest) {
     `, [invitation.id, session.user.tenant_id, session.user.id, email, body.role])
     console.error('Invitation mail error:', error)
     return NextResponse.json({ error: 'Dəvət e-poçtu göndərilə bilmədi' }, { status: 502 })
-  }
-
-  try {
-    if (!auditWritten) {
-      await db.insert(audit_logs).values({
-        tenant_id: session.user.tenant_id,
-        user_id: session.user.id,
-        action: 'user.invite',
-        entity: 'invitation',
-        entity_id: invitation.id,
-        metadata: JSON.stringify({ email, role: body.role, region_id: scope.regionId, branch_id: scope.branchId }),
-      })
-    }
-  } catch (error) {
-    console.error('Audit log write error:', error)
   }
 
   return NextResponse.json({ success: true, id: invitation.id }, { status: 201 })
