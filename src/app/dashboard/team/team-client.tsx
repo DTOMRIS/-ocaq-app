@@ -11,6 +11,9 @@ interface Invitation {
   region_id: string | null
   expires_at: string
   accepted_at: string | null
+  revoked_at: string | null
+  revoked_reason: string | null
+  replaces_manager_id: string | null
   created_at: string
 }
 
@@ -73,10 +76,17 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
   const pending = invitations.filter(i =>
     (i.role === 'region_manager' || i.role === 'branch_manager')
     && !i.accepted_at
+    && !i.revoked_at
     && new Date(i.expires_at) > new Date(),
   )
-  const expired = invitations.filter(i => !i.accepted_at && new Date(i.expires_at) <= new Date())
+  const expired = invitations.filter(i =>
+    (i.role === 'region_manager' || i.role === 'branch_manager')
+    && !i.accepted_at
+    && !i.revoked_at
+    && new Date(i.expires_at) <= new Date(),
+  )
   const accepted = invitations.filter(i => !!i.accepted_at)
+  const revoked = invitations.filter(i => !i.accepted_at && !!i.revoked_at)
 
   const branchName = (id: string | null) => {
     if (!id) return null
@@ -192,6 +202,12 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         Qəbul edilib
       </span>
     )
+    if (inv.revoked_at) return (
+      <span title={inv.revoked_reason ?? undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '500', background: '#fef2f2', color: '#C8102E' }}>
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C8102E' }} />
+        Ləğv edilib
+      </span>
+    )
     if (inv.role !== 'region_manager' && inv.role !== 'branch_manager') return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '500', background: '#f1f5f9', color: '#475569' }}>
         Giriş bağlanıb
@@ -249,6 +265,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           { label: 'Gözləyən dəvət', value: pending.length, color: '#d97706' },
           { label: 'Qəbul edilən', value: accepted.length, color: '#2563EB' },
           { label: 'Müddəti bitən', value: expired.length, color: '#888' },
+          { label: 'Ləğv edilən', value: revoked.length, color: '#C8102E' },
         ].map(s => (
           <div key={s.label} style={{ ...cardStyle, padding: '16px 20px' }}>
             <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>{s.label}</p>
@@ -317,7 +334,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                       {new Date(inv.created_at).toLocaleDateString('az-AZ')}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      {!inv.accepted_at && (
+                      {!inv.accepted_at && !inv.revoked_at && (
                         <div style={{ display: 'flex', gap: '6px', whiteSpace: 'nowrap' }}>
                           {(inv.role === 'region_manager' || inv.role === 'branch_manager') && (
                             <button onClick={() => handleResend(inv)} disabled={loading} style={{
@@ -384,6 +401,14 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                   <option value="region_manager">Bölgə Meneceri</option>
                 </select>
               </div>
+              {isSuperAdmin && (
+                <div style={{
+                  padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe',
+                  borderRadius: '7px', marginBottom: '16px', fontSize: '12px', color: '#1d4ed8',
+                }}>
+                  Filial müdiri dəyişiklikləri təhlükəsizlik üçün Komanda ekranından deyil, Filiallar ekranında müvafiq filialın “⋯” menyusundan edilir.
+                </div>
+              )}
               {invRole === 'region_manager' && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>

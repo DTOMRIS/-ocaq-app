@@ -1,6 +1,6 @@
 # OCAQ — növbəti agent üçün devir sənədi
 
-Son yenilənmə: 16 iyul 2026, Bakı vaxtı.
+Son yenilənmə: 26 iyul 2026, Bakı vaxtı.
 
 ## 1. Doğru kod mənbəyi
 
@@ -42,11 +42,14 @@ Next.js kodu dəyişməzdən əvvəl `node_modules/next/dist/docs/` daxilində u
 - Vercel Preview `DATABASE_URL` ayrıca Neon `preview-codex` budağına bağlıdır.
 - Neon project: `ocaq-app` (`weathered-fog-09766136`).
 - Preview branch ID: `br-fancy-wave-as490qik`.
-- Preview branch son istifadə tarixi: `23 iyul 2026, 23:59:59 UTC`.
+- Əvvəlki Preview branch son istifadə tarixi `23 iyul 2026, 23:59:59 UTC`
+  idi və artıq keçib. Vercel-dəki ayrı Preview `DATABASE_URL` saxlanır, lakin
+  migrationdan əvvəl Neon-da onun aktiv branch-a işarə etdiyi yenidən yoxlanmalıdır.
 
 Preview Production-dan yaradıldığı andakı snapshot-dır. Preview-da yazılan məlumat Production-a getmir; Production-da sonradan dəyişən məlumat da Preview-a avtomatik gəlmir.
 
-Əməkdaşın ayrıca təlim portalına keçidini aktiv etmək üçün Vercel mühitində `TRAINING_PORTAL_URL` dəyişəni tam `https://...` ünvanı ilə təyin edilir. Dəyişən yoxdursa əməkdaşa saxta və ya təxmin edilən link göstərilmir; filial müdürü ilə əlaqə mesajı görünür.
+Ümumi personel OCAQ-a giriş etmir. Personel kimliyi və təlimi TQTA-da yaşayır;
+OCAQ yalnız rəhbərlərin görməli olduğu personel məlumatını göstərə bilər.
 
 Heç bir connection string, parol və token bu sənədə və ya kod bazasına əlavə edilməməlidir. Mühit dəyişənləri Vercel/Neon daxilində saxlanılır.
 
@@ -88,10 +91,12 @@ Heç bir connection string, parol və token bu sənədə və ya kod bazasına ə
 
 ## 6. Açıq qalan işlər
 
-1. Preview Neon budağının müddətini 23 iyuldan əvvəl uzatmaq və ya testi tamamlayıb qərar vermək.
+1. Vercel Preview `DATABASE_URL`-in aktiv Neon Preview budağına işarə etdiyini
+   təsdiqləmək; sonra `0007` və `0008` migrationlarını yalnız həmin Preview bazasına tətbiq etmək.
 2. Etap 2B müdür atama/dəvət devrini `docs/ETAP-2-PLAN.md` qəbul qapıları ilə həyata keçirmək.
 3. TQTA portalından əvvəlki gün dərsə girən/tamamlayan əməkdaşları avtomatik gətirən inteqrasiya. Hazırda növbə ekranındakı təlim sayları manual daxil edilir.
-4. Resend/e-poçt servisini real Vercel dəyişənləri ilə qoşmaq və dəvət/reset mailini yoxlamaq.
+4. DK SMTP dəyişənlərinin Preview və Production scope-larını yoxlamaq; dəvət/reset
+   mailini yeni Preview-da yenidən qəbul testindən keçirmək.
 5. HACCP, avadanlıq, kasa, HR, fire/itki və satış təxmini modullarını field-by-field tamamlamaq; mock/local state borcunu aradan qaldırmaq.
 6. Mövcud GitHub credential-da `workflow` scope olmadığı üçün əlavə edilə bilməyən CI workflow-unu səlahiyyətli hesabla ayrıca əlavə etmək.
 7. Production migrationdan əvvəl `0004_bent_mojo.sql` üçün real DB data audit və backup planı hazırlamaq.

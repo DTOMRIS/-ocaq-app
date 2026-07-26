@@ -30,6 +30,7 @@ export const users = pgTable('users', {
   email:             text('email').notNull().unique(),
   name:              text('name'),
   password_hash:     text('password_hash'),           // bcrypt
+  must_change_password: boolean('must_change_password').notNull().default(false),
   role:              roleEnum('role').notNull().default('staff'),
   is_active:         boolean('is_active').notNull().default(true),
   is_email_verified: boolean('is_email_verified').notNull().default(false),

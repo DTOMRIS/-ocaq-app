@@ -40,11 +40,12 @@ export async function POST(req: NextRequest) {
 
   // Token yarat
   const token = createOneTimeToken()
+  const tokenHash = hashOneTimeToken(token)
   const expires_at = new Date(Date.now() + 60 * 60 * 1000) // 1 saat
 
   await db.insert(password_reset_tokens).values({
     user_id: user.id,
-    token: hashOneTimeToken(token),
+    token: tokenHash,
     expires_at,
   })
 
@@ -57,7 +58,21 @@ export async function POST(req: NextRequest) {
     : userAgent.includes('Edge') ? 'Edge'
     : 'Bilinmir'
 
-  await sendPasswordResetEmail({ email, token, ip, device })
+  const { error } = await sendPasswordResetEmail({ email, token, ip, device })
+  if (error) {
+    // UI-a saxta uğur göstərmə; göndərilməyən linki də aktiv saxlamırıq.
+    await db.delete(password_reset_tokens)
+      .where(and(
+        eq(password_reset_tokens.user_id, user.id),
+        eq(password_reset_tokens.token, tokenHash),
+      ))
+      .catch(() => undefined)
+    console.error('Password reset mail error:', error)
+    return NextResponse.json(
+      { error: 'Sıfırlama e-poçtu göndərilə bilmədi. Bir az sonra yenidən cəhd edin.' },
+      { status: 502 },
+    )
+  }
 
   return NextResponse.json({ success: true })
 }
@@ -97,7 +112,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     await db.update(users)
-      .set({ password_hash, updated_at: new Date() })
+      .set({ password_hash, must_change_password: false, updated_at: new Date() })
       .where(eq(users.id, record.user_id))
   } catch (error) {
     await db.update(password_reset_tokens).set({ used_at: null })

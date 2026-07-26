@@ -57,7 +57,7 @@ forma” hesablanmır; mövcud olmayan tələb məlumat kimi təqdim edilmir.
 
 ## Migration qoruması
 
-`0007_quality_form_foundation.sql` yalnız yeni cədvəl və indekslər əlavə edir. Production-a avtomatik tətbiq edilmir. Tətbiqdən əvvəl:
+`0008_quality_form_foundation.sql` yalnız yeni cədvəl və indekslər əlavə edir. Production-a avtomatik tətbiq edilmir. Tətbiqdən əvvəl:
 
 1. production backup;
 2. mövcud migration/şema preflight;

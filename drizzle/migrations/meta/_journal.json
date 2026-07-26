@@ -50,6 +50,20 @@
       "when": 1784227367000,
       "tag": "0006_branch_activation_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784404880382,
+      "tag": "0007_thin_firestar",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785070800000,
+      "tag": "0008_quality_form_foundation",
+      "breakpoints": true
     }
   ]
 }

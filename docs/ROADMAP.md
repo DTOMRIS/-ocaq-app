@@ -11,8 +11,9 @@
 - ✅ Tətbiq canlıdadır (Vercel + Neon), giriş işləyir, satış/hesabat/checklist var.
 - ⚠️ Guardrail **yoxdur**: birbaşa main-ə merge, CI qapısı yox, staging yox.
 - ⚠️ Məlumat prod-a **ad-hoc skript**lə girildi (versiyasız).
-- ⚠️ Davət maili sınıq (Resend domain doğrulanmayıb) və **xəta udulur**.
-- ✅ Staff OCAQ əməliyyatından ayrılıb; yalnız ayrıca təlim portalına yönləndirilir.
+- ✅ Davət və şifrə sıfırlama maili DK SMTP-yə keçirilib; uğursuz göndəriş
+  UI-da uğur kimi göstərilmir.
+- ✅ Staff OCAQ girişindən ayrılıb; personel kimliyi və təlimi TQTA-da qalır.
 
 ---
 
@@ -23,10 +24,10 @@
       check-lər məcburi, `Do not allow bypassing` aktiv.
 - [ ] **Env fail-fast**: tələb olunan env dəyişənlərini boot-da Zod ilə yoxla
       (yoxdursa aydın xəta). Səssiz build sınığını bitirir.
-- [ ] **Xəta udma düzəlişi**: davət maili (və bütün email) Resend nəticəsini
-      yoxlasın; uğursuzsa real xəta qaytarsın + davət linkini UI-da göstərsin.
-- [ ] **Resend domain**: `ocaq.app`-i doğrula (SPF/DKIM/DMARC) və ya keçici
-      olaraq `onboarding@resend.dev`-dən göndər.
+- [x] **Xəta udma düzəlişi**: davət maili uğursuzsa davət ləğv edilir və UI
+      real xəta qaytarır.
+- [x] **DK SMTP kodu**: host/port/istifadəçi/app parolu ilə göndəriş və real
+      xəta nəticəsi qoşuldu. Preview/Production environment scope qəbul testi qalır.
 
 ## Faz 1 — Ortam ayrımı və məlumat təhlükəsizliyi
 
@@ -46,8 +47,8 @@
 
 ## Faz 3 — Məhsul yetkinliyi
 
-- [ ] **RBAC bərkitmə**: staff üçün yalnız ayrıca təlim portalına keçid;
-      hər endpoint-də rol yoxlaması (təkcə menyu gizlətmə yox).
+- [x] **RBAC bərkitmə**: OCAQ girişi yalnız super admin, bölgə müdiri və filial
+      müdiri; staff üçün auth, reset, dəvət və endpoint sərhədləri bağlandı.
 - [ ] **Hesabat modulu real məlumatdan**: `/dashboard/reports` hazırda sabit
       məlumatla işləyir — satış DB-sinə bağla (əl girişi qalxsın).
 - [ ] **Feature flag** + Vercel instant rollback prosedurunu sənədləşdir.
@@ -65,7 +66,7 @@ Aşağıdakı matris təsdiqlənməlidir (Faz 3 girişi):
 | super_admin | hər şey | hər şey |
 | region_manager | öz bölgəsinin filialları, satış, hesabat | davet, hədəf təyini |
 | branch_manager | öz filialı | gündəlik satış, checklist |
-| staff | ayrıca TQTA təlim portalına keçid | OCAQ əməliyyatında iştirak etmir |
+| staff | OCAQ giriş hesabı yoxdur; rəhbərlər personel qeydini görə bilər | kimlik və təlim TQTA-da |
 
 > Bu matris kod ilə **hər səhifə/endpoint-də** icra olunmalıdır.
 

@@ -60,7 +60,7 @@ test('branch, region and super admin boundaries are explicit', () => {
 
 test('quality form migration is add-only and preserves revision history', () => {
   const migration = readFileSync(
-    new URL('../drizzle/migrations/0007_quality_form_foundation.sql', import.meta.url),
+    new URL('../drizzle/migrations/0008_quality_form_foundation.sql', import.meta.url),
     'utf8',
   )
   assert.doesNotMatch(migration, /\bDELETE\s+FROM\b/i)

@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const newHash = await bcrypt.hash(newPassword, 12)
   await db
     .update(users)
-    .set({ password_hash: newHash, updated_at: new Date() })
+    .set({ password_hash: newHash, must_change_password: false, updated_at: new Date() })
     .where(and(eq(users.id, session.user.id), eq(users.tenant_id, session.user.tenant_id)))
 
   return NextResponse.json({ success: true })

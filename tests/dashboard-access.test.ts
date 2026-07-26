@@ -5,10 +5,10 @@ import { dashboardRedirectForRole, isLegacyMockRoute } from '../src/lib/dashboar
 test('staff cannot enter the OCAQ dashboard', () => {
   assert.equal(dashboardRedirectForRole('staff', '/dashboard'), '/login')
   for (const path of [
+    '/dashboard/profile',
     '/dashboard/complaints',
     '/dashboard/bildirisler',
     '/dashboard/staff',
-    '/dashboard/profile',
     '/dashboard/vardiya-liderliyi',
   ]) {
     assert.equal(dashboardRedirectForRole('staff', path), '/login')

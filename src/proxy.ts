@@ -29,6 +29,13 @@ export async function proxy(req: NextRequest) {
   }
 
   if (session) {
+    if (
+      session.user.must_change_password
+      && pathname.startsWith('/dashboard')
+      && pathname !== '/dashboard/profile'
+    ) {
+      return NextResponse.redirect(new URL('/dashboard/profile?firstLogin=1', req.url))
+    }
     const redirectTo = dashboardRedirectForRole(session.user.role, pathname)
     if (redirectTo) return NextResponse.redirect(new URL(redirectTo, req.url))
   }

@@ -26,6 +26,10 @@
 - OCAQ giriş sərhədi qəti şəkildə rəhbər rolları ilə məhdudlaşdırıldı: süper admin, bölgə müdiri və filial müdiri. Mövcud personel qeydləri silinmir, lakin `staff` hesabı giriş edə, şifrə sıfırlama e-poçtu ala və yeni OCAQ dəvəti qəbul edə bilməz.
 - Ümumi dəvət axını yalnız süper adminin bölgə müdiri dəvətinə ayrıldı; filial müdiri dəvəti filialın öz auditli müdür təyinatı ekranından gedir. Köhnə personel dəvəti yenidən göndərilə bilməz, amma audit/tarixçə üçün saxlanır.
 - Personel səhifəsindəki OCAQ hesabı yaratma modali çıxarıldı; səhifə personel məlumatını itirmədən yalnız idarəetmə siyahısı kimi qalır.
+- DK SMTP göndərişi giriş, dəvət və şifrə sıfırlama axınlarına bağlandı; göndərilməyən reset maili artıq saxta uğur göstərmir və yararsız tokeni saxlamır.
+- Toplu hesab idxalı 37 rəhbər hesabı ilə məhdudlaşdırıldı; 26 personel sətri tarixi referans kimi qorunur, OCAQ giriş hesabına çevrilmir.
+- Uzaq daldakı ilk-giriş şifrə dəyişmə məcburiyyəti birləşdirildi; reset linki ilə uğurla dəyişdirilən şifrə ayrıca ikinci dəyişiklik tələb etmir.
+- Migration sıra toqquşması aradan qaldırıldı: şifrə sahəsi `0007`, əlavəedici rəsmi forma təməli `0008` oldu.
 - Production migration və deploy edilmədi.
 
 Bu faylın formatı [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
