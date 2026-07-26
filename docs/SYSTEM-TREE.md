@@ -15,7 +15,9 @@ OCAQ
 ├── Rəsmi keyfiyyət formaları
 │   └── mənbədəki 18 SH-KN formu
 └── İdarəetmə dashboardları
-    └── rol əhatəsinə görə nəticə, trend, istisna və məsul
+    ├── filial müdiri → öz filialının nəticəsi və işi
+    ├── bölgə müdiri → bağlı filialların 7/30 trendi, istisnası və məsulu
+    └── super admin → tenant üzrə bütün aktiv filialların eyni şəbəkə görünüşü
 
 TQTA
 └── şəxsiyyət və təlim xətti
@@ -53,3 +55,29 @@ Keyfiyyət formaları (18 unikal mənbə)
 ```
 
 Ətraflı müqavilə: `docs/QUALITY-FORMS-CONTRACT.md`.
+
+## Rəhbərlik dashboardunun hesab qaydası
+
+```text
+KXT
+├── bu gün → hər aktiv filial üçün sabah + axşam (2 gözlənən növbə)
+├── 7 gün → cari gün daxil son 7 günün real göndəriş ortalaması
+├── əvvəlki 7 gün → trend müqayisə bazası
+└── 30 gün → son 30 günün real göndəriş ortalaması
+
+Rəsmi keyfiyyət formaları
+├── yalnız is_current=true revision sayılır
+├── 7/30 gün qeydləri ayrıca göstərilir
+├── submitted → onay gözləyir
+├── draft → tamamlanmamış qeyd
+└── voided → auditli iptal
+
+İstisna
+├── bu gün çatışmayan KXT növbəsi
+├── onay gözləyən/taslak/iptal cari forma
+└── filial müdürü təyin edilməyən aktiv filial
+```
+
+Rəsmi formaların filial/forma üzrə gözlənən tarixini hesablamaq üçün ayrıca tezlik
+və təyinat cədvəli lazımdır. Bu cədvəl təsdiqlənənədək dashboard “çatışmayan forma”
+uydurmur; yalnız mövcud real qeydlərin vəziyyətini göstərir.

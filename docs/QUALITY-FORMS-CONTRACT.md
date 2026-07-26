@@ -9,6 +9,11 @@ Son yenilənmə: 26 iyul 2026.
 3. `OCAQ Analitik` iiko Excel/PDF idxalı və analitik mühərriklərdir; ayrı repoda yaşayır.
 4. Dashboard bu xətlərin nəticəsini göstərə bilər, lakin mənbə qeydlərini birləşdirmir.
 
+Dashboard yalnız cari (`is_current=true`) reviziyanı sayır. Son 7/30 gündəki
+qeyd sayı və `submitted`/`draft`/`voided` vəziyyəti göstərilir. Forma tezliyi və
+filial təyinatı ayrıca təsdiqlənmədiyi üçün hazırda “gözlənən/çatışmayan rəsmi
+forma” hesablanmır; mövcud olmayan tələb məlumat kimi təqdim edilmir.
+
 ## Mənbə bütövlüyü
 
 - 25 PDF faylından SHA-256 ilə 18 unikal mənbə müəyyən edilib.

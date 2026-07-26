@@ -17,6 +17,12 @@
 - Hər köhnə qeyd reviziyası üçün mənbə başlığı, cədvəl tutumu, mənbə qeydləri və audit tarixçəsi olan `Çap et / PDF` görünüşü əlavə edildi.
 - Düzəliş zamanı əvvəlki reviziya atomik olaraq `Əvvəlki`, yeni taslak `Cari` işarələnir; standart siyahı yalnız cari nəticəni sayır, tarixçə filtri köhnə reviziyaları göstərir.
 - Qeyd ekranından səbəb məcburi olmaqla əvvəlki məlumatla doldurulmuş yeni düzəliş taslağı yaratmaq əlavə edildi.
+- Filial müdiri, bölgə müdiri və super admin üçün ana dashboard rol əhatəsinə görə ayrıldı; ümumi personel yalnız təlim keçidində qalır.
+- Rəhbərlik dashboarduna real KXT məlumatından 7 gün, əvvəlki 7 gün və 30 gün ortalaması/trendi, bugünkü iki növbə tamamlanması və filial səviyyəli istisna sıralaması əlavə edildi.
+- Rəsmi formalar üçün 7/30 günlük cari reviziya sayı, onay gözləyən, taslak və auditli iptal göstəriciləri məsul filial müdiri ilə birgə göstərilir.
+- Filial müdürü təyin edilməyən filial idarəetmə istisnası kimi görünür; məlumat olmayan göstəricidə skor uydurulmur.
+- Rəsmi forma tezlik/təyinat cədvəli təsdiqlənmədiyi üçün “çatışmayan forma” göstəricisi qəsdən hesablanmır; bu, növbəti ayrıca addımdır.
+- Dashboard filial/bölgə və müdür join-larında tenant şərti sərtləşdirildi; super admin sorğusu da yalnız öz tenantındakı aktiv filialları hesablayır.
 - Production migration və deploy edilmədi.
 
 Bu faylın formatı [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)

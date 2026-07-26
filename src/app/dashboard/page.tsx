@@ -4,9 +4,14 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
+import { users } from '@/db/schema/auth'
 import { daily_sales, sales_targets } from '@/db/schema/sales'
 import { checklists } from '@/db/schema/checklists'
+import { quality_form_submissions } from '@/db/schema/quality-forms'
 import { eq, and, inArray, gte, lte } from 'drizzle-orm'
+import { getBakuBusinessDate } from '@/lib/checklist-validation'
+import { buildManagementDashboard } from '@/lib/management-dashboard'
+import ManagementNetworkDashboard from '@/components/management-network-dashboard'
 
 // Verisi olmayan metrik üçün göstərici (mock yox, dürüst)
 const NA = '—'
@@ -66,22 +71,82 @@ export default async function DashboardPage() {
   }
 
   // 2. Admin & Manager üçün statistika yükləmə
-  type BranchSummary = { id: string; code: string; name: string; city: string; is_active: boolean }
+  type BranchSummary = {
+    id: string
+    code: string
+    name: string
+    city: string
+    is_active: boolean
+    regionName: string | null
+    managerName: string | null
+  }
   let myBranchesList: BranchSummary[] = []
 
   try {
+    const branchSelection = {
+      id: branches.id,
+      code: branches.code,
+      name: branches.name,
+      city: branches.city,
+      is_active: branches.is_active,
+      regionName: regions.name,
+      managerName: users.name,
+    }
+
     if (role === 'super_admin') {
-      // Super admin satış və checklist sorğularında bütün tenant filiallarını görür.
+      myBranchesList = await db.select(branchSelection).from(branches)
+        .leftJoin(regions, and(
+          eq(branches.region_id, regions.id),
+          eq(regions.tenant_id, session.user.tenant_id),
+        ))
+        .leftJoin(users, and(
+          eq(branches.manager_id, users.id),
+          eq(users.tenant_id, session.user.tenant_id),
+        ))
+        .where(and(
+          eq(branches.tenant_id, session.user.tenant_id),
+          eq(branches.is_active, true),
+          eq(branches.is_archived, false),
+        ))
     } else if (role === 'region_manager') {
-      const managedRegions = await db.select({ id: regions.id }).from(regions).where(eq(regions.manager_id, session.user.id))
+      const managedRegions = await db.select({ id: regions.id }).from(regions).where(and(
+        eq(regions.tenant_id, session.user.tenant_id),
+        eq(regions.manager_id, session.user.id),
+      ))
       if (managedRegions.length > 0) {
         const regionIds = managedRegions.map(r => r.id)
-        const regBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active }).from(branches).where(and(eq(branches.is_archived, false), inArray(branches.region_id, regionIds)))
-        myBranchesList = regBranches
+        myBranchesList = await db.select(branchSelection).from(branches)
+          .leftJoin(regions, and(
+            eq(branches.region_id, regions.id),
+            eq(regions.tenant_id, session.user.tenant_id),
+          ))
+          .leftJoin(users, and(
+            eq(branches.manager_id, users.id),
+            eq(users.tenant_id, session.user.tenant_id),
+          ))
+          .where(and(
+            eq(branches.tenant_id, session.user.tenant_id),
+            eq(branches.is_active, true),
+            eq(branches.is_archived, false),
+            inArray(branches.region_id, regionIds),
+          ))
       }
     } else if (role === 'branch_manager') {
-      const myBranches = await db.select({ id: branches.id, code: branches.code, name: branches.name, city: branches.city, is_active: branches.is_active }).from(branches).where(and(eq(branches.is_archived, false), eq(branches.manager_id, session.user.id)))
-      myBranchesList = myBranches
+      myBranchesList = await db.select(branchSelection).from(branches)
+        .leftJoin(regions, and(
+          eq(branches.region_id, regions.id),
+          eq(regions.tenant_id, session.user.tenant_id),
+        ))
+        .leftJoin(users, and(
+          eq(branches.manager_id, users.id),
+          eq(users.tenant_id, session.user.tenant_id),
+        ))
+        .where(and(
+          eq(branches.tenant_id, session.user.tenant_id),
+          eq(branches.is_active, true),
+          eq(branches.is_archived, false),
+          eq(branches.manager_id, session.user.id),
+        ))
     }
   } catch (err) {
     console.error("Dashboard stats query error:", err)
@@ -91,12 +156,7 @@ export default async function DashboardPage() {
   let monthSales = 0, monthTarget = 0, dayActual = 0, dayYesterday = 0
   let hasSalesData = false
   try {
-    let ids: string[] = []
-    if (role === 'super_admin') {
-      ids = (await db.select({ id: branches.id }).from(branches).where(eq(branches.is_archived, false))).map(b => b.id)
-    } else {
-      ids = myBranchesList.map(b => b.id)
-    }
+    const ids = myBranchesList.map(b => b.id)
     if (ids.length > 0) {
       const now = new Date()
       const yr = now.getFullYear(), mo = now.getMonth()
@@ -141,19 +201,81 @@ export default async function DashboardPage() {
   const salesTarget = dailyTarget
   const salesYesterday = dayYesterday
 
-  // ─── REAL checklist skoru (rol əhatəsinə görə) ───
-  let checklistAvg: number | null = null
+  // ─── RƏHBƏRLİK ŞƏBƏKƏ GÖRÜNÜŞÜ ───
+  // Yalnız real KXT və cari rəsmi forma revision-ları hesablanır. Rəsmi forma
+  // tezlik cədvəli ayrıca təsdiqlənmədiyi üçün "çatışmayan forma" uydurulmur.
+  const today = getBakuBusinessDate()
+  const thirtyDaysAgoDate = new Date(`${today}T12:00:00.000Z`)
+  thirtyDaysAgoDate.setUTCDate(thirtyDaysAgoDate.getUTCDate() - 29)
+  const thirtyDaysAgo = thirtyDaysAgoDate.toISOString().slice(0, 10)
+  let managementDashboard = buildManagementDashboard(
+    myBranchesList.map((branch) => ({
+      id: branch.id,
+      code: branch.code,
+      name: branch.name,
+      regionName: branch.regionName,
+      managerName: branch.managerName,
+    })),
+    [],
+    [],
+    today,
+  )
+
   try {
-    const clScope = role === 'super_admin'
-      ? undefined
-      : (myBranchesList.map(b => b.id).length ? myBranchesList.map(b => b.id) : ['00000000-0000-0000-0000-000000000000'])
-    const clConds = [eq(checklists.tenant_id, session.user.tenant_id)]
-    if (clScope) clConds.push(inArray(checklists.branch_id, clScope))
-    const cl = await db.select({ s: checklists.score_pct }).from(checklists).where(and(...clConds))
-    if (cl.length > 0) checklistAvg = Math.round(cl.reduce((a, r) => a + r.s, 0) / cl.length)
+    const branchIds = myBranchesList.map((branch) => branch.id)
+    if (branchIds.length > 0) {
+      let checklistRows: Array<{ branchId: string | null; businessDate: string; shift: string; score: number }> = []
+      let qualityRows: Array<{ branchId: string; periodEnd: string; status: string }> = []
+
+      try {
+        checklistRows = await db.select({
+          branchId: checklists.branch_id,
+          businessDate: checklists.business_date,
+          shift: checklists.shift,
+          score: checklists.score_pct,
+        }).from(checklists).where(and(
+          eq(checklists.tenant_id, session.user.tenant_id),
+          inArray(checklists.branch_id, branchIds),
+          gte(checklists.business_date, thirtyDaysAgo),
+          lte(checklists.business_date, today),
+        ))
+      } catch (err) {
+        console.error('Management checklist query error:', err)
+      }
+
+      try {
+        qualityRows = await db.select({
+          branchId: quality_form_submissions.branch_id,
+          periodEnd: quality_form_submissions.period_end,
+          status: quality_form_submissions.status,
+        }).from(quality_form_submissions).where(and(
+          eq(quality_form_submissions.tenant_id, session.user.tenant_id),
+          inArray(quality_form_submissions.branch_id, branchIds),
+          eq(quality_form_submissions.is_current, true),
+          gte(quality_form_submissions.period_end, thirtyDaysAgo),
+          lte(quality_form_submissions.period_end, today),
+        ))
+      } catch (err) {
+        console.error('Management quality form query error:', err)
+      }
+
+      managementDashboard = buildManagementDashboard(
+        myBranchesList.map((branch) => ({
+          id: branch.id,
+          code: branch.code,
+          name: branch.name,
+          regionName: branch.regionName,
+          managerName: branch.managerName,
+        })),
+        checklistRows.map((row) => ({ ...row, score: Number(row.score) })),
+        qualityRows,
+        today,
+      )
+    }
   } catch (err) {
-    console.error("Dashboard checklist query error:", err)
+    console.error('Management dashboard query error:', err)
   }
+  const checklistAvg = managementDashboard.kxt30Avg
 
   const roleLabels: Record<string, string> = {
     super_admin: 'Süper admin',
@@ -190,7 +312,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold text-slate-900">Xoş gəldiniz, {userName} 👋</h1>
           <p className="text-sm text-slate-500">
             Bugünkü performans
-            {myBranchesList.length > 0 && ` — ${myBranchesList[0].name}`}
+            {role === 'branch_manager' && myBranchesList.length > 0 && ` — ${myBranchesList[0].name}`}
             {' · '}
             <span className="font-medium">{roleLabels[role] ?? role}</span>
           </p>
@@ -213,6 +335,12 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      <ManagementNetworkDashboard
+        data={managementDashboard}
+        role={role}
+        today={today}
+      />
 
       {/* ═══ SATIŞ HƏDƏFİ — ana kart ═══ */}
       <div className={`rounded-2xl border-2 p-5 mb-4 ${!hasSalesData ? "bg-white border-slate-200" : salesPct >= 100 ? "bg-emerald-50 border-emerald-200" : salesPct >= 75 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
