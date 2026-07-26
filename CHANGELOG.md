@@ -9,6 +9,14 @@
 - Göndərilmiş qeydi dəyişdirməyən, düzəlişi yeni reviziya kimi saxlayan və fiziki silmə əvəzinə auditli ləğv istifadə edən add-only DB migration hazırlandı.
 - Yaratma, göndərmə, təsdiq, düzəliş, çap və ləğv üçün append-only hadisə jurnalı modelləşdirildi.
 - Dashboard menyusuna KXT-dən ayrı `Keyfiyyət formaları` kataloqu əlavə edildi.
+- 18 formanın hər biri üçün ayrıca, sahə tipli giriş şablonu əlavə edildi; server naməlum və qısaldılmış sahələri qəbul etmir.
+- Taslak yaratma və yeniləmə, göndərmə, bölgə/süper admin təsdiqi, səbəbli düzəliş, auditli ləğv və auditli çap API-ləri əlavə edildi.
+- Eyni sorğunun təkrarında qeyd çoxaltmayan idempotency və paralel pəncərədə məlumat itkisinin qarşısını alan `version` nəzarəti əlavə edildi.
+- Arxiv filialın tarixi formalarının süper admin və səlahiyyətli bölgə müdüründən gizlənməməsi üçün aktiv əməliyyat əhatəsi ilə tarixi oxu əhatəsi ayrıldı.
+- Forma qeydləri səhifəsinə filial/forma/status filtrləri, məsul filial müdiri, təsdiq və ləğv əməliyyatları əlavə edildi.
+- Hər köhnə qeyd reviziyası üçün mənbə başlığı, cədvəl tutumu, mənbə qeydləri və audit tarixçəsi olan `Çap et / PDF` görünüşü əlavə edildi.
+- Düzəliş zamanı əvvəlki reviziya atomik olaraq `Əvvəlki`, yeni taslak `Cari` işarələnir; standart siyahı yalnız cari nəticəni sayır, tarixçə filtri köhnə reviziyaları göstərir.
+- Qeyd ekranından səbəb məcburi olmaqla əvvəlki məlumatla doldurulmuş yeni düzəliş taslağı yaratmaq əlavə edildi.
 - Production migration və deploy edilmədi.
 
 Bu faylın formatı [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)

@@ -38,13 +38,16 @@ Keyfiyyət formaları (18 unikal mənbə)
 │   ├── bölgə müdiri → bağlı filiallar
 │   └── super admin → tenantdakı bütün filiallar
 ├── Qeyd zənciri
-│   └── draft → submitted → approved
+│   ├── draft → submitted → approved
+│   ├── idempotency → təkrar göndəriş qeyd çoxaltmır
+│   └── version → paralel pəncərə köhnə məlumatla yenini əzmir
 ├── Düzəliş
-│   └── köhnə qeyd qalır → səbəbli yeni record_revision
+│   ├── köhnə qeyd qalır → səbəbli yeni record_revision
+│   └── əvvəlki is_current=false → yeni reviziya is_current=true
 ├── Ləğv
 │   └── fiziki silmə yoxdur → voided + səbəb + icraçı + vaxt
 ├── Audit
-│   └── created/submitted/approved/correction_created/printed/voided
+│   └── created/draft_updated/submitted/approved/correction_created/printed/voided
 └── Çap
     └── hər reviziya ayrıca yenidən çap edilə bilir
 ```

@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS "quality_form_submissions" (
   "template_revision" text NOT NULL,
   "template_sha256" text NOT NULL,
   "record_revision" integer DEFAULT 1 NOT NULL,
+  "is_current" boolean DEFAULT true NOT NULL,
+  "version" integer DEFAULT 1 NOT NULL,
   "replaces_submission_id" uuid,
   "correction_reason" text,
   "period_start" date NOT NULL,
@@ -27,9 +29,11 @@ CREATE TABLE IF NOT EXISTS "quality_form_submissions" (
   "voided_at" timestamp,
   "void_reason" text,
   "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL,
   CONSTRAINT "quality_form_period_order_ck" CHECK ("period_end" >= "period_start"),
   CONSTRAINT "quality_form_status_ck" CHECK ("status" IN ('draft', 'submitted', 'approved', 'voided')),
   CONSTRAINT "quality_form_revision_ck" CHECK ("record_revision" >= 1),
+  CONSTRAINT "quality_form_version_ck" CHECK ("version" >= 1),
   CONSTRAINT "quality_form_correction_reason_ck" CHECK (
     ("record_revision" = 1 AND "replaces_submission_id" IS NULL)
     OR
@@ -43,6 +47,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS "quality_form_submission_revision_uq"
   ON "quality_form_submissions" (
     "tenant_id", "branch_id", "form_key", "period_start", "period_end", "record_revision"
   );
+CREATE UNIQUE INDEX IF NOT EXISTS "quality_form_submission_current_uq"
+  ON "quality_form_submissions" (
+    "tenant_id", "branch_id", "form_key", "period_start", "period_end"
+  ) WHERE "is_current" = true;
 CREATE INDEX IF NOT EXISTS "quality_form_submission_scope_idx"
   ON "quality_form_submissions" ("tenant_id", "branch_id", "form_key", "period_start");
 CREATE INDEX IF NOT EXISTS "quality_form_submission_status_idx"
@@ -59,7 +67,7 @@ CREATE TABLE IF NOT EXISTS "quality_form_events" (
   "ip" text,
   "created_at" timestamp DEFAULT now() NOT NULL,
   CONSTRAINT "quality_form_event_action_ck" CHECK (
-    "action" IN ('created', 'submitted', 'approved', 'correction_created', 'printed', 'voided')
+    "action" IN ('created', 'draft_updated', 'submitted', 'approved', 'superseded', 'correction_created', 'printed', 'voided')
   )
 );
 

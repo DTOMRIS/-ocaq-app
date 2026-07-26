@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   index,
   integer,
@@ -8,6 +9,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { tenants, users } from './auth'
 import { branches } from './branches'
 
@@ -25,6 +27,8 @@ export const quality_form_submissions = pgTable('quality_form_submissions', {
   template_revision: text('template_revision').notNull(),
   template_sha256: text('template_sha256').notNull(),
   record_revision: integer('record_revision').notNull().default(1),
+  is_current: boolean('is_current').notNull().default(true),
+  version: integer('version').notNull().default(1),
   replaces_submission_id: uuid('replaces_submission_id'),
   correction_reason: text('correction_reason'),
   period_start: date('period_start').notNull(),
@@ -41,6 +45,7 @@ export const quality_form_submissions = pgTable('quality_form_submissions', {
   voided_at: timestamp('voided_at'),
   void_reason: text('void_reason'),
   created_at: timestamp('created_at').notNull().defaultNow(),
+  updated_at: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('quality_form_submission_idempotency_uq').on(table.tenant_id, table.idempotency_key),
   uniqueIndex('quality_form_submission_revision_uq').on(
@@ -51,6 +56,13 @@ export const quality_form_submissions = pgTable('quality_form_submissions', {
     table.period_end,
     table.record_revision,
   ),
+  uniqueIndex('quality_form_submission_current_uq').on(
+    table.tenant_id,
+    table.branch_id,
+    table.form_key,
+    table.period_start,
+    table.period_end,
+  ).where(sql`${table.is_current} = true`),
   index('quality_form_submission_scope_idx').on(
     table.tenant_id,
     table.branch_id,

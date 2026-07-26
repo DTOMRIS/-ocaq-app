@@ -47,3 +47,20 @@ body {
   .ocaq-topbar-user { gap: 8px !important; }
   .ocaq-topbar-name { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body { background: #fff !important; }
+  .dashboard-sidebar-desktop,
+  .dashboard-mobile-header,
+  .dashboard-drawer-layer,
+  .ocaq-topbar { display: none !important; }
+  .dashboard-shell,
+  .dashboard-content { display: block !important; min-height: auto !important; background: #fff !important; overflow: visible !important; }
+  .dashboard-main { padding: 0 !important; overflow: visible !important; }
+  .quality-form-print { width: 100% !important; max-width: none !important; }
+  .quality-form-print table { break-inside: auto; }
+  .quality-form-print tr { break-inside: avoid; break-after: auto; }
+  .quality-form-print thead { display: table-header-group; }
+  .quality-form-print footer { break-inside: avoid; }
+}

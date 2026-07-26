@@ -29,12 +29,26 @@ Son yenilənmə: 26 iyul 2026.
 
 ## Qeyd və düzəliş qaydası
 
-- Draft serverdə saxlanacaq, göndərmə idempotent olacaq.
+- Draft serverdə saxlanır və hər yeniləmə ayrıca audit snapshot-ı yaradır.
+- Göndərmə idempotentdir; cavab itəndə eyni açarla təkrar qeyd çoxaltmır.
+- Paralel pəncərələrdə `version` müqayisəsi köhnə məlumatın yenisini əzməsinə icazə vermir.
 - Göndərilmiş payload dəyişdirilməyəcək.
 - Düzəliş yeni `record_revision` yaradır; əvvəlki sətrə bağlanır və səbəb məcburidir.
+- Düzəliş eyni transaction daxilində əvvəlki reviziyanı `is_current=false`, yeni reviziyanı `is_current=true` edir; dashboard eyni nəticəni iki dəfə saymır.
 - Köhnə reviziya həmişə oxuna və yenidən çap edilə bilər.
 - Fiziki `DELETE` yoxdur. Səlahiyyətli ləğv əməliyyatı səbəb, icraçı və vaxtla `voided` statusu yaradır.
 - Yaratma, göndərmə, təsdiq, düzəliş, çap və ləğv append-only hadisə jurnalına yazılır.
+- Filial arxivlənsə belə tarixi forma süper admin və səlahiyyətli bölgə müdürü üçün oxuna və çap edilə bilir.
+
+## İşlək route-lar
+
+- `/dashboard/quality-forms` — 18 formanın mənbə kataloqu.
+- `/dashboard/quality-forms/[formKey]` — filial müdiri/süper admin giriş ekranı.
+- `/dashboard/quality-forms/records` — rol əhatəli qeyd, filtr, təsdiq və məsul görünüşü.
+- `/dashboard/quality-forms/records/[id]/print` — konkret reviziyanın çap/PDF və audit tarixçəsi.
+- `/api/quality-forms` — rol əhatəli siyahı və idempotent yeni qeyd.
+- `/api/quality-forms/[id]` — taslak yeniləmə, göndərmə, təsdiq, düzəliş və ləğv.
+- `/api/quality-forms/[id]/print` — çap hadisəsini auditə yazır.
 
 ## Migration qoruması
 

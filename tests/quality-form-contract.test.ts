@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import {
   getQualityFormDefinition,
   QUALITY_FORM_CATALOG,
@@ -55,4 +56,21 @@ test('branch, region and super admin boundaries are explicit', () => {
   assert.equal(canUseQualityForms('super_admin', 'template.revise'), true)
   assert.equal(canUseQualityForms('super_admin', 'submission.void'), true)
   assert.equal(qualityFormScope('super_admin'), 'tenant')
+})
+
+test('quality form migration is add-only and preserves revision history', () => {
+  const migration = readFileSync(
+    new URL('../drizzle/migrations/0007_quality_form_foundation.sql', import.meta.url),
+    'utf8',
+  )
+  assert.doesNotMatch(migration, /\bDELETE\s+FROM\b/i)
+  assert.doesNotMatch(migration, /\bDROP\s+TABLE\b/i)
+  assert.doesNotMatch(migration, /\bDROP\s+COLUMN\b/i)
+  assert.match(migration, /replaces_submission_id/)
+  assert.match(migration, /record_revision/)
+  assert.match(migration, /draft_updated/)
+  assert.match(migration, /superseded/)
+  assert.match(migration, /printed/)
+  assert.match(migration, /version/)
+  assert.match(migration, /is_current/)
 })

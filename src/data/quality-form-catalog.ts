@@ -211,7 +211,11 @@ export const QUALITY_FORM_CATALOG = [
     rowCapacity: 31,
     fixedTimes: [],
     preservedFields: ['Tarix', 'Məhsul adı/çeşidi', 'Səkkiz partiya №', 'Səkkiz İST saatı', 'Yararlılıq müddəti'],
-    sourceNotes: ['Mənbə çeşidləri və tərkib siyahısı çap görünüşündə itirilməməlidir.', 'Yararlılıq müddəti: 1 saat.'],
+    sourceNotes: [
+      'Tərkib: lavaş, pomidor, xiyar, toyuq file, pendir, sous, kahı, zeytun, sarımsaq, bibər, soğan, göbələk, kələm.',
+      'Çeşidlər: Sadə, Yanan, Vegetarian, Sezar.',
+      'Yararlılıq müddəti: 1 saat.',
+    ],
   },
   {
     key: 'sh-kn-f-034-lahmacun-traceability',
@@ -226,7 +230,11 @@ export const QUALITY_FORM_CATALOG = [
     rowCapacity: 31,
     fixedTimes: [],
     preservedFields: ['Tarix', 'Məhsul adı/çeşidi', 'Səkkiz partiya №', 'Səkkiz İST saatı', 'Yararlılıq müddəti'],
-    sourceNotes: ['Mənbə çeşidləri və tərkib siyahısı çap görünüşündə itirilməməlidir.', 'Yararlılıq müddəti: 1 saat.'],
+    sourceNotes: [
+      'Tərkib: xəmir, qiymə, holland pendiri, qoz, sucuk, küncüt, cəfəri, limon.',
+      'Çeşidlər: Sadə, Pendirli, Qozlu, Qarışıq.',
+      'Yararlılıq müddəti: 1 saat.',
+    ],
   },
   {
     key: 'sh-kn-f-034-pide-traceability',
@@ -241,7 +249,11 @@ export const QUALITY_FORM_CATALOG = [
     rowCapacity: 31,
     fixedTimes: [],
     preservedFields: ['Tarix', 'Məhsul adı/çeşidi', 'Səkkiz partiya №', 'Səkkiz İST saatı', 'Yararlılıq müddəti'],
-    sourceNotes: ['Mənbə çeşidləri və tərkib siyahısı çap görünüşündə itirilməməlidir.', 'Yararlılıq müddəti: 1 saat.'],
+    sourceNotes: [
+      'Tərkib: xəmir, holland pendiri, pomidor, bolqar bibəri, küncüt, qiymə, sucuk, yumurta, mal əti, basdırma, toyuq əti.',
+      'Çeşidlər: Pendirli, Qiyməli, Quşbaşı, Sucuklu, Yumurtalı, Qarışıq, Kaşarlı, Yuvarlaq, Basdırma.',
+      'Yararlılıq müddəti: 1 saat.',
+    ],
   },
   {
     key: 'sh-kn-f-034-pizza-traceability',
@@ -256,7 +268,11 @@ export const QUALITY_FORM_CATALOG = [
     rowCapacity: 31,
     fixedTimes: [],
     preservedFields: ['Tarix', 'Məhsul adı/çeşidi', 'Səkkiz partiya №', 'Səkkiz İST saatı', 'Yararlılıq müddəti'],
-    sourceNotes: ['Mənbə çeşidləri və tərkib siyahısı çap görünüşündə itirilməməlidir.', 'Yararlılıq müddəti: 1 saat.'],
+    sourceNotes: [
+      'Tərkib: xəmir, sous, mozzarella pendiri, oreqano, bibər, soğan, pomidor, göbələk, zeytun, sarımsaq, toyuq əti, toyuq file, aysberq, salyami, can əti, qiymə, kartof fri.',
+      'Çeşidlər: Marqarita, Vegetarian, Fungi, Toyuqlu, Sezar, Salyami, Quattro, Meksikana, Qarışıq, Qorqonzola, Yunan, Pika, Xüsusi, Kalsone.',
+      'Yararlılıq müddəti: 1 saat.',
+    ],
   },
   {
     key: 'sh-kn-f-034-shaurma-traceability',
@@ -271,7 +287,10 @@ export const QUALITY_FORM_CATALOG = [
     rowCapacity: 31,
     fixedTimes: [],
     preservedFields: ['Tarix', 'Məhsul adı — çörək/lavaş', 'Səkkiz partiya №', 'Səkkiz İST saatı', 'Yararlılıq müddəti'],
-    sourceNotes: ['Mənbə tərkib siyahısı çap görünüşündə itirilməməlidir.', 'Yararlılıq müddəti: 1 saat.'],
+    sourceNotes: [
+      'Tərkib: Shaurma çörəyi/lavaş, toyuq əti, shaurma sousu, xiyar turşusu, kartof qızartması.',
+      'Yararlılıq müddəti: 1 saat.',
+    ],
   },
   {
     key: 'sh-kn-f-035-defrost-registration',
@@ -323,7 +342,10 @@ export const QUALITY_FORM_CATALOG = [
       'Salatın adı', 'Salatın qəbul saatı', 'Salatın temperaturu',
       'Yoxlayan — ad və soyad', 'Yoxlayan — imza',
     ],
-    sourceNotes: ['Mənbədə göstərilən şorba və salat adları çap görünüşündə saxlanmalıdır.'],
+    sourceNotes: [
+      'Şorbalar: Doğramac, Dovğa, Mercimek şorbası, Pomidor şorbası, Toyuq şorbası, Yayla şorbası.',
+      'Salatlar: Əzmə badımcan, İngilis salatı, Mimoza salatı, Paytaxt salatı, Qarğıdalı salatı, Toyuq yağda/mayonezdə.',
+    ],
   },
   {
     key: 'sh-kn-f-041-cooked-spit-temperature',

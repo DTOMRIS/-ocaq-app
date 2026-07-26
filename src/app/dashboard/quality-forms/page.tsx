@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { QUALITY_FORM_CATALOG } from '@/data/quality-form-catalog'
 import { canUseQualityForms, qualityFormScope } from '@/lib/quality-form-access'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 
 export const metadata = { title: 'Keyfiyyət formaları — OCAQ' }
 
@@ -38,7 +39,11 @@ export default async function QualityFormsPage() {
             18 rəsmi forma · mənbə sahələri, saatları, imzaları və reviziyaları qorunur
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+          <Link href="/dashboard/quality-forms/records"
+            className="rounded-lg bg-slate-950 px-4 py-2.5 text-white">
+            Qeydlər və təsdiqlər →
+          </Link>
           <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-900">
             KXT-dən ayrıdır
           </span>
@@ -127,9 +132,16 @@ export default async function QualityFormsPage() {
               </div>
             </details>
 
-            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              Sahə-sahə doldurma, server qeydi və “Çap et” birlikdə tamamlandıqdan sonra əməliyyat açılacaq.
-            </p>
+            {canCreate ? (
+              <Link href={`/dashboard/quality-forms/${form.key}`}
+                className="mt-4 inline-flex rounded-lg bg-red-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-800">
+                Formanı doldur →
+              </Link>
+            ) : (
+              <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                Bu rol forma yaratmır; əhatəsindəki filial qeydlərini izləyib təsdiqləyir.
+              </p>
+            )}
           </article>
         ))}
       </div>
