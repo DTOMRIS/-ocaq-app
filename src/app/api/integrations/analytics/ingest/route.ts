@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing tenantSlug/period/branches' }, { status: 400 })
   }
 
+  try {
   const [tenant] = await db.select({ id: tenants.id }).from(tenants)
     .where(eq(tenants.slug, bundle.tenantSlug)).limit(1)
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
@@ -103,4 +104,7 @@ export async function POST(req: NextRequest) {
     ingestId: ins.id, status: 'draft', reconciled,
     branchCount: rows.length, matched, unmatched: rows.length - matched,
   }, { status: 201 })
+  } catch (e) {
+    return NextResponse.json({ error: 'Server error', detail: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
 }
