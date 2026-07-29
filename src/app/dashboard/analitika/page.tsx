@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import Link from 'next/link'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
@@ -73,7 +74,13 @@ export default async function AnalitikaPage() {
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 22, margin: 0, fontWeight: 800 }}>📊 Analitika</h1>
-        <span style={{ color: '#8b8378', fontSize: 13 }}>Dövr {latest.period} · analiz motorundan (iiko) · {data.length} filial</span>
+        <span style={{ color: '#8b8378', fontSize: 13 }}>Dövr {latest.period} · aylıq satış hesabatından · {data.length} filial</span>
+        {role === 'super_admin' && (
+          <Link href="/dashboard/analitika/yukle" style={{
+            marginLeft: 'auto', padding: '7px 14px', borderRadius: 9, background: '#26221d',
+            color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none',
+          }}>📥 Excel yüklə</Link>
+        )}
       </div>
 
       {showNetwork && (
@@ -116,7 +123,7 @@ export default async function AnalitikaPage() {
       </div>
 
       <p style={{ color: '#8b8378', fontSize: 11.5, marginTop: 14, lineHeight: 1.6 }}>
-        Mənbə: analiz motoru (iiko OLAP → ingest). {role === 'branch_manager' ? 'Yalnız öz filialınız göstərilir.' : role === 'region_manager' ? 'Öz bölgənizin filialları.' : 'Bütün şəbəkə.'} Gidişat mənfi = keçən ilə görə geriləmə.
+        Mənbə: aylıq satış hesabatı → analitika. {role === 'branch_manager' ? 'Yalnız öz filialınız göstərilir.' : role === 'region_manager' ? 'Öz bölgənizin filialları.' : 'Bütün şəbəkə.'} Gidişat mənfi = keçən ilə görə geriləmə.
       </p>
     </main>
   )
