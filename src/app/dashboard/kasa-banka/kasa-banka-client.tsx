@@ -11,6 +11,7 @@ type Result = {
   rows: ReconRow[]
   network: { kartSatis: number; unibank: number; atb: number; ortu: number | null }
   tanindi: string[]
+  atlanan?: string[]
 }
 
 const money = (n?: number | null) => (n == null ? '—' : Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + '₼')
@@ -103,7 +104,12 @@ export default function KasaBankaClient() {
 
       {res && (
         <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 12, color: '#8b8378' }}>Oxunan fayllar: {res.tanindi.join(' · ')}</div>
+          <div style={{ fontSize: 12, color: '#8b8378' }}>✓ Oxunan: {res.tanindi.join(' · ')}</div>
+          {res.atlanan && res.atlanan.length > 0 && (
+            <div style={{ ...card, borderColor: '#f0e2c0', background: '#fffdf5', padding: '9px 12px', fontSize: 12, color: '#8a6d1f' }}>
+              ⚠ Atlanan fayllar: {res.atlanan.join(' · ')}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Tile k="Kart satış" v={money(res.network.kartSatis)} />

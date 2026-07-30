@@ -89,27 +89,41 @@ export async function POST(req: NextRequest) {
 
     const card: BankByBranch = {}, unibank: BankByBranch = {}, atb: BankByBranch = {}
     const tanindi: string[] = []
+    const atlanan: string[] = []
 
     for (const file of files) {
-      const buf = Buffer.from(await file.arrayBuffer())
-      const head = buf.slice(0, 200).toString('utf8').toLowerCase()
-      if (head.includes('<html') || head.includes('<table')) {
-        parseUnibankRep(buf.toString('utf8'), unibank); tanindi.push(`${file.name} → Unibank`); continue
+      try {
+        const buf = Buffer.from(await file.arrayBuffer())
+        const head = buf.slice(0, 400).toString('utf8').toLowerCase()
+        // Unibank REP = HTML olarak gələn .xls
+        if (head.includes('<html') || head.includes('<table')) {
+          parseUnibankRep(buf.toString('utf8'), unibank); tanindi.push(`${file.name} → Unibank`); continue
+        }
+        // .xlsb və köhnə binary .xls oxuna bilməz (kitabxana yalnız .xlsx)
+        const isZip = buf[0] === 0x50 && buf[1] === 0x4b // 'PK' (xlsx/xlsb zip)
+        if (/\.xlsb$/i.test(file.name)) { atlanan.push(`${file.name} (.xlsb — .xlsx olaraq ixrac edin)`); continue }
+        if (!isZip) { atlanan.push(`${file.name} (köhnə .xls binary — .xlsx olaraq ixrac edin)`); continue }
+
+        const wb = new ExcelJS.Workbook()
+        await wb.xlsx.load(buf as unknown as ArrayBuffer)
+        const ws = wb.worksheets[0]
+        let kind = ''
+        let probe = ''
+        ws.eachRow({ includeEmpty: false }, (r, ri) => { if (ri <= 14) r.eachCell(c => { probe += ' ' + cellText(c.value) }) })
+        if (/təsvir/i.test(probe) && /card no/i.test(probe)) { parseATB(ws, atb); kind = 'ATB' }
+        else if (/uçot/i.test(probe)) { parseCardSales(ws, card); kind = 'satış (kart)' }
+        if (kind) tanindi.push(`${file.name} → ${kind}`)
+        else atlanan.push(`${file.name} (məzmun tanınmadı)`)
+      } catch {
+        atlanan.push(`${file.name} (oxuna bilmədi)`)
       }
-      const wb = new ExcelJS.Workbook()
-      await wb.xlsx.load(buf as unknown as ArrayBuffer)
-      const ws = wb.worksheets[0]
-      // içeriğe göre tip belirle
-      let kind = 'bilinməyən'
-      let probe = ''
-      ws.eachRow({ includeEmpty: false }, (r, ri) => { if (ri <= 14) r.eachCell(c => { probe += ' ' + cellText(c.value) }) })
-      if (/təsvir/i.test(probe) && /card no/i.test(probe)) { parseATB(ws, atb); kind = 'ATB' }
-      else if (/uçot/i.test(probe)) { parseCardSales(ws, card); kind = 'satış (kart)' }
-      tanindi.push(`${file.name} → ${kind}`)
     }
 
+    if (!tanindi.length) {
+      return NextResponse.json({ error: 'Heç bir fayl oxunmadı. Banka dökümü (Unibank REP/.xls-HTML, ATB/.xlsx) + satış detayı gözlənilir.', atlanan }, { status: 422 })
+    }
     const result = reconcile(card, unibank, atb)
-    return NextResponse.json({ ...result, tanindi }, { status: 200 })
+    return NextResponse.json({ ...result, tanindi, atlanan }, { status: 200 })
   } catch (e) {
     return NextResponse.json({ error: 'Server xətası', detail: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
