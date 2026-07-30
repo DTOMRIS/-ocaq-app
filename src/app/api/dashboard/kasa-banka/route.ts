@@ -85,11 +85,14 @@ export async function POST(req: NextRequest) {
   try {
     const form = await req.formData()
     const files = form.getAll('files').filter((f): f is File => f instanceof File)
-    if (!files.length) return NextResponse.json({ error: 'Fayl tapılmadı' }, { status: 400 })
 
-    const card: BankByBranch = {}, unibank: BankByBranch = {}, atb: BankByBranch = {}
-    const tanindi: string[] = []
-    const atlanan: string[] = []
+    const card: BankByBranch = {}, atb: BankByBranch = {}
+    // Unibank browser-də parse edilir (böyük HTML), buradan JSON gəlir
+    let unibank: BankByBranch = {}
+    try { unibank = JSON.parse(String(form.get('unibank') ?? '{}')) } catch { unibank = {} }
+    const parseArr = (k: string): string[] => { try { return JSON.parse(String(form.get(k) ?? '[]')) } catch { return [] } }
+    const tanindi: string[] = parseArr('clientTanindi')
+    const atlanan: string[] = parseArr('clientAtlanan')
 
     for (const file of files) {
       try {

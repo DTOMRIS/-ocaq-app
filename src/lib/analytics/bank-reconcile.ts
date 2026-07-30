@@ -53,9 +53,69 @@ export function atbBranchFromDesc(desc: string): string | null {
   return normalizeFilial(m[1].trim())
 }
 
-// ── Reconcile ────────────────────────────────────────────────────────────────
+// ── Saf parser'lar (client-tarafında da işlənə bilər — böyük fayl upload limiti yox) ─
 
 export type BankByBranch = Record<string, number>
+
+function parseNum(s: unknown): number | null {
+  if (typeof s === 'number') return isFinite(s) ? s : null
+  const t = String(s ?? '').replace(/[    ]/g, '').replace(',', '.')
+  const n = parseFloat(t)
+  return isFinite(n) ? n : null
+}
+
+/** Unibank REP (HTML mətn) → filial başına POS gəlir. */
+export function parseUnibankRepHtml(html: string): BankByBranch {
+  const out: BankByBranch = {}
+  const rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) ?? []
+  for (const tr of rows) {
+    const cells = (tr.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi) ?? [])
+      .map(c => c.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim())
+    const j = cells.join(' ')
+    if (!j.includes('(+) CR') || !/POS U/i.test(j)) continue
+    let amt: number | null = null
+    for (const x of cells) { if (/^[\d    ]+[.,]\d{2}$/.test(x)) { amt = parseNum(x); break } }
+    if (amt == null) continue
+    const br = unibankBranchFromDesc(j)
+    if (br) out[br] = (out[br] ?? 0) + amt
+  }
+  return out
+}
+
+/** ATB sətirləri (Təsvir=index 4, Kredit=index 7) → filial başına. */
+export function parseATBRows(rows: unknown[][]): BankByBranch {
+  const out: BankByBranch = {}
+  for (const r of rows) {
+    if (!r) continue
+    const kred = parseNum(r[7])
+    if (!kred) continue
+    const br = atbBranchFromDesc(String(r[4] ?? ''))
+    if (br) out[br] = (out[br] ?? 0) + kred
+  }
+  return out
+}
+
+/** Satış detayı sətirləri (Uçot günü formatı) → filial başına KART satış. */
+export function parseCardSalesRows(rows: unknown[][]): BankByBranch {
+  const out: BankByBranch = {}
+  const hi = rows.findIndex(r => r?.some(c => /uçot/i.test(String(c ?? ''))))
+  if (hi < 0) return out
+  let cf = ''
+  const CARD = /kart|bank|kapital|pos|visa|master|terminal/i
+  const SKIP = /cəmi|cemi|total|yekun/i
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i] ?? []
+    if (r[0]) cf = String(r[0]).trim()
+    const typ = String(r[2] ?? '')
+    if (!typ || SKIP.test(typ)) continue
+    const val = parseNum(r[3])
+    if (val == null || !cf || /total/i.test(cf)) continue
+    if (CARD.test(typ)) out[cf] = (out[cf] ?? 0) + val
+  }
+  return out
+}
+
+// ── Reconcile ────────────────────────────────────────────────────────────────
 
 export type ReconRow = {
   filial: string

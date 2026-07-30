@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useRef, type CSSProperties } from 'react'
+import { parseUnibankRepHtml, type BankByBranch } from '@/lib/analytics/bank-reconcile'
+
+function mergeInto(dst: BankByBranch, src: BankByBranch) { for (const k in src) dst[k] = (dst[k] ?? 0) + src[k] }
 
 type ReconRow = {
   filial: string; kartSatis: number; unibank: number; atb: number
@@ -54,8 +57,26 @@ export default function KasaBankaClient() {
     if (!files.length) return
     setBusy(true); setErr(null)
     try {
+      // Böyük HTML dökümləri (Unibank REP) BROWSER-də parse et (upload limiti yox)
+      const unibank: BankByBranch = {}
+      const clientTanindi: string[] = [], clientAtlanan: string[] = []
+      const upload: File[] = []
+      for (const f of files) {
+        if (/\.xlsb$/i.test(f.name)) { clientAtlanan.push(`${f.name} (.xlsb — .xlsx olaraq ixrac edin)`); continue }
+        const bytes = new Uint8Array(await f.slice(0, 400).arrayBuffer())
+        const head = new TextDecoder().decode(bytes).toLowerCase()
+        if (head.includes('<html') || head.includes('<table')) {
+          mergeInto(unibank, parseUnibankRepHtml(await f.text()))
+          clientTanindi.push(`${f.name} → Unibank`); continue
+        }
+        if (!(bytes[0] === 0x50 && bytes[1] === 0x4b)) { clientAtlanan.push(`${f.name} (köhnə binary .xls — .xlsx olaraq ixrac edin)`); continue }
+        upload.push(f) // xlsx (ATB / satış) → serverə
+      }
       const fd = new FormData()
-      files.forEach(f => fd.append('files', f))
+      upload.forEach(f => fd.append('files', f))
+      fd.append('unibank', JSON.stringify(unibank))
+      fd.append('clientTanindi', JSON.stringify(clientTanindi))
+      fd.append('clientAtlanan', JSON.stringify(clientAtlanan))
       const r = await fetch('/api/dashboard/kasa-banka', { method: 'POST', body: fd })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'Xəta')
