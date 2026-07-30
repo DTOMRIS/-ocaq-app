@@ -8,6 +8,7 @@ type NavItem = { href: string; icon: string; label: string; roles: string[] }
 const NAV: NavItem[] = [
   { href: '/dashboard', icon: '◈', label: 'İdarə paneli', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/analitika', icon: '📊', label: 'Analitika', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/kasa-banka', icon: '🏦', label: 'Kasa/Banka', roles: ['super_admin'] },
   { href: '/dashboard/vardiya-liderliyi', icon: '◆', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT doldur', roles: ['branch_manager'] },
   { href: '/dashboard/checklists', icon: '📋', label: 'KXT izləmə', roles: ['super_admin', 'region_manager', 'branch_manager'] },
