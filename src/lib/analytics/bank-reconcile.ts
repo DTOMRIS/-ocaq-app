@@ -115,6 +115,27 @@ export function parseCardSalesRows(rows: unknown[][]): BankByBranch {
   return out
 }
 
+/** Kapital/Birbank POS statement (Terminal Nömrəsi + Əməliyyat Məbləği) → filial. */
+export function parseKapitalPosRows(rows: unknown[][]): BankByBranch {
+  const out: BankByBranch = {}
+  const hi = rows.findIndex(r => r?.some(c => /terminal nömrəsi/i.test(String(c ?? ''))))
+  if (hi < 0) return out
+  const hdr = (rows[hi] ?? []).map(c => String(c ?? '').toLowerCase())
+  const iT = hdr.findIndex(h => /terminal nömrəsi/.test(h))
+  let iA = hdr.findIndex(h => /əməliyyat məbləği/.test(h))
+  if (iA < 0) iA = hdr.findIndex(h => /məbləği/.test(h))
+  const iN = hdr.findIndex(h => /əməliyyatın növü/.test(h))
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i] ?? []
+    const br = KAPITAL_TERMINAL_TO_BRANCH[String(r[iT] ?? '').trim()]
+    if (!br) continue
+    if (iN >= 0 && !/purchase/i.test(String(r[iN] ?? ''))) continue
+    const amt = parseNum(r[iA])
+    if (amt) out[br] = (out[br] ?? 0) + amt
+  }
+  return out
+}
+
 // ── Reconcile ────────────────────────────────────────────────────────────────
 
 export type ReconRow = {
@@ -122,30 +143,32 @@ export type ReconRow = {
   kartSatis: number
   unibank: number
   atb: number
-  bankaCemi: number          // unibank + atb (Kapital hesab-bazlı, ayrıca)
+  kapital: number
+  bankaCemi: number          // unibank + atb + kapital
   ortu: number | null        // bankaCemi / kartSatis
-  qalan: number              // kartSatis − bankaCemi (≈ Kapital + timing)
+  qalan: number              // kartSatis − bankaCemi (≈ timing/komisyon)
   status: 'over' | 'missing' | 'full' | 'partial' | 'closed'
 }
 
 const CLOSED = new Set(['Masazır'])
 
 /**
- * Reconcile: filial-bazlı kart satış vs Unibank + ATB düşən.
- * status: over=banka>satış(incele) · missing=bankaya düşməyib · full=≥%85 · partial=Kapital'də.
+ * Reconcile: filial-bazlı kart satış vs Unibank + ATB + Kapital düşən.
+ * status: over=banka>satış(incele) · missing=bankaya düşməyib · full=≥%85 · partial.
  */
-export function reconcile(card: BankByBranch, unibank: BankByBranch, atb: BankByBranch): {
+export function reconcile(card: BankByBranch, unibank: BankByBranch, atb: BankByBranch, kapital: BankByBranch = {}): {
   rows: ReconRow[]
-  network: { kartSatis: number; unibank: number; atb: number; ortu: number | null }
+  network: { kartSatis: number; unibank: number; atb: number; kapital: number; ortu: number | null }
 } {
-  const names = new Set([...Object.keys(card), ...Object.keys(unibank), ...Object.keys(atb)])
+  const names = new Set([...Object.keys(card), ...Object.keys(unibank), ...Object.keys(atb), ...Object.keys(kapital)])
   const rows: ReconRow[] = []
-  let tc = 0, tu = 0, ta = 0
+  let tc = 0, tu = 0, ta = 0, tk = 0
   for (const filial of names) {
     const kartSatis = Math.round(card[filial] ?? 0)
     const unibankV = Math.round(unibank[filial] ?? 0)
     const atbV = Math.round(atb[filial] ?? 0)
-    const bankaCemi = unibankV + atbV
+    const kapitalV = Math.round(kapital[filial] ?? 0)
+    const bankaCemi = unibankV + atbV + kapitalV
     const ortu = kartSatis > 0 ? bankaCemi / kartSatis : null
     let status: ReconRow['status']
     if (CLOSED.has(filial)) status = 'closed'
@@ -153,9 +176,9 @@ export function reconcile(card: BankByBranch, unibank: BankByBranch, atb: BankBy
     else if (kartSatis > 3000 && bankaCemi < kartSatis * 0.03) status = 'missing'
     else if (ortu != null && ortu >= 0.85) status = 'full'
     else status = 'partial'
-    rows.push({ filial, kartSatis, unibank: unibankV, atb: atbV, bankaCemi, ortu, qalan: kartSatis - bankaCemi, status })
-    tc += kartSatis; tu += unibankV; ta += atbV
+    rows.push({ filial, kartSatis, unibank: unibankV, atb: atbV, kapital: kapitalV, bankaCemi, ortu, qalan: kartSatis - bankaCemi, status })
+    tc += kartSatis; tu += unibankV; ta += atbV; tk += kapitalV
   }
   rows.sort((a, b) => b.kartSatis - a.kartSatis)
-  return { rows, network: { kartSatis: tc, unibank: tu, atb: ta, ortu: tc > 0 ? (tu + ta) / tc : null } }
+  return { rows, network: { kartSatis: tc, unibank: tu, atb: ta, kapital: tk, ortu: tc > 0 ? (tu + ta + tk) / tc : null } }
 }
