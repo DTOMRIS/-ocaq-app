@@ -21,7 +21,7 @@ export default async function PanelPage() {
     .where(and(eq(analytics_ingest.tenant_id, session.user.tenant_id), eq(analytics_ingest.engine_version, 'panel-1.0')))
     .orderBy(desc(analytics_ingest.created_at)).limit(1)
 
-  let initial: { daily: unknown; plan: unknown } | null = null
+  let initial: { daily: unknown; plan: unknown; yoy?: unknown } | null = null
   if (latest?.network) { try { initial = JSON.parse(latest.network) } catch { initial = null } }
 
   // Manuel satış hədəfləri (/sales-dən girilən, sales_targets) → dövrün ayı üçün

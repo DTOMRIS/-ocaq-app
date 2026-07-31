@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, type CSSProperties } from 'react'
-import { parseDaily, parsePlan, type PlanResult } from '@/lib/analytics/parse-daily'
+import { parseDaily, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
 
 type Daily = {
   period: string | null; gun: number; days: string[]
@@ -50,11 +50,12 @@ function Chart({ d }: { d: Daily }) {
 }
 
 export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null }: {
-  initial?: { daily: unknown; plan: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null
+  initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null
 }) {
   const [files, setFiles] = useState<File[]>([])
   const [d, setD] = useState<Daily | null>((initial?.daily as Daily) ?? null)
   const [plan, setPlan] = useState<PlanResult | null>((initial?.plan as PlanResult) ?? null)
+  const [yoy, setYoy] = useState<YoyResult | null>((initial?.yoy as YoyResult) ?? null)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -70,22 +71,23 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     setBusy(true); setErr(null)
     try {
       const XLSX = await import('xlsx')
-      let daily: Daily | null = null, pl: PlanResult | null = null
+      let daily: Daily | null = null, pl: PlanResult | null = null, yo: YoyResult | null = null
       for (const f of files) {
         const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
-        for (const sn of wb.SheetNames) {
+        for (const sn of wb.SheetNames) {  // gedişat raporu: plan + yoy ayrı sheet-lərdə → break yox
           const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: false, defval: null }) as unknown[][]
           const probe = rows.slice(0, 6).map(r => (r ?? []).join(' ')).join(' ')
-          if (!daily && /uçot/i.test(probe)) { const dd = parseDaily(rows); if (dd.days.length) { daily = dd as Daily; break } }
-          if (!pl && /filial/i.test(probe) && /\bplan\b/i.test(probe)) { const pp = parsePlan(rows); if (Object.keys(pp.branches).length) { pl = pp; break } }
+          if (!daily && /uçot/i.test(probe)) { const dd = parseDaily(rows); if (dd.days.length) daily = dd as Daily }
+          else if (!pl && /filial/i.test(probe) && /\bplan\b/i.test(probe)) { const pp = parsePlan(rows); if (Object.keys(pp.branches).length) pl = pp }
+          else if (!yo && /filial/i.test(probe) && /2025/.test(probe)) { const yy = parseYoy(rows); if (Object.keys(yy.branches).length) yo = yy }
         }
       }
       if (!daily) throw new Error('Satış detayı (Uçot günü) tapılmadı. Ham detay lazım — Proqnoz/özet deyil.')
-      setD(daily); setPlan(pl)
+      setD(daily); setPlan(pl); setYoy(yo)
       // avtomatik yadda saxla → qalıcı olsun, bir daha yükləmə lazım olmasın
       try {
         const brs = daily.branches.map(b => ({ filial: b.filial, bolge: b.bolge, total: b.total, wolt: b.wolt, bolt: b.bolt, plan: pl?.branches[b.filial]?.plan, gedisat: pl?.branches[b.filial]?.gedisat }))
-        const r = await fetch('/api/dashboard/analytics/panel-save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ period: daily.period, toplam: daily.toplam, daily, plan: pl, branches: brs }) })
+        const r = await fetch('/api/dashboard/analytics/panel-save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ period: daily.period, toplam: daily.toplam, daily, plan: pl, yoy: yo, branches: brs }) })
         if (r.ok) setSaved(true)
       } catch { /* saxlama xətası paneli pozmasın */ }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
@@ -108,6 +110,11 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     const t = targets[b.filial]
     if (t && d) return { pct: (d.gun ? b.total / d.gun * 31 : b.total) / t }
     return { pct: null }
+  }
+  const netYoyPct = yoy && yoy.network.y2025 ? yoy.network.y2026 / yoy.network.y2025 - 1 : null
+  const branchYoy = (b: { filial: string }): number | null => {
+    const yb = yoy?.branches[b.filial]
+    return yb && yb.y2025 ? yb.y2026 / yb.y2025 - 1 : null
   }
 
   return (
@@ -157,6 +164,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             <Tile k="Günlük ort." v={money(d.toplam / d.gun)} />
             <Tile k="Ay proqnozu" v={money(d.gedisat)} sub="gedişat" />
             {netTargetPct != null && <Tile k="Hədəfə görə" v={Math.round(netTargetPct * 100) + '%'} sub={money(netTarget) + ' hədəf'} tone={netTargetPct >= 0.98 ? '#1c7a4e' : '#c8102e'} />}
+            {netYoyPct != null && <Tile k="Keçən ilə" v={(netYoyPct >= 0 ? '+' : '') + Math.round(netYoyPct * 100) + '%'} sub="2026 vs 2025" tone={netYoyPct >= 0 ? '#1c7a4e' : '#c8102e'} />}
             <Tile k="Delivery" v={d.toplam ? Math.round(deliv / d.toplam * 100) + '%' : '—'} sub="Wolt+Bolt" />
           </div>
 
@@ -206,19 +214,21 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
                 <thead><tr>
-                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf%'] : []), 'Wolt', 'Bolt'].map((h, i) => (
+                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf%'] : []), ...(yoy ? ['YoY'] : []), 'Wolt', 'Bolt'].map((h, i) => (
                     <th key={h} style={{ padding: '8px 10px', textAlign: i < 2 ? 'left' : 'right', fontSize: 10.5, textTransform: 'uppercase', color: '#8b8378', borderBottom: '1px solid #e6e1d7', background: '#faf7f1' }}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {rows.map(b => {
                     const pp = branchTarget(b).pct
+                    const yp = branchYoy(b)
                     return (
                       <tr key={b.filial}>
                         <td style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #efeae0' }}>{b.filial}</td>
                         <td style={{ padding: '8px 10px', color: '#8b8378', borderBottom: '1px solid #efeae0' }}>{b.bolge ?? '—'}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.total)}</td>
                         {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
+                        {yoy && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: yp == null ? '#8b8378' : yp >= 0 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{yp != null ? (yp >= 0 ? '+' : '') + Math.round(yp * 100) + '%' : '—'}</td>}
                         <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.wolt)}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.bolt)}</td>
                       </tr>

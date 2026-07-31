@@ -16,13 +16,13 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
       period?: string; toplam?: number
-      daily?: unknown; plan?: unknown
+      daily?: unknown; plan?: unknown; yoy?: unknown
       branches?: Array<{ filial: string; bolge?: string | null; total?: number; wolt?: number; bolt?: number; plan?: number; gedisat?: number }>
     }
     const period = String(body.period ?? '')
     if (!period) return NextResponse.json({ error: 'Dövr tapılmadı' }, { status: 400 })
     const tenantId = session.user.tenant_id
-    const blob = JSON.stringify({ daily: body.daily ?? null, plan: body.plan ?? null })
+    const blob = JSON.stringify({ daily: body.daily ?? null, plan: body.plan ?? null, yoy: body.yoy ?? null })
     const sha = createHash('sha256').update(blob).digest('hex').slice(0, 40)
 
     const [existing] = await db.select({ id: analytics_ingest.id }).from(analytics_ingest)

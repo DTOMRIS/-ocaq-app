@@ -71,6 +71,36 @@ function normDate(v: unknown): string | null {
   return null
 }
 
+export type YoyResult = {
+  branches: Record<string, { y2025: number; y2026: number }>
+  network: { y2025: number; y2026: number }
+}
+
+/** "2025 vs gedişat" raporu (filial | 2025 | 2026 gedişat) → filial YoY. */
+export function parseYoy(rows: unknown[][]): YoyResult {
+  const branches: Record<string, { y2025: number; y2026: number }> = {}
+  let net = { y2025: 0, y2026: 0 }
+  const hi = rows.findIndex(r => r?.some(c => /^filial$/i.test(String(c ?? '').trim())) && r?.some(c => /2025/.test(String(c ?? ''))))
+  if (hi < 0) return { branches, network: net }
+  const hdr = (rows[hi] ?? []).map(c => String(c ?? '').toLowerCase())
+  const iF = hdr.findIndex(h => h.trim() === 'filial')
+  const i25 = hdr.findIndex(h => /2025/.test(h) && !/gerçək|faiz/.test(h))
+  const i26 = hdr.findIndex(h => /gedişa|gedisa/.test(h))
+  if (iF < 0 || i25 < 0 || i26 < 0) return { branches, network: net }
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i] ?? []
+    const f = String(r[iF] ?? '').trim()
+    if (!f || TOTAL.test(f)) continue
+    const kanon = normalizeFilial(f)
+    if (!kanon || EXCLUDE.has(kanon)) continue
+    const y2025 = parseNum(r[i25]) ?? 0
+    const y2026 = parseNum(r[i26]) ?? 0
+    branches[kanon] = { y2025, y2026 }
+    net = { y2025: net.y2025 + y2025, y2026: net.y2026 + y2026 }
+  }
+  return { branches, network: net }
+}
+
 export function parseDaily(rows: unknown[][]): DailyResult {
   const uyarilar: string[] = []
   const daily: DailyResult['daily'] = {}
