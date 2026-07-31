@@ -6,7 +6,7 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { analytics_ingest, analytics_branch } from '@/db/schema/analytics'
-import { parseSales, type SheetInput } from '@/lib/analytics/parse-sales'
+import { parseDaily } from '@/lib/analytics/parse-daily'
 
 // İstifadəçi (super_admin) OCAQ-dan satış Excel-i yükləyir → parse → önizləmə/insert.
 // Server-to-server ingest-dən FƏRQLİ: burada session auth, secret DEYİL. Add-only.
@@ -42,16 +42,6 @@ async function workbookToSheets(buf: Buffer): Promise<Array<{ name: string; rows
   return out
 }
 
-// Sheet-in tarix ilini tap (parse-sales-in tapdığı ilk tarix sətrindən).
-function sheetYear(rows: unknown[][]): number | null {
-  for (const r of rows) {
-    for (const c of r) {
-      if (c instanceof Date && !isNaN(c.getTime())) return c.getFullYear()
-    }
-  }
-  return null
-}
-
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -68,27 +58,30 @@ export async function POST(req: NextRequest) {
     }
     const buf = Buffer.from(await file.arrayBuffer())
 
-    // Excel → sheet-lər → cari/keçən il seç
+    // Excel → sheet-lər → Uçot günü olan detay sheet-i → parseDaily (robust)
     const sheets = await workbookToSheets(buf)
     if (!sheets.length) return NextResponse.json({ error: 'Excel boş və ya oxunmadı' }, { status: 400 })
-
-    const withYear = sheets.map(s => ({ ...s, year: sheetYear(s.rows) })).filter(s => s.year != null)
-    let cari: SheetInput, kecen: SheetInput | null = null
-    if (withYear.length) {
-      withYear.sort((a, b) => (b.year! - a.year!))
-      cari = { rows: withYear[0].rows }
-      const prev = withYear.find(s => s.year === withYear[0].year! - 1)
-      kecen = prev ? { rows: prev.rows } : null
-    } else {
-      cari = { rows: sheets[0].rows }   // tarix tapılmadısa ilk sheet-i dene
+    const detay = sheets.find(s => s.rows.some(r => r?.some(c => /uçot/i.test(String(c ?? ''))))) ?? sheets[0]
+    const daily = parseDaily(detay.rows)
+    if (!daily.period || daily.branches.length === 0) {
+      return NextResponse.json({ error: 'Excel oxundu amma filial/tarix tapılmadı. Ham satış detayı (Uçot günü) gözlənilir.' }, { status: 422 })
     }
-
-    const parsed = parseSales(cari, kecen)
-    if (!parsed.period || parsed.branches.length === 0) {
-      return NextResponse.json({
-        error: 'Excel oxundu amma filial/tarix tapılmadı. Doğru satış hesabatını yüklədiyinizə əmin olun.',
-        parsed,
-      }, { status: 422 })
+    // upload-flow ekranı üçün parseSales-uyğun forma
+    const branchList = daily.branches.map(b => ({
+      filial: b.filial, xam: b.filial, bolge: b.bolge, eslesdi: b.bolge != null,
+      ciro: b.total, ciroKecen: null as number | null, yoy: null as number | null,
+      deliveryPayi: b.total ? (b.wolt + b.bolt) / b.total : null,
+    }))
+    const parsed = {
+      period: daily.period,
+      branches: branchList,
+      meta: {
+        okunan: branchList.length,
+        eslesen: branchList.filter(b => b.eslesdi).length,
+        eslesmeyen: branchList.filter(b => !b.eslesdi).length,
+        toplamCiro: daily.toplam,
+        uyarilar: daily.uyarilar,
+      },
     }
 
     // ── Önizləmə: insert etmə, yalnız nəticəni qaytar ──
@@ -98,12 +91,11 @@ export async function POST(req: NextRequest) {
 
     // ── Commit: analytics_ingest + analytics_branch-ə yaz ──
     const tenantId = session.user.tenant_id
-    const netYoy = (() => {
-      const cur = parsed.branches.reduce((s, b) => s + b.ciro, 0)
-      const prv = parsed.branches.reduce((s, b) => s + (b.ciroKecen ?? 0), 0)
-      return prv > 0 ? cur / prv - 1 : null
-    })()
-    const network = { ciro: parsed.meta.toplamCiro, yoy: netYoy, gidisatFark: netYoy }
+    const network = {
+      ciro: parsed.meta.toplamCiro,
+      deliveryPayi: daily.toplam ? (daily.pay.wolt + daily.pay.bolt) / daily.toplam : null,
+      gedisat: daily.gedisat,
+    }
 
     // Idempotency: fayl baytlarının sha-sı (deterministik)
     const sha = createHash('sha256').update(buf).digest('hex')
@@ -143,7 +135,7 @@ export async function POST(req: NextRequest) {
       filial: b.filial,
       bolge: b.bolge,
       branch_id: byName.get(b.filial.trim().toLowerCase()) ?? null,
-      metrics: JSON.stringify({ ciro: b.ciro, yoy: b.yoy, gidisatFark: b.yoy }),
+      metrics: JSON.stringify({ ciro: b.ciro, deliveryPayi: b.deliveryPayi }),
     }))
     if (rows.length) await db.insert(analytics_branch).values(rows)
 
