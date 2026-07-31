@@ -116,6 +116,14 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     const yb = yoy?.branches[b.filial]
     return yb && yb.y2025 ? yb.y2026 / yb.y2025 - 1 : null
   }
+  // Diqqət istəyən filiallar: hədəf %90 altı VEYA keçən ilə görə %5+ düşən
+  const flagged = d ? d.branches.map(b => {
+    const t = branchTarget(b).pct, y = branchYoy(b)
+    const r: string[] = []
+    if (t != null && t < 0.90) r.push(`hədəf %${Math.round(t * 100)}`)
+    if (y != null && y < -0.05) r.push(`keçən ilə ${Math.round(y * 100)}%`)
+    return { filial: b.filial, r }
+  }).filter(x => x.r.length).sort((a, b) => b.r.length - a.r.length) : []
 
   return (
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
@@ -167,6 +175,19 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             {netYoyPct != null && <Tile k="Keçən ilə" v={(netYoyPct >= 0 ? '+' : '') + Math.round(netYoyPct * 100) + '%'} sub="2026 vs 2025" tone={netYoyPct >= 0 ? '#1c7a4e' : '#c8102e'} />}
             <Tile k="Delivery" v={d.toplam ? Math.round(deliv / d.toplam * 100) + '%' : '—'} sub="Wolt+Bolt" />
           </div>
+
+          {flagged.length > 0 && (
+            <div style={{ ...card, borderColor: '#f0c9cf', background: '#fdf2f3', padding: '13px 15px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#c8102e', marginBottom: 6 }}>🚨 Diqqət istəyən filiallar ({flagged.length})</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {flagged.map(f => (
+                  <span key={f.filial} style={{ background: '#fff', border: '1px solid #f0c9cf', borderRadius: 8, padding: '3px 9px', fontSize: 12 }}>
+                    <b>{f.filial}</b> <span style={{ color: '#8a3a3a' }}>{f.r.join(' · ')}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ ...card, padding: '16px 16px 8px' }}>
             <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6 }}>📈 Günlük satış</div>
