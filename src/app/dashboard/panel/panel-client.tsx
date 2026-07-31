@@ -127,6 +127,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
 
   return (
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
+      <style>{`@media print { button, input { display: none !important } body { background: #fff } @page { margin: 12mm; size: A4 } }`}</style>
       <div style={{ height: 3, background: '#F2A81D', borderRadius: 2, marginBottom: 16 }} />
       <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>📈 Günlük Panel</h1>
       <p style={{ color: '#8b8378', fontSize: 13, margin: '0 0 20px' }}>Satış detayı (+ plan raporu) at → günlük satış, plana görə, bölgə, delivery, proqnoz.</p>
@@ -165,7 +166,10 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 12, color: '#8b8378', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
             <span>Dövr {d.period} · {d.gun} gün {plan ? '· plan ✓' : ''} {saved ? '· yadda saxlanıldı ✓' : savedAt ? `· ${savedAt} yüklənib` : ''}</span>
-            {canUpload && <button onClick={() => { setD(null); setPlan(null); setFiles([]); setSaved(false) }} style={{ background: 'none', border: 'none', color: '#c8102e', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>↻ yeni ay yüklə</button>}
+            <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button className="no-print" onClick={() => window.print()} style={{ background: 'none', border: 'none', color: '#26221d', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>🖨️ Çap / PDF</button>
+              {canUpload && <button className="no-print" onClick={() => { setD(null); setPlan(null); setYoy(null); setFiles([]); setSaved(false) }} style={{ background: 'none', border: 'none', color: '#c8102e', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>↻ yeni ay yüklə</button>}
+            </span>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Tile k="Toplam satış" v={money(d.toplam)} sub={`${d.gun} gün`} />
