@@ -49,10 +49,13 @@ function Chart({ d }: { d: Daily }) {
   )
 }
 
-export default function PanelClient() {
+export default function PanelClient({ initial, canUpload = false, savedAt = null }: {
+  initial?: { daily: unknown; plan: unknown } | null; canUpload?: boolean; savedAt?: string | null
+}) {
   const [files, setFiles] = useState<File[]>([])
-  const [d, setD] = useState<Daily | null>(null)
-  const [plan, setPlan] = useState<PlanResult | null>(null)
+  const [d, setD] = useState<Daily | null>((initial?.daily as Daily) ?? null)
+  const [plan, setPlan] = useState<PlanResult | null>((initial?.plan as PlanResult) ?? null)
+  const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
@@ -79,6 +82,12 @@ export default function PanelClient() {
       }
       if (!daily) throw new Error('Satış detayı (Uçot günü) tapılmadı. Ham detay lazım — Proqnoz/özet deyil.')
       setD(daily); setPlan(pl)
+      // avtomatik yadda saxla → qalıcı olsun, bir daha yükləmə lazım olmasın
+      try {
+        const brs = daily.branches.map(b => ({ filial: b.filial, bolge: b.bolge, total: b.total, wolt: b.wolt, bolt: b.bolt, plan: pl?.branches[b.filial]?.plan, gedisat: pl?.branches[b.filial]?.gedisat }))
+        const r = await fetch('/api/dashboard/analytics/panel-save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ period: daily.period, toplam: daily.toplam, daily, plan: pl, branches: brs }) })
+        if (r.ok) setSaved(true)
+      } catch { /* saxlama xətası paneli pozmasın */ }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
   }
@@ -97,7 +106,12 @@ export default function PanelClient() {
       <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>📈 Günlük Panel</h1>
       <p style={{ color: '#8b8378', fontSize: 13, margin: '0 0 20px' }}>Satış detayı (+ plan raporu) at → günlük satış, plana görə, bölgə, delivery, proqnoz.</p>
 
-      {!d && (
+      {!d && !canUpload && (
+        <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>
+          Hələ panel məlumatı yüklənməyib. Sistem admini aylıq satışı yükləyəndə burada görünəcək.
+        </div>
+      )}
+      {!d && canUpload && (
         <>
           <div
             onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
@@ -124,9 +138,9 @@ export default function PanelClient() {
 
       {d && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 12, color: '#8b8378', display: 'flex', justifyContent: 'space-between' }}>
-            <span>Dövr {d.period} · {d.gun} gün {plan ? '· plan yükləndi ✓' : ''}</span>
-            <button onClick={() => { setD(null); setPlan(null); setFiles([]) }} style={{ background: 'none', border: 'none', color: '#8b8378', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}>başqa fayl</button>
+          <div style={{ fontSize: 12, color: '#8b8378', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            <span>Dövr {d.period} · {d.gun} gün {plan ? '· plan ✓' : ''} {saved ? '· yadda saxlanıldı ✓' : savedAt ? `· ${savedAt} yüklənib` : ''}</span>
+            {canUpload && <button onClick={() => { setD(null); setPlan(null); setFiles([]); setSaved(false) }} style={{ background: 'none', border: 'none', color: '#c8102e', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>↻ yeni ay yüklə</button>}
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Tile k="Toplam satış" v={money(d.toplam)} sub={`${d.gun} gün`} />
