@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, type CSSProperties } from 'react'
+import { parseDaily } from '@/lib/analytics/parse-daily'
 
 type Daily = {
   period: string | null; gun: number; days: string[]
@@ -59,10 +60,11 @@ export default function PanelClient() {
     if (!f) return
     setBusy(true); setErr(null)
     try {
-      const fd = new FormData(); fd.append('file', f)
-      const r = await fetch('/api/dashboard/panel', { method: 'POST', body: fd })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || 'Xəta')
+      const XLSX = await import('xlsx')
+      const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: null }) as unknown[][]
+      const data = parseDaily(rows)
+      if (!data.days.length) throw new Error('Günlük satış tapılmadı — ham satış detayı (Uçot günü) gözlənilir. Proqnoz/özet fayl deyil.')
       setD(data as Daily)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }

@@ -1,6 +1,6 @@
-// ─── Günlük Panel parser'ı (Python gunluk extraction portu) ───────────────────
-// Satış detayı (Uçot günü + Ödəniş növü uzun format) → günlük seri + filial +
-// ödəniş qarışığı + gedişat proyeksiyası. Alt-toplam sətirləri atılır, tarix normalize.
+// ─── Günlük Panel parser'ı (kolon-adı bazlı; hər iki iiko formatını oxuyur) ────
+// Satış detayı: filial × gün × ödəniş növü × məbləğ. Sütun SIRASI dəyişə bilər
+// (Uçot günü / Ödəniş növü yerdəyişik) — başlıqdan indeks tapılır. Ara-toplam atlanır.
 
 import { normalizeFilial, BRANCH_TO_REGION, EXCLUDE } from './filial-map'
 
@@ -13,12 +13,19 @@ export type DailyResult = {
   regions: Array<[string, number]>
   pay: { nagd: number; kart: number; wolt: number; bolt: number }
   toplam: number
-  gedisat: number     // gün ort × 31
+  gedisat: number
   uyarilar: string[]
 }
 
-const SKIP = /cəmi|cemi|total|yekun|ümumi|grand/i
+const TOTAL = /total|cəmi|cemi|yekun|ümumi|grand/i
 const pad2 = (n: number) => (n < 10 ? '0' + n : '' + n)
+
+function parseNum(s: unknown): number | null {
+  if (typeof s === 'number') return isFinite(s) ? s : null
+  const t = String(s ?? '').replace(/[    ]/g, '').replace(',', '.')
+  const n = parseFloat(t)
+  return isFinite(n) ? n : null
+}
 
 function normDate(v: unknown): string | null {
   if (v instanceof Date && !isNaN(v.getTime())) return `${v.getFullYear()}-${pad2(v.getMonth() + 1)}-${pad2(v.getDate())}`
@@ -32,33 +39,42 @@ function normDate(v: unknown): string | null {
 
 export function parseDaily(rows: unknown[][]): DailyResult {
   const uyarilar: string[] = []
-  const hi = rows.findIndex(r => r.some(c => /uçot/i.test(String(c ?? ''))))
   const daily: DailyResult['daily'] = {}
   const branch: Record<string, { bolge: string | null; total: number; wolt: number; bolt: number }> = {}
   const pay = { nagd: 0, kart: 0, wolt: 0, bolt: 0 }
-  if (hi < 0) { uyarilar.push('Uçot günü başlıqlı sətir tapılmadı.'); return empty(uyarilar) }
 
-  let cf: string | null = null, cg: string | null = null
+  const hi = rows.findIndex(r => r?.some(c => /uçot/i.test(String(c ?? ''))))
+  if (hi < 0) { uyarilar.push('Uçot günü başlıqlı sətir tapılmadı (ham satış detayı gözlənilir).'); return empty(uyarilar) }
+  const hdr = (rows[hi] ?? []).map(c => String(c ?? '').toLowerCase())
+  let iF = hdr.findIndex(h => /müəssisə|ticarət|filial/.test(h)); if (iF < 0) iF = 0
+  const iD = hdr.findIndex(h => /uçot|tarix/.test(h))
+  const iT = hdr.findIndex(h => /ödəniş|növ/.test(h))
+  let iA = hdr.findIndex(h => /endirimli|məbləğ|məbləg/.test(h)); if (iA < 0) iA = 3
+  if (iD < 0 || iT < 0) { uyarilar.push('Ödəniş növü / Uçot günü sütunları tapılmadı.'); return empty(uyarilar) }
+
+  let cf = '', cg: string | null = null, ct = ''
   for (let i = hi + 1; i < rows.length; i++) {
     const r = rows[i] ?? []
-    const f = r[0], g = r[1], typ = r[2], val = r[3]
-    if (f != null && String(f).trim()) cf = String(f).trim()
-    const nd = g != null && String(g).trim() ? normDate(g) : null
-    if (nd) cg = nd
-    const tl = typ ? String(typ).toLowerCase().trim() : ''
-    if (!tl || SKIP.test(tl)) continue
-    if (typeof val !== 'number' || !isFinite(val) || !cf || !cg) continue
-    if (SKIP.test(cf)) continue
+    const rawD = String(r[iD] ?? '').trim()
+    const rawT = String(r[iT] ?? '').trim()
+    // ara-toplam sətri (Total/Cəmi — istənilən sütunda: tarix və ya ödəniş): atla, forward-fill'i pozma
+    if (TOTAL.test(rawD) || TOTAL.test(rawT)) continue
+    const rf = String(r[iF] ?? '').trim(); if (rf) cf = rf
+    const nd = normDate(rawD); if (nd) cg = nd
+    if (rawT) ct = rawT.toLowerCase()
+    if (!ct || !cf || !cg || TOTAL.test(cf)) continue
     const kanon = normalizeFilial(cf)
     if (!kanon || EXCLUDE.has(kanon)) continue
-    const ch = tl.includes('wolt') ? 'wolt' : tl.includes('bolt') ? 'bolt' : null
+    const val = parseNum(r[iA])
+    if (val == null) continue
+    const ch = ct.includes('wolt') ? 'wolt' : ct.includes('bolt') ? 'bolt' : null
     const d = daily[cg] ?? (daily[cg] = { total: 0, wolt: 0, bolt: 0 })
     d.total += val
     const b = branch[kanon] ?? (branch[kanon] = { bolge: BRANCH_TO_REGION[kanon] ?? null, total: 0, wolt: 0, bolt: 0 })
     b.total += val
     if (ch) { d[ch] += val; b[ch] += val; pay[ch] += val }
-    else if (/nağd|nagd|nəğd/.test(tl)) pay.nagd += val
-    else if (/kart|bank|kapital|pos|visa|master/.test(tl)) pay.kart += val
+    else if (/nağd|nagd|nəğd/.test(ct)) pay.nagd += val
+    else if (/kart|bank|kapital|pos|visa|master/.test(ct)) pay.kart += val
   }
 
   const days = Object.keys(daily).sort()
