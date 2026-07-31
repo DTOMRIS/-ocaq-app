@@ -49,8 +49,8 @@ function Chart({ d }: { d: Daily }) {
   )
 }
 
-export default function PanelClient({ initial, canUpload = false, savedAt = null }: {
-  initial?: { daily: unknown; plan: unknown } | null; canUpload?: boolean; savedAt?: string | null
+export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null }: {
+  initial?: { daily: unknown; plan: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null
 }) {
   const [files, setFiles] = useState<File[]>([])
   const [d, setD] = useState<Daily | null>((initial?.daily as Daily) ?? null)
@@ -98,7 +98,17 @@ export default function PanelClient({ initial, canUpload = false, savedAt = null
     (!bolgeF || b.bolge === bolgeF) && (!ara || b.filial.toLowerCase().includes(ara.toLowerCase()))
   ) : []
   const rmax = d ? Math.max(...d.regions.map(r => r[1]), 1) : 1
-  const planPct = plan && plan.network.plan ? plan.network.gedisat / plan.network.plan : null
+  // Hədəf: plan faylı (Plana görə) VEYA manuel /sales hədəfləri (sales_targets)
+  const netTarget = (plan?.network.plan ?? 0) || Object.values(targets).reduce((a, b) => a + b, 0)
+  const netTargetPct = netTarget && d ? d.gedisat / netTarget : null
+  const hasTarget = netTarget > 0
+  const branchTarget = (b: { filial: string; total: number }): { pct: number | null } => {
+    const pb = plan?.branches[b.filial]
+    if (pb && pb.plan) return { pct: pb.gedisat / pb.plan }
+    const t = targets[b.filial]
+    if (t && d) return { pct: (d.gun ? b.total / d.gun * 31 : b.total) / t }
+    return { pct: null }
+  }
 
   return (
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
@@ -146,7 +156,7 @@ export default function PanelClient({ initial, canUpload = false, savedAt = null
             <Tile k="Toplam satış" v={money(d.toplam)} sub={`${d.gun} gün`} />
             <Tile k="Günlük ort." v={money(d.toplam / d.gun)} />
             <Tile k="Ay proqnozu" v={money(d.gedisat)} sub="gedişat" />
-            {planPct != null && <Tile k="Plana görə" v={Math.round(planPct * 100) + '%'} sub={money(plan!.network.plan) + ' plan'} tone={planPct >= 0.98 ? '#1c7a4e' : '#c8102e'} />}
+            {netTargetPct != null && <Tile k="Hədəfə görə" v={Math.round(netTargetPct * 100) + '%'} sub={money(netTarget) + ' hədəf'} tone={netTargetPct >= 0.98 ? '#1c7a4e' : '#c8102e'} />}
             <Tile k="Delivery" v={d.toplam ? Math.round(deliv / d.toplam * 100) + '%' : '—'} sub="Wolt+Bolt" />
           </div>
 
@@ -196,20 +206,19 @@ export default function PanelClient({ initial, canUpload = false, savedAt = null
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
                 <thead><tr>
-                  {['Filial', 'Bölgə', 'Satış', ...(plan ? ['Plan%'] : []), 'Wolt', 'Bolt'].map((h, i) => (
+                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf%'] : []), 'Wolt', 'Bolt'].map((h, i) => (
                     <th key={h} style={{ padding: '8px 10px', textAlign: i < 2 ? 'left' : 'right', fontSize: 10.5, textTransform: 'uppercase', color: '#8b8378', borderBottom: '1px solid #e6e1d7', background: '#faf7f1' }}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {rows.map(b => {
-                    const pb = plan?.branches[b.filial]
-                    const pp = pb && pb.plan ? pb.gedisat / pb.plan : null
+                    const pp = branchTarget(b).pct
                     return (
                       <tr key={b.filial}>
                         <td style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #efeae0' }}>{b.filial}</td>
                         <td style={{ padding: '8px 10px', color: '#8b8378', borderBottom: '1px solid #efeae0' }}>{b.bolge ?? '—'}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.total)}</td>
-                        {plan && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
+                        {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
                         <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.wolt)}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.bolt)}</td>
                       </tr>

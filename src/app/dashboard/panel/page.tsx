@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { desc, eq, and } from 'drizzle-orm'
 import { db } from '@/db'
 import { analytics_ingest } from '@/db/schema/analytics'
+import { sales_targets } from '@/db/schema/sales'
+import { branches } from '@/db/schema/branches'
 import PanelClient from './panel-client'
 
 export const metadata = { title: 'Günlük Panel — OCAQ' }
@@ -22,5 +24,16 @@ export default async function PanelPage() {
   let initial: { daily: unknown; plan: unknown } | null = null
   if (latest?.network) { try { initial = JSON.parse(latest.network) } catch { initial = null } }
 
-  return <PanelClient initial={initial} canUpload={session.user.role === 'super_admin'} savedAt={latest?.gen ? new Date(latest.gen).toLocaleDateString('az') : null} />
+  // Manuel satış hədəfləri (/sales-dən girilən, sales_targets) → dövrün ayı üçün
+  const period = (initial?.daily as { period?: string } | undefined)?.period ?? null
+  const targets: Record<string, number> = {}
+  if (period) {
+    const rows = await db.select({ name: branches.name, amt: sales_targets.target_amount })
+      .from(sales_targets)
+      .innerJoin(branches, eq(sales_targets.branch_id, branches.id))
+      .where(and(eq(sales_targets.tenant_id, session.user.tenant_id), eq(sales_targets.month, `${period}-01`)))
+    for (const r of rows) targets[r.name.trim()] = Number(r.amt)
+  }
+
+  return <PanelClient initial={initial} targets={targets} canUpload={session.user.role === 'super_admin'} savedAt={latest?.gen ? new Date(latest.gen).toLocaleDateString('az') : null} />
 }
