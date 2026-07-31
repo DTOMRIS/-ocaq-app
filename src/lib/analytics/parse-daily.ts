@@ -17,14 +17,48 @@ export type DailyResult = {
   uyarilar: string[]
 }
 
-const TOTAL = /total|cəmi|cemi|yekun|ümumi|grand/i
+// "Total/Grand/Cəmi" ara-toplam — AMA "Əcəmi" (filial) yanlış eşleşməsin: cəmi yalnız hərfdən sonra deyilsə
+const TOTAL = /total|grand|yekun|ümumi|(?<!\p{L})c[əe]mi/iu
 const pad2 = (n: number) => (n < 10 ? '0' + n : '' + n)
 
+// Həm "139.06" (nöqtə decimal), həm "4,304,000" (vergül minlik), həm "44,90" (vergül decimal)
 function parseNum(s: unknown): number | null {
   if (typeof s === 'number') return isFinite(s) ? s : null
-  const t = String(s ?? '').replace(/[    ]/g, '').replace(',', '.')
+  let t = String(s ?? '').replace(/[\s    ]/g, '')
+  if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, '')      // vergül minlik
+  else if (/^-?\d+,\d+$/.test(t)) t = t.replace(',', '.')                   // vergül decimal
   const n = parseFloat(t)
   return isFinite(n) ? n : null
+}
+
+export type PlanResult = {
+  branches: Record<string, { gedisat: number; plan: number }>
+  network: { gedisat: number; plan: number }
+}
+
+/** Gedişat/plan raporu ("Plan gerçəkləşmə" sheet: filial | gedişat | plan) → filial planı. */
+export function parsePlan(rows: unknown[][]): PlanResult {
+  const branches: Record<string, { gedisat: number; plan: number }> = {}
+  let net = { gedisat: 0, plan: 0 }
+  const hi = rows.findIndex(r => r?.some(c => /^filial$/i.test(String(c ?? '').trim())) && r?.some(c => /^plan$/i.test(String(c ?? '').trim())))
+  if (hi < 0) return { branches, network: net }
+  const hdr = (rows[hi] ?? []).map(c => String(c ?? '').toLowerCase().trim())
+  const iF = hdr.findIndex(h => h === 'filial')
+  const iG = hdr.findIndex(h => /gedişa|gedisa/.test(h))
+  const iP = hdr.findIndex(h => h === 'plan')
+  if (iF < 0 || iG < 0 || iP < 0) return { branches, network: net }
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i] ?? []
+    const f = String(r[iF] ?? '').trim()
+    if (!f || TOTAL.test(f)) continue
+    const kanon = normalizeFilial(f)
+    if (!kanon || EXCLUDE.has(kanon)) continue
+    const gedisat = parseNum(r[iG]) ?? 0
+    const plan = parseNum(r[iP]) ?? 0
+    branches[kanon] = { gedisat, plan }
+    net = { gedisat: net.gedisat + gedisat, plan: net.plan + plan }
+  }
+  return { branches, network: net }
 }
 
 function normDate(v: unknown): string | null {
