@@ -76,16 +76,24 @@ export type YoyResult = {
   network: { y2025: number; y2026: number }
 }
 
-/** "2025 vs gedişat" raporu (filial | 2025 | 2026 gedişat) → filial YoY. */
+const AY_LIST = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avqust', 'avgust', 'sentyabr', 'sentabr', 'oktyabr', 'noyabr', 'dekabr']
+
+/** YoY: "filial|2025|2026 gedişat" VEYA "Ticarət müəssisəsi | iyul 2025 | iyul gedişat" → filial YoY. */
 export function parseYoy(rows: unknown[][]): YoyResult {
   const branches: Record<string, { y2025: number; y2026: number }> = {}
   let net = { y2025: 0, y2026: 0 }
-  const hi = rows.findIndex(r => r?.some(c => /^filial$/i.test(String(c ?? '').trim())) && r?.some(c => /2025/.test(String(c ?? ''))))
+  const hi = rows.findIndex(r =>
+    r?.some(c => /müəssisə|ticarət|filial/i.test(String(c ?? ''))) &&
+    r?.some(c => /2025/.test(String(c ?? ''))) &&
+    r?.some(c => /gedişa|gedisa/i.test(String(c ?? ''))))
   if (hi < 0) return { branches, network: net }
   const hdr = (rows[hi] ?? []).map(c => String(c ?? '').toLowerCase())
-  const iF = hdr.findIndex(h => h.trim() === 'filial')
-  const i25 = hdr.findIndex(h => /2025/.test(h) && !/gerçək|faiz/.test(h))
+  const iF = hdr.findIndex(h => /müəssisə|ticarət|filial/.test(h))
   const i26 = hdr.findIndex(h => /gedişa|gedisa/.test(h))
+  // gedişat sütunun ayı → eyni ayın "<ay> 2025" sütununu seç (yoxsa ilk 2025)
+  const gm = i26 >= 0 ? AY_LIST.find(m => hdr[i26].includes(m)) : undefined
+  let i25 = hdr.findIndex(h => /2025/.test(h) && !/artım|faiz|%|gerçək/.test(h) && (gm ? h.includes(gm) : true))
+  if (i25 < 0) i25 = hdr.findIndex(h => /2025/.test(h) && !/artım|faiz|%|gerçək/.test(h))
   if (iF < 0 || i25 < 0 || i26 < 0) return { branches, network: net }
   for (let i = hi + 1; i < rows.length; i++) {
     const r = rows[i] ?? []

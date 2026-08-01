@@ -66,6 +66,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const [err, setErr] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
   const [bolgeF, setBolgeF] = useState<string>('')     // bölgə filtresi
+  const [yoyDown, setYoyDown] = useState(false)         // yalnız keçən ilə görə düşənlər
   const [ara, setAra] = useState('')                    // filial arama
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -85,7 +86,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           if (!daily && /uçot/i.test(probe)) { const dd = parseDaily(rows); if (dd.days.length) daily = dd as Daily }
           else if (!daily && /(müəssisə|ticarət)/i.test(probe) && /(ödəniş|ödeniş|növ)/i.test(probe) && !/uçot/i.test(probe)) { const oo = parseOlap(rows); if (oo.branches.length) daily = oo as Daily }
           else if (!pl && /filial/i.test(probe) && /\bplan\b/i.test(probe)) { const pp = parsePlan(rows); if (Object.keys(pp.branches).length) pl = pp }
-          else if (!yo && /filial/i.test(probe) && /2025/.test(probe)) { const yy = parseYoy(rows); if (Object.keys(yy.branches).length) yo = yy }
+          else if (!yo && /filial|müəssisə|ticarət/i.test(probe) && /2025/.test(probe) && /gedişa|gedisa/i.test(probe)) { const yy = parseYoy(rows); if (Object.keys(yy.branches).length) yo = yy }
         }
       }
       if (!daily) throw new Error('Satış tapılmadı. Ham satış detayı (Uçot günü) və ya OLAP Hesabatı (filial × ödəniş növü) lazım — Proqnoz deyil.')
@@ -102,9 +103,11 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
 
   const deliv = d ? d.pay.wolt + d.pay.bolt : 0
   const bolgeler = d ? [...new Set(d.branches.map(b => b.bolge).filter(Boolean))] as string[] : []
-  const rows = d ? d.branches.filter(b =>
-    (!bolgeF || b.bolge === bolgeF) && (!ara || b.filial.toLowerCase().includes(ara.toLowerCase()))
-  ) : []
+  const rows = d ? d.branches.filter(b => {
+    const yb = yoy?.branches[b.filial]
+    const down = yb && yb.y2025 ? yb.y2026 < yb.y2025 : false
+    return (!bolgeF || b.bolge === bolgeF) && (!ara || b.filial.toLowerCase().includes(ara.toLowerCase())) && (!yoyDown || down)
+  }) : []
   const rmax = d ? Math.max(...d.regions.map(r => r[1]), 1) : 1
   // Hədəf: plan faylı (Plana görə) VEYA manuel /sales hədəfləri (sales_targets)
   const netTarget = (plan?.network.plan ?? 0) || Object.values(targets).reduce((a, b) => a + b, 0)
@@ -216,7 +219,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Tile k="Toplam satış" v={money(d.toplam)} sub={`${d.gun} gün`} />
             <Tile k="Günlük ort." v={money(d.toplam / d.gun)} />
-            <Tile k="Ay proqnozu" v={money(d.gedisat)} sub="gedişat" />
+            {d.days.length > 0 && <Tile k="Ay proqnozu" v={money(d.gedisat)} sub="proqnoz (ay sonu)" />}
             {netTargetPct != null && <Tile k="Hədəfə görə" v={Math.round(netTargetPct * 100) + '%'} sub={money(netTarget) + ' hədəf'} tone={netTargetPct >= 0.98 ? '#1c7a4e' : '#c8102e'} />}
             {netYoyPct != null && <Tile k="Keçən ilə" v={(netYoyPct >= 0 ? '+' : '') + Math.round(netYoyPct * 100) + '%'} sub="2026 vs 2025" tone={netYoyPct >= 0 ? '#1c7a4e' : '#c8102e'} />}
             <Tile k="Delivery" v={d.toplam ? Math.round(deliv / d.toplam * 100) + '%' : '—'} sub="Wolt+Bolt" />
@@ -329,6 +332,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             {bolgeler.map(b => (
               <button key={b} onClick={() => setBolgeF(b)} style={{ ...card, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', background: bolgeF === b ? RCOL[b] ?? '#26221d' : '#fff', color: bolgeF === b ? '#fff' : '#26221d', border: '1px solid #e6e1d7' }}>{b}</button>
             ))}
+            {yoy && <button onClick={() => setYoyDown(v => !v)} style={{ ...card, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', background: yoyDown ? '#c8102e' : '#fff', color: yoyDown ? '#fff' : '#c8102e', border: '1px solid #f0c9cf', marginLeft: 4 }}>📉 Keçən ilə düşənlər</button>}
           </div>
 
           <div style={{ ...card, overflow: 'hidden' }}>
