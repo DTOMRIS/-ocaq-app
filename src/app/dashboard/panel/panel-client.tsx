@@ -152,6 +152,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     return Object.entries(m).map(([bolge, v]) => ({ bolge, ...v, pct: v.plan ? v.actual / v.plan : null })).sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9))
   })()
   const tutRows = [...tutList].sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9))
+  const planByFilial: Record<string, number> = Object.fromEntries(tutList.map(t => [t.filial, t.planV]))
 
   return (
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
@@ -334,7 +335,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
                 <thead><tr>
-                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf%'] : []), ...(yoy ? ['YoY'] : []), 'Wolt %', 'Bolt %'].map((h, i) => (
+                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf', 'Hədəf%'] : []), ...(yoy ? ['YoY'] : []), 'Wolt', 'Bolt'].map((h, i) => (
                     <th key={h} style={{ padding: '8px 10px', textAlign: i < 2 ? 'left' : 'right', fontSize: 10.5, textTransform: 'uppercase', color: '#8b8378', borderBottom: '1px solid #e6e1d7', background: '#faf7f1' }}>{h}</th>
                   ))}
                 </tr></thead>
@@ -347,10 +348,11 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
                         <td style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #efeae0' }}>{b.filial}</td>
                         <td style={{ padding: '8px 10px', color: '#8b8378', borderBottom: '1px solid #efeae0' }}>{b.bolge ?? '—'}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.total)}</td>
+                        {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', color: '#8b8378', fontVariantNumeric: 'tabular-nums' }}>{planByFilial[b.filial] ? money(planByFilial[b.filial]) : '—'}</td>}
                         {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
                         {yoy && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: yp == null ? '#8b8378' : yp >= 0 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{yp != null ? (yp >= 0 ? '+' : '') + Math.round(yp * 100) + '%' : '—'}</td>}
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{b.total ? (b.wolt / b.total * 100).toFixed(1) + '%' : '—'}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{b.total ? (b.bolt / b.total * 100).toFixed(1) + '%' : '—'}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{b.wolt ? `${money(b.wolt)} · ${(b.wolt / b.total * 100).toFixed(1)}%` : '—'}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{b.bolt ? `${money(b.bolt)} · ${(b.bolt / b.total * 100).toFixed(1)}%` : '—'}</td>
                       </tr>
                     )
                   })}
