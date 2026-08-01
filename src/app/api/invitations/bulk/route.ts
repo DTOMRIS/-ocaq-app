@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, isNull, gt } from 'drizzle-orm'
 import { auth } from '@/auth'
-import { db } from '@/db'
+import { db, sqlClient } from '@/db'
 import { invitations, users } from '@/db/schema/auth'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
@@ -74,18 +74,21 @@ export async function POST(req: NextRequest) {
     const tokenHash = hashOneTimeToken(token)
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
     try {
-      const [created] = await db.insert(invitations).values({
-        tenant_id: tenantId, email: m.email, role: m.role, token: tokenHash,
-        invited_by: session.user.id, region_id: m.regionId, branch_id: m.branchId, expires_at: expiresAt,
-      }).returning({ id: invitations.id })
+      // HAM SQL insert — yalnız orijinal kolonları yazır (drizzle-in insert-i 0005/0008
+      // kolonlarını da 'default' ilə yazır → prod-da o kolonlar yoxdur → patlayır)
+      const rows = await sqlClient.query(
+        `insert into invitations (tenant_id, email, role, token, invited_by, region_id, branch_id, expires_at)
+         values ($1, $2, $3::role, $4, $5, $6, $7, $8) returning id`,
+        [tenantId, m.email, m.role, tokenHash, session.user.id, m.regionId, m.branchId, expiresAt],
+      )
+      const createdId = rows[0]?.id as string | undefined
       const branchName = m.branchId ? brs.find(b => b.id === m.branchId)?.name : undefined
       const { error } = await sendInvitationEmail({
         email: m.email, token, inviterName: session.user.name ?? 'Admin', recipientRole: m.role, branchName,
       })
       if (error) {
-        // revoked_at (0005) prod-da olmaya bilər → update yerinə sətri sil (dangling qalmasın)
-        await db.delete(invitations).where(eq(invitations.id, created.id)).catch(() => {})
-        failed.push(m.email); continue
+        if (createdId) await sqlClient.query(`delete from invitations where id = $1`, [createdId]).catch(() => {})
+        failed.push(`${m.email}: ${error}`); continue
       }
       sent++
     } catch (e) { failed.push(`${m.email}: ${e instanceof Error ? e.message : String(e)}`) }

@@ -6,9 +6,8 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail'
 import { WelcomeEmail } from '@/emails/WelcomeEmail'
 import { ChecklistReminderEmail } from '@/emails/ChecklistReminderEmail'
 
-const FROM   = process.env.SMTP_FROM ?? 'OCAQ <ocaq@dkagency.com.tr>'
-const BASE   = process.env.NEXTAUTH_URL
-  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+const FROM   = process.env.SMTP_FROM ?? process.env.EMAIL_FROM ?? 'OCAQ <ocaq@dkagency.com.tr>'
+const BASE   = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? 'https://ocaq.dkagency.com.tr'
 
 let smtpTransport: nodemailer.Transporter | null = null
 
@@ -46,13 +45,30 @@ async function deliverEmail({
   subject: string
   html: string
 }) {
+  // Resend (RESEND_API_KEY varsa) — SMTP qurulmayıbsa da işləsin. Kod dəyişmədən mövcud key ilə.
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: FROM, to, subject, html }),
+      })
+      if (!res.ok) return { data: null, error: `Resend ${res.status}: ${(await res.text()).slice(0, 300)}` }
+      const d = await res.json() as { id?: string }
+      return { data: { id: d.id ?? '' }, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Resend göndəriş xətası' }
+    }
+  }
+
+  // SMTP fallback (SMTP_* env varsa)
   try {
     const result = await getSmtpTransport().sendMail({ from: FROM, to, subject, html })
     return { data: { id: result.messageId }, error: null }
   } catch (error) {
     return {
       data: null,
-      error: error instanceof Error ? error.message : 'DK SMTP göndəriş xətası',
+      error: error instanceof Error ? error.message : 'E-poçt göndəriş xətası',
     }
   }
 }
