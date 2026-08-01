@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import BulkInviteUpload from './BulkInviteUpload'
 
 interface Invitation {
   id: string
@@ -238,6 +239,8 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           {fetchError}
         </div>
       )}
+
+      {isSuperAdmin && <BulkInviteUpload />}
 
       {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '24px' }}>
