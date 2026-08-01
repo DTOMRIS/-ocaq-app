@@ -62,6 +62,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const [plan, setPlan] = useState<PlanResult | null>((initial?.plan as PlanResult) ?? null)
   const [yoy, setYoy] = useState<YoyResult | null>((initial?.yoy as YoyResult) ?? null)
   const [saved, setSaved] = useState(false)
+  const [saveErr, setSaveErr] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
@@ -97,8 +98,8 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
       try {
         const brs = daily.branches.map(b => ({ filial: b.filial, bolge: b.bolge, total: b.total, wolt: b.wolt, bolt: b.bolt, plan: pl?.branches[b.filial]?.plan, gedisat: pl?.branches[b.filial]?.gedisat }))
         const r = await fetch('/api/dashboard/analytics/panel-save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ period: daily.period, toplam: daily.toplam, daily, plan: pl, yoy: yo, branches: brs }) })
-        if (r.ok) setSaved(true)
-      } catch { /* saxlama xətası paneli pozmasın */ }
+        if (r.ok) { setSaved(true); setSaveErr(false) } else setSaveErr(true)
+      } catch { setSaveErr(true) }   // sessizce yutma — istifadəçi bilsin (AGENTS.md: xəta udma)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
   }
@@ -236,7 +237,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
       {d && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 12, color: '#8b8378', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-            <span>Dövr {d.period} · {d.gun} gün {plan ? '· plan ✓' : ''} {saved ? '· yadda saxlanıldı ✓' : savedAt ? `· ${savedAt} yüklənib` : ''}</span>
+            <span>Dövr {d.period} · {d.gun} gün {plan ? '· plan ✓' : ''} {saveErr ? <b style={{ color: '#c8102e' }}>· ⚠ saxlanmadı — yenidən yüklə</b> : saved ? '· yadda saxlanıldı ✓' : savedAt ? `· ${savedAt} yüklənib` : ''}</span>
             <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <button className="no-print" onClick={() => window.print()} style={{ background: 'none', border: 'none', color: '#26221d', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>🖨️ Çap / PDF</button>
               {canUpload && <button className="no-print" onClick={() => { setD(null); setPlan(null); setYoy(null); setFiles([]); setSaved(false) }} style={{ background: 'none', border: 'none', color: '#c8102e', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>↻ yeni ay yüklə</button>}

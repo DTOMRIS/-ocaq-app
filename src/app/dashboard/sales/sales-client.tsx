@@ -99,7 +99,10 @@ export default function SalesClient({
 
     return branches.map(b => {
       const target = targets.find(t => t.branch_id === b.id)
-      const sales = dailySales.filter(d => d.branch_id === b.id)
+      // Aynı gün+filial üçün tək qeyd — çift kayıt olsa belə 2 dəfə sayılmasın
+      const byDate = new Map<string, DailySale>()
+      for (const s of dailySales) if (s.branch_id === b.id) byDate.set(s.sale_date, s)
+      const sales = [...byDate.values()]
       const totalSales = sales.reduce((sum, s) => sum + Number(s.amount), 0)
       const targetAmount = target ? Number(target.target_amount) : 0
       const percent = pct(totalSales, targetAmount)

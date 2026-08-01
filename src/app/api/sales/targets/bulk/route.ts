@@ -31,20 +31,23 @@ export async function POST(req: NextRequest) {
 
     let saved = 0
     const unmatched = new Set<string>()
-    for (const t of targets) {
-      const key = normalizeFilial(t.filial)?.toLowerCase() ?? t.filial.trim().toLowerCase()
-      const bid = byName.get(key)
-      if (!bid) { unmatched.add(t.filial); continue }
-      const month = `${t.month}-01`
-      // upsert: varsa güncelle, yoxdursa əlavə et
-      const [ex] = await db.select({ id: sales_targets.id }).from(sales_targets)
-        .where(and(eq(sales_targets.tenant_id, tenantId), eq(sales_targets.branch_id, bid), eq(sales_targets.month, month))).limit(1)
-      if (ex) {
-        await db.update(sales_targets).set({ target_amount: String(t.amount), updated_at: new Date() }).where(eq(sales_targets.id, ex.id))
-      } else {
-        await db.insert(sales_targets).values({ tenant_id: tenantId, branch_id: bid, month, target_amount: String(t.amount), created_by: session.user.id })
-      }
-      saved++
+    // Paralel chunk (600 sıralı round-trip → timeout riski; chunk-lə sürətləndir)
+    const CHUNK = 15
+    for (let i = 0; i < targets.length; i += CHUNK) {
+      await Promise.all(targets.slice(i, i + CHUNK).map(async t => {
+        const key = normalizeFilial(t.filial)?.toLowerCase() ?? t.filial.trim().toLowerCase()
+        const bid = byName.get(key)
+        if (!bid) { unmatched.add(t.filial); return }
+        const month = `${t.month}-01`
+        const [ex] = await db.select({ id: sales_targets.id }).from(sales_targets)
+          .where(and(eq(sales_targets.tenant_id, tenantId), eq(sales_targets.branch_id, bid), eq(sales_targets.month, month))).limit(1)
+        if (ex) {
+          await db.update(sales_targets).set({ target_amount: String(t.amount), updated_at: new Date() }).where(eq(sales_targets.id, ex.id))
+        } else {
+          await db.insert(sales_targets).values({ tenant_id: tenantId, branch_id: bid, month, target_amount: String(t.amount), created_by: session.user.id })
+        }
+        saved++
+      }))
     }
     // Keçən il (2025) referansı — qalıcı saxla ki Panel-də YoY avtomatik gəlsin (təkrar yükləmə yox).
     // Additiv: xəta olsa belə hədəf saxlanması pozulmur.
