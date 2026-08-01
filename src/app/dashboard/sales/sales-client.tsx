@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import BulkTargetUpload from './BulkTargetUpload'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Branch {
@@ -384,6 +385,8 @@ export default function SalesClient({
           {fetchError}
         </div>
       )}
+
+      {role === 'super_admin' && <BulkTargetUpload />}
 
       {/* ═══ BRANCH MANAGER VIEW ═══ */}
       {role === 'branch_manager' && (
