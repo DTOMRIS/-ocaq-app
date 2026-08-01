@@ -17,15 +17,19 @@ function num(s: unknown): number | null {
   return isFinite(n) ? n : null
 }
 
+// İ/ı normalize: "PLAN İYUL"/"proqnoz İYUL" → "plan iyul"/"proqnoz iyul" (nöqtəli İ birləşən işarəsini sil)
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
 export function parseTargets(rows: unknown[][], year = 2026): TargetRow[] {
-  const hi = rows.findIndex(r => r?.some(c => /müəssisə|ticarət|filial/i.test(String(c ?? ''))) && r?.some(c => /plan/i.test(String(c ?? ''))))
+  // Başlıq: müəssisə + (plan VEYA proqnoz) sütunu olan sətir
+  const hi = rows.findIndex(r => r?.some(c => /müəssisə|ticarət|filial/i.test(String(c ?? ''))) && r?.some(c => /plan|proqnoz/i.test(String(c ?? ''))))
   if (hi < 0) return []
-  const hdr = (rows[hi] ?? []).map(c => String(c ?? '').toLowerCase())
+  const hdr = (rows[hi] ?? []).map(c => norm(String(c ?? '')))
   const iF = hdr.findIndex(h => /müəssisə|ticarət|filial/.test(h))
   if (iF < 0) return []
   const planCols: { col: number; month: string }[] = []
   hdr.forEach((h, col) => {
-    if (!/plan/.test(h)) return
+    if (!/plan|proqnoz/.test(h)) return           // "avqust plan", "PLAN İYUL", "proqnoz İYUL"
     for (const [name, mm] of Object.entries(MONTHS)) {
       if (h.includes(name)) { planCols.push({ col, month: `${year}-${mm}` }); return }
     }
@@ -34,7 +38,8 @@ export function parseTargets(rows: unknown[][], year = 2026): TargetRow[] {
   for (let i = hi + 1; i < rows.length; i++) {
     const r = rows[i] ?? []
     const f = String(r[iF] ?? '').trim()
-    if (!f || /total|cəmi|cemi|yekun/i.test(f)) continue
+    // ara-toplam — AMA "Əcəmi" (filial) yanlış eşleşməsin: cəmi yalnız hərfdən sonra deyilsə
+    if (!f || /total|yekun|ümumi|(?<!\p{L})c[əe]mi/iu.test(f)) continue
     for (const pc of planCols) {
       const amt = num(r[pc.col])
       if (amt && amt > 0) out.push({ filial: f, month: pc.month, amount: Math.round(amt) })

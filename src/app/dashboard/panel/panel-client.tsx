@@ -131,6 +131,28 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     return { filial: b.filial, r }
   }).filter(x => x.r.length).sort((a, b) => b.r.length - a.r.length) : []
 
+  // ── Plan vs Gerçək · Tutturma (plan faylı gedişat/plan VEYA sales_targets) ──
+  const tutStat = (pct: number | null) => pct == null ? null : pct >= 1 ? 'hit' : pct >= 0.9 ? 'edge' : 'miss'
+  const TUT: Record<string, { bg: string; c: string; t: (p: number) => string }> = {
+    hit: { bg: '#dcfce7', c: '#166534', t: p => `✓ %${p}` },
+    edge: { bg: '#fef9c3', c: '#854d0e', t: p => `~ %${p}` },
+    miss: { bg: '#fee2e2', c: '#991b1b', t: p => `✗ %${p}` },
+  }
+  const tutList = d ? d.branches.map(b => {
+    const pb = plan?.branches[b.filial]
+    const planV = (pb && pb.plan) ? pb.plan : (targets[b.filial] ?? 0)
+    const actualV = b.total                          // yüklənən satış = gerçək
+    const pct = planV ? actualV / planV : null
+    return { filial: b.filial, bolge: b.bolge, planV, actualV, diff: actualV - planV, pct }
+  }).filter(x => x.planV > 0) : []
+  const tutNet = tutList.reduce((a, t) => ({ plan: a.plan + t.planV, actual: a.actual + t.actualV }), { plan: 0, actual: 0 })
+  const tutRegions = (() => {
+    const m: Record<string, { plan: number; actual: number }> = {}
+    tutList.forEach(t => { const r = (m[t.bolge ?? '—'] ??= { plan: 0, actual: 0 }); r.plan += t.planV; r.actual += t.actualV })
+    return Object.entries(m).map(([bolge, v]) => ({ bolge, ...v, pct: v.plan ? v.actual / v.plan : null })).sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9))
+  })()
+  const tutRows = [...tutList].sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9))
+
   return (
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
       <style>{`@media print { button, input { display: none !important } body { background: #fff } @page { margin: 12mm; size: A4 } }`}</style>
@@ -208,6 +230,54 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
                     <b>{f.filial}</b> <span style={{ color: '#8a3a3a' }}>{f.r.join(' · ')}</span>
                   </span>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {tutList.length > 0 && (
+            <div style={{ ...card, overflow: 'hidden' }}>
+              <div style={{ padding: '13px 16px', borderBottom: '1px solid #efeae0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>🎯 Plan vs Gerçək · Tutturma</div>
+                <div style={{ fontSize: 12.5, color: '#8b8378' }}>
+                  Plan <b style={{ color: '#26221d' }}>{money(tutNet.plan)}</b> · Gerçək <b style={{ color: '#26221d' }}>{money(tutNet.actual)}</b> · {(() => {
+                    const p = tutNet.plan ? Math.round(tutNet.actual / tutNet.plan * 100) : 0, s = tutStat(tutNet.plan ? tutNet.actual / tutNet.plan : null)
+                    return <span style={{ fontWeight: 800, color: s ? TUT[s].c : '#8b8378' }}>{s ? TUT[s].t(p) : '—'}</span>
+                  })()}
+                </div>
+              </div>
+
+              {/* Bölgə özeti — bölgələrə rapor üçün */}
+              <div style={{ padding: '10px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid #efeae0', background: '#faf8f4' }}>
+                {tutRegions.map(r => { const s = tutStat(r.pct), p = r.pct != null ? Math.round(r.pct * 100) : 0; return (
+                  <span key={r.bolge} style={{ background: '#fff', border: '1px solid #e6e1d7', borderRadius: 8, padding: '5px 10px', fontSize: 12 }}>
+                    <b>{r.bolge}</b> · {money(r.actual)}/{money(r.plan)} <span style={{ fontWeight: 800, color: s ? TUT[s].c : '#8b8378' }}>{s ? TUT[s].t(p) : ''}</span>
+                  </span>
+                )})}
+              </div>
+
+              {/* Filial-filial */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 560 }}>
+                  <thead><tr>
+                    {['Filial', 'Bölgə', 'Plan', 'Gerçək', 'Fərq', 'Tutturma'].map((h, i) => (
+                      <th key={h} style={{ padding: '8px 10px', textAlign: i < 2 ? 'left' : 'right', fontSize: 10.5, textTransform: 'uppercase', color: '#8b8378', borderBottom: '1px solid #e6e1d7', background: '#faf7f1' }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {tutRows.map(t => { const s = tutStat(t.pct), p = t.pct != null ? Math.round(t.pct * 100) : 0; return (
+                      <tr key={t.filial}>
+                        <td style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #efeae0' }}>{t.filial}</td>
+                        <td style={{ padding: '8px 10px', color: '#8b8378', borderBottom: '1px solid #efeae0' }}>{t.bolge ?? '—'}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(t.planV)}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(t.actualV)}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', color: t.diff >= 0 ? '#1c7a4e' : '#c8102e' }}>{t.diff >= 0 ? '+' : ''}{money(t.diff)}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0' }}>
+                          {s ? <span style={{ background: TUT[s].bg, color: TUT[s].c, borderRadius: 7, padding: '2px 8px', fontWeight: 700, fontSize: 11.5 }}>{TUT[s].t(p)}</span> : '—'}
+                        </td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
