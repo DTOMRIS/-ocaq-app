@@ -252,8 +252,8 @@ export default function SalesClient({
 
   // ── Styles ──
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '9px 12px', border: '1px solid #e0e0e0',
-    borderRadius: '7px', fontSize: '13px', color: '#1a1a1a',
+    width: '100%', padding: '11px 12px', border: '1px solid #e0e0e0',
+    borderRadius: '7px', fontSize: '16px', color: '#1a1a1a',   // 16px: iOS fokusda zoom etməsin
     background: '#fafafa', outline: 'none', boxSizing: 'border-box',
   }
 
@@ -495,7 +495,7 @@ export default function SalesClient({
                     </span>
                   </div>
                   <div style={{ height: '3px', background: 'linear-gradient(90deg, #7C3AED 0%, #C8102E 100%)' }} />
-                  <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                  <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
                     <div>
                       <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>CƏM hədəf</p>
                       <p style={{ fontSize: '18px', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>{fmt(totalTarget)} ₼</p>
@@ -630,7 +630,7 @@ export default function SalesClient({
                   }}>{globalPercent}%</span>
                 </div>
                 <div style={{ height: '3px', background: 'linear-gradient(90deg, #C8102E 0%, #F2A81D 100%)' }} />
-                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
                   <div>
                     <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>CƏM hədəf</p>
                     <p style={{ fontSize: '18px', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>{fmt(totalTarget)} ₼</p>

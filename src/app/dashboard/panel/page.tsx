@@ -1,14 +1,24 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
-import { desc, eq, and } from 'drizzle-orm'
+import { desc, eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { analytics_ingest } from '@/db/schema/analytics'
 import { sales_targets } from '@/db/schema/sales'
 import { branches } from '@/db/schema/branches'
+import { accessibleBranchIds } from '@/lib/branch-access'
+import { normalizeFilial } from '@/lib/analytics/filial-map'
 import PanelClient from './panel-client'
 
 export const metadata = { title: 'Günlük Panel — OCAQ' }
 export const dynamic = 'force-dynamic'
+
+type DailyFull = {
+  period?: string; gun: number; days: string[]
+  daily: Record<string, { total: number; wolt: number; bolt: number }>
+  branches: Array<{ filial: string; bolge: string | null; total: number; wolt: number; bolt: number }>
+  regions: [string, number][]; pay: { nagd: number; kart: number; wolt: number; bolt: number }
+  toplam: number; gedisat: number
+}
 
 export default async function PanelPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const session = await auth()
@@ -38,15 +48,63 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
   let initial: { daily: unknown; plan: unknown; yoy?: unknown } | null = null
   if (latest?.network) { try { initial = JSON.parse(latest.network) } catch { initial = null } }
 
-  // Manuel satış hədəfləri (/sales-dən girilən, sales_targets) → dövrün ayı üçün
   const dailyObj = initial?.daily as { period?: string; branches?: Array<{ filial: string; total: number }> } | undefined
   const period = dailyObj?.period ?? latest?.period ?? null
+
+  // ── RBAC: super_admin xaric, yalnız istifadəçinin əlçatan filialları göstər ──
+  // (maliyyət sızıntısı olmasın — branch/region müdiri bütün şəbəkənin cirosunu görməməli)
+  const role = session.user.role
+  const canon = (s: string) => (normalizeFilial(s) ?? s).trim().toLowerCase()
+  let allowedIds: string[] | null = null
+  if (role !== 'super_admin') {
+    allowedIds = await accessibleBranchIds({ id: session.user.id, tenant_id: tenantId, role })
+    const brs = allowedIds.length
+      ? await db.select({ name: branches.name }).from(branches).where(and(eq(branches.tenant_id, tenantId), inArray(branches.id, allowedIds)))
+      : []
+    const allowed = new Set(brs.map(b => canon(b.name)))
+    const d = initial?.daily as DailyFull | undefined
+    if (d?.branches) {
+      const netTop = d.toplam || d.branches.reduce((s, b) => s + b.total, 0) || 1
+      const fb = d.branches.filter(b => allowed.has(canon(b.filial)))
+      const top = fb.reduce((s, b) => s + b.total, 0)
+      const ratio = netTop ? top / netTop : 0
+      const region: Record<string, number> = {}
+      for (const b of fb) region[b.bolge ?? '?'] = (region[b.bolge ?? '?'] ?? 0) + b.total
+      d.branches = fb
+      d.regions = Object.entries(region).sort((a, b) => b[1] - a[1])
+      d.toplam = Math.round(top)
+      d.gedisat = Math.round((d.gedisat ?? 0) * ratio)
+      d.pay = {
+        nagd: Math.round((d.pay?.nagd ?? 0) * ratio), kart: Math.round((d.pay?.kart ?? 0) * ratio),
+        wolt: fb.reduce((s, b) => s + b.wolt, 0), bolt: fb.reduce((s, b) => s + b.bolt, 0),
+      }
+      if (d.days?.length) {
+        const nd: Record<string, { total: number; wolt: number; bolt: number }> = {}
+        for (const day of d.days) { const x = d.daily[day]; if (x) nd[day] = { total: Math.round(x.total * ratio), wolt: Math.round(x.wolt * ratio), bolt: Math.round(x.bolt * ratio) } }
+        d.daily = nd
+      }
+    }
+    // Yüklənmiş YoY varsa onu da scope et
+    const yy = initial?.yoy as { branches?: Record<string, { y2025: number; y2026: number }> } | undefined
+    if (yy?.branches) {
+      const fyb: Record<string, { y2025: number; y2026: number }> = {}
+      let n25 = 0, n26 = 0
+      for (const [f, v] of Object.entries(yy.branches)) if (allowed.has(canon(f))) { fyb[f] = v; n25 += v.y2025; n26 += v.y2026 }
+      ;(initial as { yoy?: unknown }).yoy = { branches: fyb, network: { y2025: n25, y2026: n26 } }
+    }
+  }
+
+  // Manuel satış hədəfləri (/sales-dən girilən, sales_targets) → dövrün ayı üçün (rol-scoped)
   const targets: Record<string, number> = {}
   if (period) {
     const rows = await db.select({ name: branches.name, amt: sales_targets.target_amount })
       .from(sales_targets)
       .innerJoin(branches, eq(sales_targets.branch_id, branches.id))
-      .where(and(eq(sales_targets.tenant_id, tenantId), eq(sales_targets.month, `${period}-01`)))
+      .where(and(
+        eq(sales_targets.tenant_id, tenantId),
+        eq(sales_targets.month, `${period}-01`),
+        ...(allowedIds ? [inArray(sales_targets.branch_id, allowedIds)] : []),
+      ))
     for (const r of rows) targets[r.name.trim()] = Number(r.amt)
   }
 

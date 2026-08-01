@@ -104,6 +104,8 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   }
 
   const deliv = d ? d.pay.wolt + d.pay.bolt : 0
+  // Ayın gerçək gün sayı (31 sabiti deyil) — filial proqnozu düzgün olsun
+  const daysInMonth = d?.period ? new Date(+d.period.slice(0, 4), +d.period.slice(5, 7), 0).getDate() : 31
   const bolgeler = d ? [...new Set(d.branches.map(b => b.bolge).filter(Boolean))] as string[] : []
   const rows = d ? d.branches.filter(b => {
     const yb = yoy?.branches[b.filial]
@@ -119,7 +121,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     const pb = plan?.branches[b.filial]
     if (pb && pb.plan) return { pct: pb.gedisat / pb.plan }
     const t = targets[b.filial]
-    if (t && d) return { pct: (d.gun ? b.total / d.gun * 31 : b.total) / t }
+    if (t && d) return { pct: (d.gun && d.days.length ? b.total / d.gun * daysInMonth : b.total) / t }
     return { pct: null }
   }
   const netYoyPct = yoy && yoy.network.y2025 ? yoy.network.y2026 / yoy.network.y2025 - 1 : null
@@ -182,7 +184,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const toggleSort = (k: string) => { if (sortK === k) setSortAsc(v => !v); else { setSortK(k); setSortAsc(k === 'Filial' || k === 'Bölgə') } }
 
   return (
-    <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
+    <div style={{ padding: '8px 2px 56px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
       <style>{`.ptbl tbody tr:hover td { background: #f3efe6 !important } .ptbl th:hover { background: #f5f1e8 } @media print { button, input, select { display: none !important } body { background: #fff } @page { margin: 12mm; size: A4 } }`}</style>
       <div style={{ height: 3, background: '#F2A81D', borderRadius: 2, marginBottom: 16 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
@@ -404,6 +406,6 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           </div>
         </div>
       )}
-    </main>
+    </div>
   )
 }

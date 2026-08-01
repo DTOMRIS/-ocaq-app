@@ -88,7 +88,7 @@ export default function KasaBankaClient() {
   const flagged = res?.rows.filter(x => x.status === 'over' || x.status === 'missing') ?? []
 
   return (
-    <main style={{ padding: '24px 26px 60px', maxWidth: 1080, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
+    <div style={{ padding: '8px 2px 56px', maxWidth: 1080, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
       <style>{`.kbtbl tbody tr:hover td { filter: brightness(0.97) }`}</style>
       <div style={{ height: 3, background: '#F2A81D', borderRadius: 2, marginBottom: 16 }} />
       <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>🏦 Kasa / Banka Mutabakatı</h1>
@@ -181,6 +181,6 @@ export default function KasaBankaClient() {
           </p>
         </div>
       )}
-    </main>
+    </div>
   )
 }

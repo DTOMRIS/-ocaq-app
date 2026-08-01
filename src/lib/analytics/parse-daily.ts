@@ -152,16 +152,19 @@ export function parseDaily(rows: unknown[][]): DailyResult {
   const days = Object.keys(daily).sort()
   const toplam = days.reduce((s, d) => s + daily[d].total, 0)
   const gun = days.length || 1
+  const period = days.length ? days[0].slice(0, 7) : null
+  // Ayın gerçək gün sayı (31 sabiti deyil) — proqnoz düzgün olsun
+  const daysInMonth = period ? new Date(+period.slice(0, 4), +period.slice(5, 7), 0).getDate() : 31
   const region: Record<string, number> = {}
   for (const b of Object.values(branch)) region[b.bolge ?? '?'] = (region[b.bolge ?? '?'] ?? 0) + b.total
   return {
-    period: days.length ? days[0].slice(0, 7) : null,
+    period,
     gun, days, daily,
     branches: Object.entries(branch).map(([filial, v]) => ({ filial, ...v })).sort((a, b) => b.total - a.total),
     regions: Object.entries(region).sort((a, b) => b[1] - a[1]),
     pay,
     toplam: Math.round(toplam),
-    gedisat: Math.round(toplam / gun * 31),
+    gedisat: Math.round(toplam / gun * daysInMonth),
     uyarilar,
   }
 }

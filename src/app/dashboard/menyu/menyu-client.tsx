@@ -63,7 +63,7 @@ export default function MenyuClient() {
   const kritik = m ? m.products.filter(p => p.foodCost > 0.40).sort((a, b) => b.foodCost - a.foodCost) : []
 
   return (
-    <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
+    <div style={{ padding: '8px 2px 56px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
       <style>{`@media print { button, input { display: none !important } @page { margin: 12mm; size: A4 } }`}</style>
       <div style={{ height: 3, background: '#F2A81D', borderRadius: 2, marginBottom: 16 }} />
       <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>🍔 Menü / Food Cost</h1>
@@ -125,6 +125,6 @@ export default function MenyuClient() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   )
 }
