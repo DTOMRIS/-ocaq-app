@@ -35,7 +35,7 @@ export default function BulkInviteUpload() {
       // dryRun: eşleşme önizləməsi (e-poçt getmir)
       const res = await fetch('/api/invitations/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invites: best, dryRun: true }) })
       const d = await res.json()
-      if (!res.ok) throw new Error(d.error || 'Önizləmə xətası')
+      if (!res.ok) throw new Error([d.error, d.detail].filter(Boolean).join(' — ') || 'Önizləmə xətası')
       setPrev({ willSend: d.willSend, unmatched: d.unmatched || [] })
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
@@ -47,7 +47,7 @@ export default function BulkInviteUpload() {
     try {
       const res = await fetch('/api/invitations/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invites: rows, dryRun: false }) })
       const d = await res.json()
-      if (!res.ok) throw new Error(d.error || 'Göndərmə xətası')
+      if (!res.ok) throw new Error([d.error, d.detail].filter(Boolean).join(' — ') || 'Göndərmə xətası')
       setDone({ sent: d.sent, skipped: d.skipped || [], failed: d.failed || [], unmatched: d.unmatched || [] })
       setRows(null); setPrev(null)
       router.refresh()
