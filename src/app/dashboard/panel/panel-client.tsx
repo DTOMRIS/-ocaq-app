@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, type CSSProperties } from 'react'
-import { parseDaily, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
+import { parseDaily, parseOlap, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
 
 type Daily = {
   period: string | null; gun: number; days: string[]
@@ -78,11 +78,12 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: false, defval: null }) as unknown[][]
           const probe = rows.slice(0, 6).map(r => (r ?? []).join(' ')).join(' ')
           if (!daily && /uçot/i.test(probe)) { const dd = parseDaily(rows); if (dd.days.length) daily = dd as Daily }
+          else if (!daily && /(müəssisə|ticarət)/i.test(probe) && /(ödəniş|ödeniş|növ)/i.test(probe) && !/uçot/i.test(probe)) { const oo = parseOlap(rows); if (oo.branches.length) daily = oo as Daily }
           else if (!pl && /filial/i.test(probe) && /\bplan\b/i.test(probe)) { const pp = parsePlan(rows); if (Object.keys(pp.branches).length) pl = pp }
           else if (!yo && /filial/i.test(probe) && /2025/.test(probe)) { const yy = parseYoy(rows); if (Object.keys(yy.branches).length) yo = yy }
         }
       }
-      if (!daily) throw new Error('Satış detayı (Uçot günü) tapılmadı. Ham detay lazım — Proqnoz/özet deyil.')
+      if (!daily) throw new Error('Satış tapılmadı. Ham satış detayı (Uçot günü) və ya OLAP Hesabatı (filial × ödəniş növü) lazım — Proqnoz deyil.')
       setD(daily); setPlan(pl); setYoy(yo)
       // avtomatik yadda saxla → qalıcı olsun, bir daha yükləmə lazım olmasın
       try {
@@ -193,14 +194,20 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             </div>
           )}
 
-          <div style={{ ...card, padding: '16px 16px 8px' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6 }}>📈 Günlük satış</div>
-            <Chart d={d} />
-            <div style={{ fontSize: 11.5, color: '#8b8378', display: 'flex', gap: 14 }}>
-              <span><span style={{ display: 'inline-block', width: 11, height: 3, background: '#C8102E', verticalAlign: 'middle', marginRight: 4 }} />Satış</span>
-              <span><span style={{ display: 'inline-block', width: 11, height: 3, background: '#F2A81D', verticalAlign: 'middle', marginRight: 4 }} />Delivery</span>
+          {d.days.length > 0 ? (
+            <div style={{ ...card, padding: '16px 16px 8px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6 }}>📈 Günlük satış</div>
+              <Chart d={d} />
+              <div style={{ fontSize: 11.5, color: '#8b8378', display: 'flex', gap: 14 }}>
+                <span><span style={{ display: 'inline-block', width: 11, height: 3, background: '#C8102E', verticalAlign: 'middle', marginRight: 4 }} />Satış</span>
+                <span><span style={{ display: 'inline-block', width: 11, height: 3, background: '#F2A81D', verticalAlign: 'middle', marginRight: 4 }} />Delivery</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ ...card, padding: '13px 16px', fontSize: 12.5, color: '#8b8378' }}>
+              📄 Aylıq özet (OLAP) — günlük detay yoxdur. Günlük qrafik üçün <b>Uçot günü</b> olan satış detayını yükləyin.
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ ...card, padding: '16px' }}>

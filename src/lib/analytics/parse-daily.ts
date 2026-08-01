@@ -161,3 +161,63 @@ export function parseDaily(rows: unknown[][]): DailyResult {
 function empty(uyarilar: string[]): DailyResult {
   return { period: null, gun: 0, days: [], daily: {}, branches: [], regions: [], pay: { nagd: 0, kart: 0, wolt: 0, bolt: 0 }, toplam: 0, gedisat: 0, uyarilar }
 }
+
+// ─── OLAP Hesabat formatı: filial × ödəniş növü AYLIQ toplam (Uçot günü YOX) ───
+// Başlıq: Ticarət müəssisəsi | Ödəniş növü | Endirimli məbləğ, m. Total
+// Filial adı yalnız qrupun 1-ci sətrində (birləşmiş xana → sonrakılar null); "X Total" ara-toplam.
+// Günlük breakdown yoxdur → days=[], daily={}; filial toplamı + ödəniş qarışığı + bölgə + proqnoz verir.
+export function parseOlap(rows: unknown[][]): DailyResult {
+  const uyarilar: string[] = []
+  const branch: Record<string, { bolge: string | null; total: number; wolt: number; bolt: number }> = {}
+  const pay = { nagd: 0, kart: 0, wolt: 0, bolt: 0 }
+
+  const hi = rows.findIndex(r => r?.some(c => /müəssisə|ticarət/i.test(String(c ?? ''))) && r?.some(c => /ödəniş|ödeniş|növ/i.test(String(c ?? ''))))
+  if (hi < 0) { uyarilar.push('OLAP başlığı (Ticarət müəssisəsi + Ödəniş növü) tapılmadı.'); return empty(uyarilar) }
+  const hdr = (rows[hi] ?? []).map(c => String(c ?? '').toLowerCase())
+  let iF = hdr.findIndex(h => /müəssisə|ticarət|filial/.test(h)); if (iF < 0) iF = 0
+  const iT = hdr.findIndex(h => /ödəniş|ödeniş|növ/.test(h))
+  let iA = hdr.findIndex(h => /məbləğ|məbləg|total|endirimli/.test(h)); if (iA < 0) iA = iT + 1
+  if (iT < 0) { uyarilar.push('Ödəniş növü sütunu tapılmadı.'); return empty(uyarilar) }
+
+  // Dövr: "Dövrün: əvvəli 01.07.2026 sonu 31.07.2026" → period + gün sayı
+  let period: string | null = null, periodDays = 0, daysInMonth = 31
+  for (let i = 0; i < Math.min(hi, rows.length); i++) {
+    const s = (rows[i] ?? []).map(c => String(c ?? '')).join(' ')
+    const m = s.match(/(\d{2})\.(\d{2})\.(\d{4}).*?(\d{2})\.(\d{2})\.(\d{4})/)
+    if (m) { period = `${m[3]}-${m[2]}`; periodDays = +m[4] - +m[1] + 1; daysInMonth = new Date(+m[6], +m[5], 0).getDate(); break }
+  }
+
+  let cf = ''
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i] ?? []
+    const rf = String(r[iF] ?? '').trim()
+    if (TOTAL.test(rf)) continue            // "X Total" / "Grand Total" — cf-ə toxunma
+    if (rf) cf = rf
+    const rt = String(r[iT] ?? '').trim().toLowerCase()
+    if (!cf || !rt || TOTAL.test(cf)) continue
+    const kanon = normalizeFilial(cf)
+    if (!kanon || EXCLUDE.has(kanon)) continue
+    const val = parseNum(r[iA]); if (val == null) continue
+    const b = branch[kanon] ?? (branch[kanon] = { bolge: BRANCH_TO_REGION[kanon] ?? null, total: 0, wolt: 0, bolt: 0 })
+    b.total += val
+    if (/wolt|storefront/.test(rt)) { b.wolt += val; pay.wolt += val }
+    else if (/bolt/.test(rt)) { b.bolt += val; pay.bolt += val }
+    else if (/nağd|nagd|nəğd/.test(rt)) pay.nagd += val
+    else if (/kart|bank|kapital|uni|atb|pasha|pos|pax|verifone|visa|master/.test(rt)) pay.kart += val
+  }
+
+  const toplam = Object.values(branch).reduce((s, b) => s + b.total, 0)
+  if (!Object.keys(branch).length) { uyarilar.push('OLAP: filial tapılmadı.'); return empty(uyarilar) }
+  const region: Record<string, number> = {}
+  for (const b of Object.values(branch)) region[b.bolge ?? '?'] = (region[b.bolge ?? '?'] ?? 0) + b.total
+  const gun = periodDays || daysInMonth
+  return {
+    period, gun, days: [], daily: {},
+    branches: Object.entries(branch).map(([filial, v]) => ({ filial, ...v })).sort((a, b) => b.total - a.total),
+    regions: Object.entries(region).sort((a, b) => b[1] - a[1]),
+    pay,
+    toplam: Math.round(toplam),
+    gedisat: Math.round(gun ? toplam / gun * daysInMonth : toplam),   // dövr tam aysa = toplam
+    uyarilar,
+  }
+}
