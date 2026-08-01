@@ -7,6 +7,36 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
+- **📈 Günlük Panel — self-servis satış analizi motoru** (`src/app/dashboard/panel/*`,
+  `src/lib/analytics/parse-daily.ts`): super_admin iiko satış hesabatını (Excel)
+  atır, panel çıxır — toplam satış, günlük ortalama, bölgə satışı, ödəniş qarışığı
+  (nağd/kart/wolt/bolt), delivery %, diqqət istəyən filiallar. Fayl **browser-də**
+  parse olunur (Vercel 4.5MB limitindən qaçmaq üçün), nəticə DB-yə yazılır (qalıcı).
+- **İki satış hesabatı formatı oxunur:** `parseDaily` (Uçot günü olan günlük detay →
+  günlük qrafik) və `parseOlap` (OLAP Hesabat: filial × ödəniş növü aylıq özet, günlük
+  yox). Panel avtomatik uyğun parser-i seçir. Grand Total ilə dəqiq uyğunluq (3.96M).
+- **📥 Toplu aylıq hədəf yüklə** (`src/app/dashboard/sales/BulkTargetUpload.tsx`,
+  `POST /api/sales/targets/bulk`): super_admin PLAN.xlsx atır → bütün filialların hər
+  ayının (İyul→Dekabr) hədəfi `sales_targets`-ə yazılır (upsert). "avqust plan" və
+  "proqnoz İYUL" sütunlarını tanıyır (İ-normalizasyonu). Filial müdirləri dərhal görür.
+- **🎯 Plan vs Gerçək · Tutturma** (Panel): şəbəkə özeti + **bölgə rollup** (bölgələrə
+  rapor üçün progress-bar kartları) + filial-filial Plan/Gerçək/Fərq/Tutturma
+  (✓ tutturur / ~ sınırda / ✗ tutmur; en pis üstte).
+- **Keçən il (2025) qalıcı YoY** (`parseYoyRef`): PLAN.xlsx-də hər ayın "<ay> 2025"
+  faktiki var — toplu yükləmədə `analytics_ingest`-ə (engine `yoyref-1.0`) qalıcı
+  saxlanır. Panel hər ay YoY-u avtomatik qurur (Keçən ilə tile + YoY sütunu +
+  📉 düşənlər filtri) — **təkrar fayl yükləmə lazım deyil** (bir dəfə PLAN.xlsx = 165 referans).
+- **Dövr arxivi** (Panel): `🗓️ Dövr` dropdown — keçmiş aylara keçib baxılır (İyul/Avqust…),
+  köhnə ay itmir (`analytics_ingest` period-bazlı).
+- **Satış hədəfi — gündəlik tutturma** (`src/app/dashboard/sales/sales-client.tsx`):
+  müdür gün girdikcə N-günlük hədəf + fərq (+/−) + həftəiçi/həftəsonu ağırlıklı ay sonu
+  tahmini + tutturma rozeti. Filial kartında + bölgə/admin tablolarında.
+- **🏦 Kasa/Banka mutabakat** (`src/app/dashboard/kasa-banka/*`,
+  `src/lib/analytics/bank-reconcile.ts`): 3 acquirer (Unibank REP/HTML, ATB xlsx,
+  Kapital POS binary .xls) → filial kart satışı vs bankaya keçən. Terminal→filial xəritəsi.
+- **🍔 Menü / Food Cost** (`src/app/dashboard/menyu/*`): Maya və Qiymət analizi →
+  hər məhsul food cost, kritik məhsullar (>%40), marja.
+- `Bulvar Festival` filialı İsmayıl bölgəsinə əlavə edildi (`filial-map.ts`).
 - Shaurma No1 müşteri markası için ortak auth marka bileşeni eklendi; mevcut
   logo giriş, davet kabulü ve şifre sıfırlama ekranlarında OCAQ ürün
   kimliğiyle birlikte gösteriliyor.
@@ -26,6 +56,13 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - `drizzle/migrations/0003_black_whistler.sql` — Generated and pushed database migration for checklists table.
 
 ### Changed
+- **Panel cila:** sortable tablo (kolona tıkla ▲▼) + zebra + hover + yapışkan başlık;
+  KPI tile'lara accent üst çizgi + gölge; bölgə barlarında % payı; filial tablosunda
+  Hədəf (rakam) + Wolt/Bolt həm ₼ həm %.
+- **"Ay proqnozu" tile** yalnız günlük/qismən dövrdə göstərilir; tamamlanmış aylıq
+  özetdə (OLAP) gizli — çünkü orada proqnoz deyil faktiki rəqəmdir (yanıltmasın).
+- `parseYoy` genişləndi: "Ticarət müəssisəsi | iyul 2025 | iyul gedişat" formatını da
+  oxur; "Əcəmi" filialının ara-toplam kimi yanlış atlanması lookbehind ilə düzəldildi.
 - Giriş, davet, parola sıfırlama ve markalı e-posta şablonlarındaki geçici
   Shaurma görseli, restoranın onaylı dairesel “Shaurma Restoran & Café”
   logosuyla değiştirildi.
