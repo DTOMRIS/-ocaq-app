@@ -62,9 +62,10 @@ export async function POST(req: NextRequest) {
     const [u] = await db.select({ id: users.id }).from(users)
       .where(and(eq(users.tenant_id, tenantId), eq(users.email, m.email))).limit(1)
     if (u) { skipped.push(`${m.email} (hesab var)`); continue }
+    // Qeyd: revoked_at (0005) prod-da olmaya bilər → filtrdə istifadə etmirik
     const [p] = await db.select({ id: invitations.id }).from(invitations)
       .where(and(eq(invitations.tenant_id, tenantId), eq(invitations.email, m.email),
-        isNull(invitations.accepted_at), isNull(invitations.revoked_at), gt(invitations.expires_at, new Date()))).limit(1)
+        isNull(invitations.accepted_at), gt(invitations.expires_at, new Date()))).limit(1)
     if (p) { skipped.push(`${m.email} (davet var)`); continue }
 
     const token = createOneTimeToken()
@@ -80,7 +81,8 @@ export async function POST(req: NextRequest) {
         email: m.email, token, inviterName: session.user.name ?? 'Admin', recipientRole: m.role, branchName,
       })
       if (error) {
-        await db.update(invitations).set({ revoked_at: new Date(), revoked_by: session.user.id, revoked_reason: 'Dəvət e-poçtu göndərilə bilmədi' }).where(eq(invitations.id, created.id))
+        // revoked_at (0005) prod-da olmaya bilər → update yerinə sətri sil (dangling qalmasın)
+        await db.delete(invitations).where(eq(invitations.id, created.id)).catch(() => {})
         failed.push(m.email); continue
       }
       sent++

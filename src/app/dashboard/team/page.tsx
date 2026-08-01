@@ -57,12 +57,13 @@ export default async function TeamPage() {
     if (scopeConds.length) { invConds.push(or(...scopeConds)!); runInv = true }
   }
   if (runInv) {
-    // Qeyd: replaces_manager_id (migration 0005) prod-da olmaya bilər → seçmirik ki sorğu patlamasın
+    // Qeyd: revoked_at/replaces_manager_id (migration 0005) prod-da olmaya bilər → seçmirik ki sorğu patlamasın
+    // (db:push ilə 0005 tətbiq olunandan sonra geri qaytarılmalıdır)
     invitationsData = await safe('invitations', () =>
       db.select({
         id: invitations.id, email: invitations.email, role: invitations.role,
         branch_id: invitations.branch_id, region_id: invitations.region_id,
-        accepted_at: invitations.accepted_at, revoked_at: invitations.revoked_at,
+        accepted_at: invitations.accepted_at,
         expires_at: invitations.expires_at, created_at: invitations.created_at,
       }).from(invitations).where(and(...invConds)).orderBy(desc(invitations.created_at)), [])
   }
