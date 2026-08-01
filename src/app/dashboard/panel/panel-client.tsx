@@ -1,7 +1,11 @@
 'use client'
 
 import { useState, useRef, type CSSProperties } from 'react'
+import { useRouter } from 'next/navigation'
 import { parseDaily, parseOlap, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
+
+const AY_ADI = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
+const donemAdi = (p: string) => { const [y, m] = p.split('-'); return `${AY_ADI[+m] ?? m} ${y}` }
 
 type Daily = {
   period: string | null; gun: number; days: string[]
@@ -49,9 +53,10 @@ function Chart({ d }: { d: Daily }) {
   )
 }
 
-export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null }: {
-  initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null
+export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null }: {
+  initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null
 }) {
+  const router = useRouter()
   const [files, setFiles] = useState<File[]>([])
   const [d, setD] = useState<Daily | null>((initial?.daily as Daily) ?? null)
   const [plan, setPlan] = useState<PlanResult | null>((initial?.plan as PlanResult) ?? null)
@@ -130,8 +135,21 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
       <style>{`@media print { button, input { display: none !important } body { background: #fff } @page { margin: 12mm; size: A4 } }`}</style>
       <div style={{ height: 3, background: '#F2A81D', borderRadius: 2, marginBottom: 16 }} />
-      <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>📈 Günlük Panel</h1>
-      <p style={{ color: '#8b8378', fontSize: 13, margin: '0 0 20px' }}>Satış detayı (+ plan raporu) at → günlük satış, plana görə, bölgə, delivery, proqnoz.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>📈 Günlük Panel</h1>
+          <p style={{ color: '#8b8378', fontSize: 13, margin: '0 0 20px' }}>Satış detayı (+ plan raporu) at → günlük satış, plana görə, bölgə, delivery, proqnoz.</p>
+        </div>
+        {periods.length > 0 && (
+          <label className="no-print" style={{ fontSize: 12, color: '#8b8378', display: 'flex', alignItems: 'center', gap: 6 }}>
+            🗓️ Dövr:
+            <select value={selectedPeriod ?? ''} onChange={e => router.push(`/dashboard/panel?period=${e.target.value}`)}
+              style={{ ...card, padding: '6px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#26221d' }}>
+              {periods.map(p => <option key={p} value={p}>{donemAdi(p)}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
 
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>
@@ -246,7 +264,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
                 <thead><tr>
-                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf%'] : []), ...(yoy ? ['YoY'] : []), 'Wolt', 'Bolt'].map((h, i) => (
+                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf%'] : []), ...(yoy ? ['YoY'] : []), 'Wolt %', 'Bolt %'].map((h, i) => (
                     <th key={h} style={{ padding: '8px 10px', textAlign: i < 2 ? 'left' : 'right', fontSize: 10.5, textTransform: 'uppercase', color: '#8b8378', borderBottom: '1px solid #e6e1d7', background: '#faf7f1' }}>{h}</th>
                   ))}
                 </tr></thead>
@@ -261,8 +279,8 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
                         <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.total)}</td>
                         {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
                         {yoy && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: yp == null ? '#8b8378' : yp >= 0 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{yp != null ? (yp >= 0 ? '+' : '') + Math.round(yp * 100) + '%' : '—'}</td>}
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.wolt)}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.bolt)}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{b.total ? (b.wolt / b.total * 100).toFixed(1) + '%' : '—'}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{b.total ? (b.bolt / b.total * 100).toFixed(1) + '%' : '—'}</td>
                       </tr>
                     )
                   })}
