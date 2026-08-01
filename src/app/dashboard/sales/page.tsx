@@ -34,29 +34,20 @@ export default async function SalesPage() {
 
   const baseUrl = getRequestOrigin(headersList)
 
-  try {
-    const [brRes, tRes, dRes, rRes] = await Promise.all([
-      fetch(`${baseUrl}/api/branches`, {
-        headers: { cookie }, cache: 'no-store',
-      }),
-      fetch(`${baseUrl}/api/sales/targets?month=${monthStart}`, {
-        headers: { cookie }, cache: 'no-store',
-      }),
-      fetch(`${baseUrl}/api/sales/daily?month_start=${monthStart}&month_end=${monthEnd}`, {
-        headers: { cookie }, cache: 'no-store',
-      }),
-      fetch(`${baseUrl}/api/regions`, {
-        headers: { cookie }, cache: 'no-store',
-      }),
-    ])
-
-    if (brRes.ok) { const d = await brRes.json(); if (Array.isArray(d)) branches = d }
-    if (tRes.ok) { const d = await tRes.json(); if (Array.isArray(d)) targets = d }
-    if (dRes.ok) { const d = await dRes.json(); if (Array.isArray(d)) dailySales = d }
-    if (rRes.ok) { const d = await rRes.json(); if (Array.isArray(d)) regions = d }
-  } catch {
-    fetchError = 'Serverlə əlaqə qurulmadı'
+  // Hər fetch müstəqil (biri xəta versə digərləri yüklənsin — hamısı birdən çökməsin)
+  const getArr = async (url: string): Promise<unknown[] | null> => {
+    try { const res = await fetch(url, { headers: { cookie }, cache: 'no-store' }); if (!res.ok) return null; const d = await res.json(); return Array.isArray(d) ? d : null }
+    catch { return null }
   }
+  const [br, tg, ds, rg] = await Promise.all([
+    getArr(`${baseUrl}/api/branches`),
+    getArr(`${baseUrl}/api/sales/targets?month=${monthStart}`),
+    getArr(`${baseUrl}/api/sales/daily?month_start=${monthStart}&month_end=${monthEnd}`),
+    getArr(`${baseUrl}/api/regions`),
+  ])
+  if (br) branches = br; if (tg) targets = tg; if (ds) dailySales = ds; if (rg) regions = rg
+  // Yalnız filiallar (kritik) yüklənməzsə xəta göstər — qismən uğursuzluq bütün səhifəni çökdürməsin
+  if (!br) fetchError = 'Filial siyahısı yüklənmədi — yeniləyin'
 
   return (
     <SalesClient
