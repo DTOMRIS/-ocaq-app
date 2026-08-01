@@ -34,9 +34,9 @@ const STAT: Record<ReconRow['status'], { t: string; c: string; bg?: string }> = 
 
 function Tile({ k, v, tone }: { k: string; v: string; tone?: string }) {
   return (
-    <div style={{ ...card, padding: '12px 14px', flex: 1, minWidth: 120 }}>
+    <div style={{ ...card, padding: '11px 14px 12px', flex: 1, minWidth: 120, borderTop: `3px solid ${tone ?? '#e2dccf'}`, boxShadow: '0 1px 3px rgba(38,34,29,.04)' }}>
       <div style={{ fontSize: 10.5, color: '#8b8378', textTransform: 'uppercase', letterSpacing: '.4px' }}>{k}</div>
-      <div style={{ fontSize: 19, fontWeight: 800, marginTop: 4, color: tone ?? '#26221d' }}>{v}</div>
+      <div style={{ fontSize: 19, fontWeight: 800, marginTop: 4, color: tone ?? '#26221d', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
     </div>
   )
 }
@@ -89,6 +89,7 @@ export default function KasaBankaClient() {
 
   return (
     <main style={{ padding: '24px 26px 60px', maxWidth: 1080, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
+      <style>{`.kbtbl tbody tr:hover td { filter: brightness(0.97) }`}</style>
       <div style={{ height: 3, background: '#F2A81D', borderRadius: 2, marginBottom: 16 }} />
       <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>🏦 Kasa / Banka Mutabakatı</h1>
       <p style={{ color: '#8b8378', fontSize: 13, margin: '0 0 20px' }}>
@@ -149,7 +150,7 @@ export default function KasaBankaClient() {
 
           <div style={{ ...card, overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 720 }}>
+              <table className="kbtbl" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 720 }}>
                 <thead><tr>
                   <th style={{ ...th, textAlign: 'left' }}>Filial</th>
                   <th style={th}>Kart satış</th><th style={th}>Unibank</th><th style={th}>ATB</th><th style={th}>Kapital</th>
