@@ -91,6 +91,12 @@ export default function SalesClient({
 
   // ── Branch-level calculations ──
   const branchStats = useMemo(() => {
+    // Ayın hafta içi / hafta sonu gün sayısı (ay sonu tahmini üçün)
+    const [yy, mm] = monthStart.split('-').map(Number)
+    let monWk = 0, monWe = 0
+    for (let day = 1; day <= totalDays; day++) { const wd = new Date(yy, mm - 1, day).getDay(); if (wd === 0 || wd === 6) monWe++; else monWk++ }
+    const isWe = (dstr: string) => { const wd = new Date(dstr).getDay(); return wd === 0 || wd === 6 }
+
     return branches.map(b => {
       const target = targets.find(t => t.branch_id === b.id)
       const sales = dailySales.filter(d => d.branch_id === b.id)
@@ -99,8 +105,25 @@ export default function SalesClient({
       const percent = pct(totalSales, targetAmount)
       const daysEntered = sales.length
       const dailyAvg = daysEntered > 0 ? totalSales / daysEntered : 0
-      const projection = daysEntered > 0 ? dailyAvg * totalDays : 0
+
+      // Hafta içi / hafta sonu ortalaması
+      const weSales = sales.filter(s => isWe(s.sale_date)), wkSales = sales.filter(s => !isWe(s.sale_date))
+      const avgWe = weSales.length ? weSales.reduce((s, x) => s + Number(x.amount), 0) / weSales.length : 0
+      const avgWk = wkSales.length ? wkSales.reduce((s, x) => s + Number(x.amount), 0) / wkSales.length : 0
+      const weekendLift = avgWk && avgWe ? avgWe / avgWk - 1 : null
+
+      // Ay sonu tahmini: hafta sonu ağırlıklı (örnek yoksa düz ortalamaya düşer)
+      const wkRate = avgWk || dailyAvg, weRate = avgWe || avgWk || dailyAvg
+      const projection = daysEntered > 0 ? wkRate * monWk + weRate * monWe : 0
+
+      // Bugünə qədər hədəf (N-günlük) + fərq
+      const targetToDate = targetAmount > 0 ? targetAmount / totalDays * daysEntered : 0
+      const diff = totalSales - targetToDate
       const dailyNeeded = remainingDays > 0 ? (targetAmount - totalSales) / remainingDays : 0
+
+      // Tutturma: ay sonu tahmini vs aylıq hədəf
+      const hitStatus: 'hit' | 'edge' | 'miss' | null = (targetAmount > 0 && daysEntered > 0)
+        ? (projection >= targetAmount ? 'hit' : projection >= targetAmount * 0.95 ? 'edge' : 'miss') : null
 
       return {
         ...b,
@@ -111,11 +134,24 @@ export default function SalesClient({
         dailyAvg,
         projection,
         dailyNeeded: Math.max(0, dailyNeeded),
+        targetToDate,
+        diff,
+        hitStatus,
+        avgWk,
+        avgWe,
+        weekendLift,
         sales,
         targetId: target?.id,
       }
     })
-  }, [branches, targets, dailySales, totalDays, remainingDays])
+  }, [branches, targets, dailySales, totalDays, remainingDays, monthStart])
+
+  // Tutturma rozeti stilleri
+  const HIT: Record<'hit' | 'edge' | 'miss', { t: string; bg: string; c: string }> = {
+    hit: { t: '✓ tutturur', bg: '#dcfce7', c: '#166534' },
+    edge: { t: '~ sınırda', bg: '#fef9c3', c: '#854d0e' },
+    miss: { t: '✗ tutmur', bg: '#fee2e2', c: '#991b1b' },
+  }
 
   // ── State ──
   const [showEntryForm, setShowEntryForm] = useState(false)
@@ -241,12 +277,19 @@ export default function SalesClient({
             }}>{b.code}</span>
             <span style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a1a' }}>{b.name}</span>
           </div>
-          <span style={{
-            padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '600',
-            background: colors.bg, color: colors.text,
-          }}>
-            {b.percent}%
-          </span>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {b.hitStatus && (
+              <span style={{ padding: '4px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', background: HIT[b.hitStatus].bg, color: HIT[b.hitStatus].c }}>
+                {HIT[b.hitStatus].t}
+              </span>
+            )}
+            <span style={{
+              padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '600',
+              background: colors.bg, color: colors.text,
+            }}>
+              {b.percent}%
+            </span>
+          </div>
         </div>
 
         {/* Progress Bar */}
@@ -274,13 +317,25 @@ export default function SalesClient({
             </p>
           </div>
           <div>
+            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{b.daysEntered} günlük hədəf</p>
+            <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>
+              {b.targetAmount > 0 && b.daysEntered > 0 ? `${fmt(b.targetToDate)} ₼` : '—'}
+            </p>
+          </div>
+          <div>
+            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Fərq (bugünədək)</p>
+            <p style={{ fontSize: '14px', fontWeight: '700', color: b.diff >= 0 ? '#059669' : '#C8102E', margin: 0 }}>
+              {b.targetAmount > 0 && b.daysEntered > 0 ? `${b.diff >= 0 ? '+' : ''}${fmt(b.diff)} ₼` : '—'}
+            </p>
+          </div>
+          <div>
             <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Gündəlik lazım</p>
             <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>
               {remainingDays > 0 && b.targetAmount > 0 ? `${fmt(b.dailyNeeded)} ₼` : '—'}
             </p>
           </div>
           <div>
-            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Proqnoz</p>
+            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Ay sonu tahmini</p>
             <p style={{ fontSize: '14px', fontWeight: '600', color: b.projection >= b.targetAmount ? '#059669' : '#C8102E', margin: 0 }}>
               {b.daysEntered > 0 ? `${fmt(b.projection)} ₼` : '—'}
             </p>
@@ -292,7 +347,7 @@ export default function SalesClient({
           padding: '10px 20px', borderTop: '1px solid #f0f0f0',
           display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#999',
         }}>
-          <span>{b.daysEntered} gün daxil edilib</span>
+          <span>{b.daysEntered} gün daxil edilib{b.weekendLift != null ? ` · həftəsonu ${b.weekendLift >= 0 ? '+' : ''}${Math.round(b.weekendLift * 100)}%` : ''}</span>
           <span>Qalan: {remainingDays} gün</span>
         </div>
       </div>
@@ -464,7 +519,7 @@ export default function SalesClient({
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-                          {['Filial', 'Hədəf', 'Cari', '%', 'Gündəlik lazım', 'Proqnoz', ''].map(h => (
+                          {['Filial', 'Hədəf', 'Cari', '%', 'Gündəlik lazım', 'Ay sonu tahmini', 'Tutturma', ''].map(h => (
                             <th key={h} style={{
                               padding: '11px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '600',
                               color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap',
@@ -507,6 +562,13 @@ export default function SalesClient({
                                   </span>
                                 ) : '—'}
                               </td>
+                              <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                {b.hitStatus ? (
+                                  <span style={{ padding: '3px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', background: HIT[b.hitStatus].bg, color: HIT[b.hitStatus].c }}>
+                                    {HIT[b.hitStatus].t}
+                                  </span>
+                                ) : '—'}
+                              </td>
                               <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                                 {statusIcon(b.percent)}
                               </td>
@@ -526,7 +588,7 @@ export default function SalesClient({
                                 background: colors.bg, color: colors.text, fontSize: '12px', fontWeight: '700',
                               }}>{totalPercent}%</span>
                             </td>
-                            <td colSpan={3} />
+                            <td colSpan={4} />
                           </tr>
                         </tfoot>
                       )}
@@ -601,7 +663,7 @@ export default function SalesClient({
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-                    {['Filial', 'Bölgə', 'Hədəf', 'Cari', '%', 'Gündəlik lazım', 'Proqnoz', ''].map(h => (
+                    {['Filial', 'Bölgə', 'Hədəf', 'Cari', '%', 'Gündəlik lazım', 'Ay sonu tahmini', 'Tutturma', ''].map(h => (
                       <th key={h} style={{
                         padding: '11px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '600',
                         color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap',
@@ -650,6 +712,13 @@ export default function SalesClient({
                           {b.daysEntered > 0 ? (
                             <span style={{ color: b.projection >= b.targetAmount ? '#059669' : '#C8102E' }}>
                               {fmt(b.projection)} ₼
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          {b.hitStatus ? (
+                            <span style={{ padding: '3px 9px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', background: HIT[b.hitStatus].bg, color: HIT[b.hitStatus].c }}>
+                              {HIT[b.hitStatus].t}
                             </span>
                           ) : '—'}
                         </td>
