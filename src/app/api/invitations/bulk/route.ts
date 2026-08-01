@@ -51,6 +51,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true, dryRun: true, willSend: matched.length, unmatched,
       preview: matched.map(m => ({ email: m.email, role: m.role, target: m.target })),
+      regionsInDb: rgs.map(r => r.name),   // DB-dəki bölgə adları (eşleşmə üçün)
+      branchCount: brs.length,
     })
   }
 
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
         failed.push(m.email); continue
       }
       sent++
-    } catch { failed.push(`${m.email} (dublikat/xəta)`) }
+    } catch (e) { failed.push(`${m.email}: ${e instanceof Error ? e.message : String(e)}`) }
   }
   return NextResponse.json({ ok: true, sent, skipped, failed, unmatched }, { status: 200 })
   } catch (e) {

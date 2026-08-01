@@ -15,7 +15,7 @@ export default function BulkInviteUpload() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [rows, setRows] = useState<InviteRow[] | null>(null)
-  const [prev, setPrev] = useState<{ willSend: number; unmatched: string[] } | null>(null)
+  const [prev, setPrev] = useState<{ willSend: number; unmatched: string[]; regionsInDb: string[] } | null>(null)
   const [done, setDone] = useState<{ sent: number; skipped: string[]; failed: string[]; unmatched: string[] } | null>(null)
 
   async function pick(f: File | null) {
@@ -36,7 +36,7 @@ export default function BulkInviteUpload() {
       const res = await fetch('/api/invitations/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invites: best, dryRun: true }) })
       const d = await res.json()
       if (!res.ok) throw new Error([d.error, d.detail].filter(Boolean).join(' — ') || 'Önizləmə xətası')
-      setPrev({ willSend: d.willSend, unmatched: d.unmatched || [] })
+      setPrev({ willSend: d.willSend, unmatched: d.unmatched || [], regionsInDb: d.regionsInDb || [] })
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
   }
@@ -113,6 +113,9 @@ export default function BulkInviteUpload() {
           {prev.unmatched.length > 0 && (
             <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '9px 12px', fontSize: '12.5px', color: '#92400e', marginBottom: '10px' }}>
               ⚠ Eşleşməyən ({prev.unmatched.length}) — bunlar göndərilməyəcək: {prev.unmatched.join(', ')}
+              <div style={{ marginTop: '6px', color: '#78716c' }}>
+                Sistemdəki bölgələr: {prev.regionsInDb.length ? prev.regionsInDb.join(', ') : '(heç bir bölgə yoxdur — əvvəl Bölgələr səhifəsində yarat)'}
+              </div>
             </div>
           )}
           <div style={{ display: 'flex', gap: '8px' }}>
