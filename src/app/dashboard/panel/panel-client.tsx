@@ -22,9 +22,9 @@ const RCOL: Record<string, string> = { 'İsmayıl': '#C8102E', 'Ramin': '#E07A1F
 
 function Tile({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: string }) {
   return (
-    <div style={{ ...card, padding: '13px 15px', flex: 1, minWidth: 130 }}>
+    <div style={{ ...card, padding: '12px 15px 13px', flex: 1, minWidth: 130, borderTop: `3px solid ${tone ?? '#e2dccf'}`, boxShadow: '0 1px 3px rgba(38,34,29,.04)' }}>
       <div style={{ fontSize: 10.5, color: '#8b8378', textTransform: 'uppercase', letterSpacing: '.4px' }}>{k}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4, letterSpacing: '-.4px', color: tone ?? '#26221d' }}>{v}</div>
+      <div style={{ fontSize: 21, fontWeight: 800, marginTop: 4, letterSpacing: '-.4px', color: tone ?? '#26221d', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
       {sub && <div style={{ fontSize: 11, color: '#8b8378', marginTop: 2 }}>{sub}</div>}
     </div>
   )
@@ -275,11 +275,18 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
               </div>
 
               {/* Bölgə özeti — bölgələrə rapor üçün */}
-              <div style={{ padding: '10px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid #efeae0', background: '#faf8f4' }}>
-                {tutRegions.map(r => { const s = tutStat(r.pct), p = r.pct != null ? Math.round(r.pct * 100) : 0; return (
-                  <span key={r.bolge} style={{ background: '#fff', border: '1px solid #e6e1d7', borderRadius: 8, padding: '5px 10px', fontSize: 12 }}>
-                    <b>{r.bolge}</b> · {money(r.actual)}/{money(r.plan)} <span style={{ fontWeight: 800, color: s ? TUT[s].c : '#8b8378' }}>{s ? TUT[s].t(p) : ''}</span>
-                  </span>
+              <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, borderBottom: '1px solid #efeae0', background: '#faf8f4' }}>
+                {tutRegions.map(r => { const s = tutStat(r.pct), p = r.pct != null ? Math.round(r.pct * 100) : 0; const bar = s ? TUT[s].c : '#8b8378'; return (
+                  <div key={r.bolge} style={{ background: '#fff', border: '1px solid #e6e1d7', borderRadius: 10, padding: '9px 11px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                      <b style={{ fontSize: 12.5 }}>{r.bolge}</b>
+                      <span style={{ fontWeight: 800, fontSize: 12.5, color: bar }}>{s ? TUT[s].t(p) : '—'}</span>
+                    </div>
+                    <div style={{ height: 6, background: '#f1ede4', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.min(p, 100)}%`, height: '100%', background: bar, borderRadius: 99 }} />
+                    </div>
+                    <div style={{ fontSize: 11, color: '#8b8378', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{money(r.actual)} / {money(r.plan)}</div>
+                  </div>
                 )})}
               </div>
 
