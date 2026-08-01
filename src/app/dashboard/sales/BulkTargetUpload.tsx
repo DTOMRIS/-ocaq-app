@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { parseTargets, type TargetRow } from '@/lib/analytics/parse-targets'
+import { parseTargets, parseYoyRef, type TargetRow, type YoyRefRow } from '@/lib/analytics/parse-targets'
 
 // Toplu aylıq hədəf yükləmə — super_admin PLAN.xlsx atır, bütün filial/aylar sales_targets-ə yazılır.
 // Fayl BROWSER-də parse olunur (böyük fayl / Vercel 4.5MB limitindən qaçmaq üçün).
@@ -15,22 +15,25 @@ export default function BulkTargetUpload() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [preview, setPreview] = useState<TargetRow[] | null>(null)
+  const [yref, setYref] = useState<YoyRefRow[]>([])
   const [done, setDone] = useState<{ saved: number; unmatched: string[] } | null>(null)
 
   async function pick(f: File | null) {
     if (!f) return
-    setBusy(true); setErr(null); setDone(null); setPreview(null)
+    setBusy(true); setErr(null); setDone(null); setPreview(null); setYref([])
     try {
       const XLSX = await import('xlsx')
       const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
-      let all: TargetRow[] = []
+      let all: TargetRow[] = [], ref: YoyRefRow[] = []
       for (const sn of wb.SheetNames) {
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: false, defval: null }) as unknown[][]
         const t = parseTargets(rows)
         if (t.length > all.length) all = t   // ən çox hədəf tapılan sheet
+        const rr = parseYoyRef(rows)
+        if (rr.length > ref.length) ref = rr  // keçən il (2025) referansı
       }
       if (!all.length) throw new Error(`Hədəf tapılmadı. Sheet-lər: ${wb.SheetNames.join(', ')}. "Ticarət müəssisəsi" + "avqust plan / sentyabr plan…" sütunları olan faylı yükləyin.`)
-      setPreview(all)
+      setPreview(all); setYref(ref)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
   }
@@ -41,7 +44,7 @@ export default function BulkTargetUpload() {
     try {
       const res = await fetch('/api/sales/targets/bulk', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets: preview }),
+        body: JSON.stringify({ targets: preview, yoyRef: yref }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error || d.detail || 'Xəta')

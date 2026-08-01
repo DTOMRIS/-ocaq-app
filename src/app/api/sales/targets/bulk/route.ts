@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import { sales_targets } from '@/db/schema/sales'
 import { branches } from '@/db/schema/branches'
+import { analytics_ingest } from '@/db/schema/analytics'
 import { normalizeFilial } from '@/lib/analytics/filial-map'
 
 // Toplu satış hədəfi — PLAN.xlsx-dən parse edilmiş (filial×ay×məbləğ) → sales_targets upsert.
@@ -15,7 +17,10 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.user.role !== 'super_admin') return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   try {
-    const body = await req.json() as { targets?: Array<{ filial: string; month: string; amount: number }> }
+    const body = await req.json() as {
+      targets?: Array<{ filial: string; month: string; amount: number }>
+      yoyRef?: Array<{ filial: string; month: string; y2025: number }>
+    }
     const targets = Array.isArray(body.targets) ? body.targets : []
     if (!targets.length) return NextResponse.json({ error: 'Hədəf tapılmadı' }, { status: 400 })
     const tenantId = session.user.tenant_id
@@ -41,7 +46,34 @@ export async function POST(req: NextRequest) {
       }
       saved++
     }
-    return NextResponse.json({ ok: true, saved, unmatched: [...unmatched] }, { status: 200 })
+    // Keçən il (2025) referansı — qalıcı saxla ki Panel-də YoY avtomatik gəlsin (təkrar yükləmə yox).
+    // Additiv: xəta olsa belə hədəf saxlanması pozulmur.
+    let refSaved = 0
+    try {
+      const ref = Array.isArray(body.yoyRef) ? body.yoyRef : []
+      if (ref.length) {
+        const map: Record<string, Record<string, number>> = {}   // { '2026-08': { 'Seabreeze': 165945, … } }
+        for (const r of ref) {
+          if (!r?.filial || !r?.month || !(r.y2025 > 0)) continue
+          ;(map[r.month] ??= {})[normalizeFilial(r.filial) ?? r.filial] = Math.round(r.y2025)
+          refSaved++
+        }
+        const blob = JSON.stringify(map)
+        const sha = createHash('sha256').update(blob).digest('hex').slice(0, 40)
+        const [ex] = await db.select({ id: analytics_ingest.id }).from(analytics_ingest)
+          .where(and(eq(analytics_ingest.tenant_id, tenantId), eq(analytics_ingest.engine_version, 'yoyref-1.0'))).limit(1)
+        if (ex) {
+          await db.update(analytics_ingest).set({ network: blob, source_sha256: sha, generated_at: new Date() }).where(eq(analytics_ingest.id, ex.id))
+        } else {
+          await db.insert(analytics_ingest).values({
+            tenant_id: tenantId, period: 'ref', engine_version: 'yoyref-1.0', source_sha256: sha,
+            imported_total: '0', network: blob, status: 'published', generated_at: new Date(),
+          })
+        }
+      }
+    } catch { /* referans saxlama xətası hədəfi pozmasın */ }
+
+    return NextResponse.json({ ok: true, saved, unmatched: [...unmatched], refSaved }, { status: 200 })
   } catch (e) {
     return NextResponse.json({ error: 'Server xətası', detail: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }

@@ -39,7 +39,8 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
   if (latest?.network) { try { initial = JSON.parse(latest.network) } catch { initial = null } }
 
   // Manuel satış hədəfləri (/sales-dən girilən, sales_targets) → dövrün ayı üçün
-  const period = (initial?.daily as { period?: string } | undefined)?.period ?? latest?.period ?? null
+  const dailyObj = initial?.daily as { period?: string; branches?: Array<{ filial: string; total: number }> } | undefined
+  const period = dailyObj?.period ?? latest?.period ?? null
   const targets: Record<string, number> = {}
   if (period) {
     const rows = await db.select({ name: branches.name, amt: sales_targets.target_amount })
@@ -47,6 +48,26 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
       .innerJoin(branches, eq(sales_targets.branch_id, branches.id))
       .where(and(eq(sales_targets.tenant_id, tenantId), eq(sales_targets.month, `${period}-01`)))
     for (const r of rows) targets[r.name.trim()] = Number(r.amt)
+  }
+
+  // Keçən il (2025) referansı qalıcı saxlanıbsa (PLAN.xlsx yüklənəndə) → YoY-u avtomatik qur.
+  // Yüklənmiş faylda YoY yoxdursa referansdan sintez et (təkrar fayl yükləmə lazım deyil).
+  if (initial && !initial.yoy && period && dailyObj?.branches?.length) {
+    try {
+      const [refRow] = await db.select({ net: analytics_ingest.network }).from(analytics_ingest)
+        .where(and(eq(analytics_ingest.tenant_id, tenantId), eq(analytics_ingest.engine_version, 'yoyref-1.0'))).limit(1)
+      const map = refRow?.net ? (JSON.parse(refRow.net) as Record<string, Record<string, number>>) : null
+      const refMonth = map?.[period]
+      if (refMonth) {
+        const yb: Record<string, { y2025: number; y2026: number }> = {}
+        let n25 = 0, n26 = 0
+        for (const b of dailyObj.branches) {
+          const y25 = refMonth[b.filial] ?? 0
+          if (y25 > 0) { yb[b.filial] = { y2025: y25, y2026: b.total }; n25 += y25; n26 += b.total }
+        }
+        if (Object.keys(yb).length) initial.yoy = { branches: yb, network: { y2025: n25, y2026: n26 } }
+      }
+    } catch { /* referans oxuma xətası paneli pozmasın */ }
   }
 
   return (
