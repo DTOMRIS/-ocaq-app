@@ -67,6 +67,8 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const [drag, setDrag] = useState(false)
   const [bolgeF, setBolgeF] = useState<string>('')     // bölgə filtresi
   const [yoyDown, setYoyDown] = useState(false)         // yalnız keçən ilə görə düşənlər
+  const [sortK, setSortK] = useState<string>('Satış')   // tablo sıralaması
+  const [sortAsc, setSortAsc] = useState(false)
   const [ara, setAra] = useState('')                    // filial arama
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -157,9 +159,31 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const tutRows = [...tutList].sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9))
   const planByFilial: Record<string, number> = Object.fromEntries(tutList.map(t => [t.filial, t.planV]))
 
+  // Tablo başlıqları + sıralama
+  const tblCols = ['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf', 'Hədəf%'] : []), ...(yoy ? ['YoY'] : []), 'Wolt', 'Bolt']
+  const sortVal = (b: typeof rows[number], k: string): number | string => {
+    switch (k) {
+      case 'Filial': return b.filial
+      case 'Bölgə': return b.bolge ?? ''
+      case 'Satış': return b.total
+      case 'Hədəf': return planByFilial[b.filial] ?? -1
+      case 'Hədəf%': return branchTarget(b).pct ?? -1
+      case 'YoY': return branchYoy(b) ?? -99
+      case 'Wolt': return b.wolt
+      case 'Bolt': return b.bolt
+      default: return 0
+    }
+  }
+  const sortedRows = [...rows].sort((a, b) => {
+    const av = sortVal(a, sortK), bv = sortVal(b, sortK)
+    if (typeof av === 'string' || typeof bv === 'string') return sortAsc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av))
+    return sortAsc ? av - bv : bv - av
+  })
+  const toggleSort = (k: string) => { if (sortK === k) setSortAsc(v => !v); else { setSortK(k); setSortAsc(k === 'Filial' || k === 'Bölgə') } }
+
   return (
     <main style={{ padding: '24px 26px 60px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
-      <style>{`@media print { button, input { display: none !important } body { background: #fff } @page { margin: 12mm; size: A4 } }`}</style>
+      <style>{`.ptbl tbody tr:hover td { background: #f3efe6 !important } .ptbl th:hover { background: #f5f1e8 } @media print { button, input, select { display: none !important } body { background: #fff } @page { margin: 12mm; size: A4 } }`}</style>
       <div style={{ height: 3, background: '#F2A81D', borderRadius: 2, marginBottom: 16 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
@@ -306,7 +330,10 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
               <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🗺️ Bölgə satış</div>
               {d.regions.map(([r, v]) => (
                 <div key={r} style={{ margin: '8px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 3 }}><span>{r}</span><b>{money(v)}</b></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 3 }}>
+                    <span>{r} <span style={{ color: '#b3aca0' }}>· {d.toplam ? Math.round(v / d.toplam * 100) : 0}%</span></span>
+                    <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(v)}</b>
+                  </div>
                   <div style={{ height: 8, background: '#faf7f1', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: `${v / rmax * 100}%`, height: '100%', background: RCOL[r] ?? '#8b8378', borderRadius: 99 }} /></div>
                 </div>
               ))}
@@ -337,21 +364,25 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
 
           <div style={{ ...card, overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
+              <table className="ptbl" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
                 <thead><tr>
-                  {['Filial', 'Bölgə', 'Satış', ...(hasTarget ? ['Hədəf', 'Hədəf%'] : []), ...(yoy ? ['YoY'] : []), 'Wolt', 'Bolt'].map((h, i) => (
-                    <th key={h} style={{ padding: '8px 10px', textAlign: i < 2 ? 'left' : 'right', fontSize: 10.5, textTransform: 'uppercase', color: '#8b8378', borderBottom: '1px solid #e6e1d7', background: '#faf7f1' }}>{h}</th>
+                  {tblCols.map((h, i) => (
+                    <th key={h} onClick={() => toggleSort(h)} title="Sırala"
+                      style={{ padding: '8px 10px', textAlign: i < 2 ? 'left' : 'right', fontSize: 10.5, textTransform: 'uppercase', color: sortK === h ? '#26221d' : '#8b8378', borderBottom: '2px solid ' + (sortK === h ? '#F2A81D' : '#e6e1d7'), background: '#faf7f1', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: 'sticky', top: 0 }}>
+                      {h}{sortK === h ? (sortAsc ? ' ▲' : ' ▼') : ''}
+                    </th>
                   ))}
                 </tr></thead>
                 <tbody>
-                  {rows.map(b => {
+                  {sortedRows.map((b, idx) => {
                     const pp = branchTarget(b).pct
                     const yp = branchYoy(b)
+                    const zebra = idx % 2 ? '#fdfbf7' : '#fff'
                     return (
-                      <tr key={b.filial}>
+                      <tr key={b.filial} style={{ background: zebra }}>
                         <td style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #efeae0' }}>{b.filial}</td>
                         <td style={{ padding: '8px 10px', color: '#8b8378', borderBottom: '1px solid #efeae0' }}>{b.bolge ?? '—'}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums' }}>{money(b.total)}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{money(b.total)}</td>
                         {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', color: '#8b8378', fontVariantNumeric: 'tabular-nums' }}>{planByFilial[b.filial] ? money(planByFilial[b.filial]) : '—'}</td>}
                         {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
                         {yoy && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: yp == null ? '#8b8378' : yp >= 0 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{yp != null ? (yp >= 0 ? '+' : '') + Math.round(yp * 100) + '%' : '—'}</td>}
