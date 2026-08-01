@@ -49,10 +49,10 @@ export default function MenyuClient() {
       let res: MenuResult | null = null
       for (const sn of wb.SheetNames) {
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: false, defval: null }) as unknown[][]
-        const probe = rows.slice(0, 6).map(r => (r ?? []).join(' ')).join(' ')
-        if (/kateqoriya/i.test(probe) && /food\s*cost/i.test(probe)) { const mm = parseMenu(rows); if (mm.products.length) { res = mm; break } }
+        const mm = parseMenu(rows)   // hər sheet-i birbaşa dene (başlıq harda olursa)
+        if (mm.products.length) { res = mm; break }
       }
-      if (!res) throw new Error('Menü analizi tapılmadı. "Maya və Qiymət Analizi" faylı gözlənilir (Menyu Analizi sheet-i).')
+      if (!res) throw new Error(`Menü analizi tapılmadı. Faylda sheet-lər: ${wb.SheetNames.join(', ')}. "Maya və Qiymət Analizi" faylını (Menyu Analizi + Kateqoriya/Food Cost sütunları) yükləyin.`)
       setM(res)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
