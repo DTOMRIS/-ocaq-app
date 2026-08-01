@@ -27,43 +27,46 @@ export default async function TeamPage() {
   let regionsData: unknown[] = []
   let fetchError: string | null = null
 
-  // Birbaşa DB (self-HTTP-fetch deyil) — dropdown-lar boş qalmasın, "əlaqə qurulmadı" olmasın
-  try {
-    const regionIds = await accessibleRegionIds(session.user)
-    const branchIds = await accessibleBranchIds(session.user)
+  // Birbaşa DB — hər sorğu MÜSTƏQİL (biri xəta versə digərləri, xüsusən Bölgə dropdown, yenə dolsun)
+  const errs: string[] = []
+  const safe = async <T,>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> => {
+    try { return await fn() } catch (e) { errs.push(`${label}: ${e instanceof Error ? e.message : String(e)}`); return fallback }
+  }
 
-    regionsData = regionIds.length
-      ? await db.select({ id: regions.id, name: regions.name, manager_id: regions.manager_id })
-          .from(regions).where(and(eq(regions.tenant_id, tenantId), inArray(regions.id, regionIds))).orderBy(regions.name)
-      : []
+  const regionIds = await safe('regionIds', () => accessibleRegionIds(session.user), [] as string[])
+  const branchIds = await safe('branchIds', () => accessibleBranchIds(session.user), [] as string[])
 
-    branchesData = branchIds.length
-      ? await db.select({ id: branches.id, code: branches.code, name: branches.name, region_id: branches.region_id })
-          .from(branches).where(and(eq(branches.tenant_id, tenantId), inArray(branches.id, branchIds))).orderBy(branches.code)
-      : []
+  regionsData = regionIds.length ? await safe('regions', () =>
+    db.select({ id: regions.id, name: regions.name, manager_id: regions.manager_id })
+      .from(regions).where(and(eq(regions.tenant_id, tenantId), inArray(regions.id, regionIds))).orderBy(regions.name), []) : []
 
-    usersData = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role })
-      .from(users).where(eq(users.tenant_id, tenantId)).orderBy(users.name)
+  branchesData = branchIds.length ? await safe('branches', () =>
+    db.select({ id: branches.id, code: branches.code, name: branches.name, region_id: branches.region_id })
+      .from(branches).where(and(eq(branches.tenant_id, tenantId), inArray(branches.id, branchIds))).orderBy(branches.code), []) : []
 
-    // Dəvətlər — super_admin hamısını, region_manager öz bölgə/filial əhatəsini görür
-    if (role === 'super_admin' || regionIds.length || branchIds.length) {
-      const scope = role === 'super_admin'
-        ? undefined
-        : or(
-            regionIds.length ? inArray(invitations.region_id, regionIds) : undefined,
-            branchIds.length ? inArray(invitations.branch_id, branchIds) : undefined,
-          )
-      invitationsData = await db.select({
+  usersData = await safe('users', () =>
+    db.select({ id: users.id, name: users.name, email: users.email, role: users.role })
+      .from(users).where(eq(users.tenant_id, tenantId)).orderBy(users.name), [])
+
+  const invConds = [eq(invitations.tenant_id, tenantId)]
+  let runInv = role === 'super_admin'
+  if (role !== 'super_admin') {
+    const scopeConds = []
+    if (regionIds.length) scopeConds.push(inArray(invitations.region_id, regionIds))
+    if (branchIds.length) scopeConds.push(inArray(invitations.branch_id, branchIds))
+    if (scopeConds.length) { invConds.push(or(...scopeConds)!); runInv = true }
+  }
+  if (runInv) {
+    invitationsData = await safe('invitations', () =>
+      db.select({
         id: invitations.id, email: invitations.email, role: invitations.role,
         branch_id: invitations.branch_id, region_id: invitations.region_id,
         accepted_at: invitations.accepted_at, revoked_at: invitations.revoked_at,
         expires_at: invitations.expires_at, created_at: invitations.created_at,
         replaces_manager_id: invitations.replaces_manager_id,
-      }).from(invitations).where(and(eq(invitations.tenant_id, tenantId), scope)).orderBy(desc(invitations.created_at))
-    }
-  } catch {
-    fetchError = 'Məlumat yüklənmədi — səhifəni yeniləyin'
+      }).from(invitations).where(and(...invConds)).orderBy(desc(invitations.created_at)), [])
   }
+  if (errs.length) fetchError = `Bəzi məlumat yüklənmədi (${errs.join(' | ')})`
 
   return (
     <TeamClient

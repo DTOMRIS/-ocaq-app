@@ -22,10 +22,11 @@ export async function POST(req: NextRequest) {
   if (session.user.role !== 'super_admin') return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
 
   const tenantId = session.user.tenant_id
-  const body = await req.json() as { invites?: Row[]; dryRun?: boolean }
+  const body = await req.json().catch(() => ({})) as { invites?: Row[]; dryRun?: boolean }
   const invites = Array.isArray(body.invites) ? body.invites.filter(i => i?.email && i?.role && i?.target) : []
   if (!invites.length) return NextResponse.json({ error: 'Dəvət tapılmadı' }, { status: 400 })
 
+  try {
   // Azerice harf-katlama (ı/i/İ/ə/ç/ş...) — "Bayil"↔"Bayıl", "İnşaatçilar"↔"İnşaatçılar" tutsun
   const canon = (s: string) => (normalizeFilial(s) ?? s).toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ə/g, 'e').replace(/ı/g, 'i').replace(/\s+/g, ' ').trim()
@@ -86,4 +87,7 @@ export async function POST(req: NextRequest) {
     } catch { failed.push(`${m.email} (dublikat/xəta)`) }
   }
   return NextResponse.json({ ok: true, sent, skipped, failed, unmatched }, { status: 200 })
+  } catch (e) {
+    return NextResponse.json({ error: 'Server xətası', detail: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
 }
