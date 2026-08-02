@@ -34,13 +34,15 @@ export async function POST(req: NextRequest) {
     .where(and(eq(branches.tenant_id, tenantId), eq(branches.is_active, true), eq(branches.is_archived, false)))
   const byBranch = new Map(brs.map(b => [canon(b.name), b.id]))
   const rgs = await db.select({ id: regions.id, name: regions.name }).from(regions).where(eq(regions.tenant_id, tenantId))
-  const byRegion = new Map(rgs.map(r => [r.name.trim().toLowerCase(), r.id]))
 
   const resolved = invites.map(inv => {
     const email = inv.email.trim().toLowerCase()
     let branchId: string | null = null, regionId: string | null = null
-    if (inv.role === 'region_manager') regionId = byRegion.get(inv.target.trim().toLowerCase()) ?? null
-    else branchId = byBranch.get(canon(inv.target)) ?? null
+    if (inv.role === 'region_manager') {
+      // Ad "İsmayıl bölgəsi" hedef "İsmayıl" → içerik-eşleştirme (bölgəsi eki tutmasın)
+      const t = canon(inv.target)
+      regionId = (rgs.find(r => canon(r.name) === t) ?? rgs.find(r => canon(r.name).includes(t)))?.id ?? null
+    } else branchId = byBranch.get(canon(inv.target)) ?? null
     return { email, name: inv.name, role: inv.role, target: inv.target, branchId, regionId, matched: !!(branchId || regionId) }
   })
   const matched = resolved.filter(r => r.matched)
@@ -67,11 +69,12 @@ export async function POST(req: NextRequest) {
     const [u] = await db.select({ id: users.id }).from(users)
       .where(and(eq(users.tenant_id, tenantId), eq(users.email, m.email))).limit(1)
     if (u) { skipped.push(`${m.email} (hesab var)`); continue }
-    // Qeyd: revoked_at (0005) prod-da olmaya bilər → filtrdə istifadə etmirik
+    // Köhnə pending dəvəti (qəbul olunmamış) sil → yenisini yarat ki hər dəfə təzə link olsun
+    // (revoked_at 0005 prod-da olmaya bilər → filtrdə istifadə etmirik)
     const [p] = await db.select({ id: invitations.id }).from(invitations)
       .where(and(eq(invitations.tenant_id, tenantId), eq(invitations.email, m.email),
         isNull(invitations.accepted_at), gt(invitations.expires_at, new Date()))).limit(1)
-    if (p) { skipped.push(`${m.email} (davet var)`); continue }
+    if (p) await sqlClient.query(`delete from invitations where id = $1`, [p.id]).catch(() => {})
 
     const token = createOneTimeToken()
     const tokenHash = hashOneTimeToken(token)
