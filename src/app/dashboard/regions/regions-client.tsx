@@ -41,6 +41,23 @@ export default function RegionsClient({ regions: rawRegions, managers, branches,
   const [formManager, setFormManager] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [assigning, setAssigning] = useState(false)
+  const [assignRes, setAssignRes] = useState<string | null>(null)
+
+  async function assignRegions() {
+    setAssigning(true); setAssignRes(null)
+    try {
+      const res = await fetch('/api/branches/assign-regions', { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error([d.error, d.detail].filter(Boolean).join(' — '))
+      const parts = [`✅ ${d.assigned} filial bölgəyə təyin edildi.`]
+      if (d.unmatchedBranches?.length) parts.push(`Eşleşməyən filial: ${d.unmatchedBranches.join(', ')}`)
+      if (d.unmatchedRegions?.length) parts.push(`Eşleşməyən bölgə: ${d.unmatchedRegions.join(', ')}`)
+      setAssignRes(parts.join(' '))
+      router.refresh()
+    } catch (e) { setAssignRes('⚠ ' + (e instanceof Error ? e.message : String(e))) }
+    finally { setAssigning(false) }
+  }
 
   function branchesInRegion(regionId: string) {
     return branches.filter(b => b.region_id === regionId)
@@ -114,16 +131,29 @@ export default function RegionsClient({ regions: rawRegions, managers, branches,
           </span>
         </div>
         {isSuperAdmin && (
-          <button type="button" onClick={startNew} style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px',
-            padding: '9px 18px', background: '#C8102E', color: '#fff', border: 'none',
-            borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: '44px',
-          }}>
-            <span style={{ fontSize: '17px', lineHeight: 1 }}>+</span>
-            Yeni bölgə
-          </button>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button type="button" disabled={assigning} onClick={assignRegions} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '9px 16px', background: '#fff', color: '#C8102E', border: '1px solid #C8102E',
+              borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: assigning ? 'wait' : 'pointer', minHeight: '44px',
+            }}>🔗 {assigning ? 'Təyin edilir…' : 'Filialları bölgələrə təyin et'}</button>
+            <button type="button" onClick={startNew} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '9px 18px', background: '#C8102E', color: '#fff', border: 'none',
+              borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: '44px',
+            }}>
+              <span style={{ fontSize: '17px', lineHeight: 1 }}>+</span>
+              Yeni bölgə
+            </button>
+          </div>
         )}
       </div>
+
+      {assignRes && (
+        <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', marginBottom: '20px', fontSize: '13px', color: '#166534' }}>
+          {assignRes}
+        </div>
+      )}
 
       {fetchError && (
         <div style={{
