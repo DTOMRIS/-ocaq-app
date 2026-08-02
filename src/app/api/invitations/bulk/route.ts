@@ -57,9 +57,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Gerçək gönderim
+  const BASE = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? 'https://ocaq.dkagency.com.tr'
   let sent = 0
   const skipped: string[] = []
   const failed: string[] = []
+  const emailFailed: string[] = []
+  const links: Array<{ email: string; target: string; url: string }> = []
   for (const m of matched) {
     const [u] = await db.select({ id: users.id }).from(users)
       .where(and(eq(users.tenant_id, tenantId), eq(users.email, m.email))).limit(1)
@@ -81,19 +84,17 @@ export async function POST(req: NextRequest) {
          values ($1, $2, $3::role, $4, $5, $6, $7, $8) returning id`,
         [tenantId, m.email, m.role, tokenHash, session.user.id, m.regionId, m.branchId, expiresAt],
       )
-      const createdId = rows[0]?.id as string | undefined
+      // Davet linki — email getməsə də super_admin WhatsApp ilə göndərə bilsin (silmirik)
+      links.push({ email: m.email, target: m.target, url: `${BASE}/accept-invite?token=${token}` })
       const branchName = m.branchId ? brs.find(b => b.id === m.branchId)?.name : undefined
       const { error } = await sendInvitationEmail({
         email: m.email, token, inviterName: session.user.name ?? 'Admin', recipientRole: m.role, branchName,
       })
-      if (error) {
-        if (createdId) await sqlClient.query(`delete from invitations where id = $1`, [createdId]).catch(() => {})
-        failed.push(`${m.email}: ${error}`); continue
-      }
-      sent++
+      if (error) emailFailed.push(m.email)   // link qalır, silmirik
+      else sent++
     } catch (e) { failed.push(`${m.email}: ${e instanceof Error ? e.message : String(e)}`) }
   }
-  return NextResponse.json({ ok: true, sent, skipped, failed, unmatched }, { status: 200 })
+  return NextResponse.json({ ok: true, sent, emailFailed, skipped, failed, unmatched, links }, { status: 200 })
   } catch (e) {
     return NextResponse.json({ error: 'Server xətası', detail: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }

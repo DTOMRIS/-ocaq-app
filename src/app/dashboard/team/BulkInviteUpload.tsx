@@ -16,7 +16,7 @@ export default function BulkInviteUpload() {
   const [err, setErr] = useState<string | null>(null)
   const [rows, setRows] = useState<InviteRow[] | null>(null)
   const [prev, setPrev] = useState<{ willSend: number; unmatched: string[]; regionsInDb: string[] } | null>(null)
-  const [done, setDone] = useState<{ sent: number; skipped: string[]; failed: string[]; unmatched: string[] } | null>(null)
+  const [done, setDone] = useState<{ sent: number; emailFailed: string[]; skipped: string[]; failed: string[]; unmatched: string[]; links: Array<{ email: string; target: string; url: string }> } | null>(null)
 
   async function pick(f: File | null) {
     if (!f) return
@@ -48,7 +48,7 @@ export default function BulkInviteUpload() {
       const res = await fetch('/api/invitations/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invites: rows, dryRun: false }) })
       const d = await res.json()
       if (!res.ok) throw new Error([d.error, d.detail].filter(Boolean).join(' — ') || 'Göndərmə xətası')
-      setDone({ sent: d.sent, skipped: d.skipped || [], failed: d.failed || [], unmatched: d.unmatched || [] })
+      setDone({ sent: d.sent, emailFailed: d.emailFailed || [], skipped: d.skipped || [], failed: d.failed || [], unmatched: d.unmatched || [], links: d.links || [] })
       setRows(null); setPrev(null)
       router.refresh()
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
@@ -129,10 +129,24 @@ export default function BulkInviteUpload() {
 
       {done && (
         <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '14px 16px', fontSize: '13px', color: '#166534' }}>
-          ✅ <b>{done.sent}</b> dəvət göndərildi.
+          ✅ <b>{done.sent}</b> dəvət e-poçtla göndərildi{done.links.length > 0 ? ` · ${done.links.length} dəvət yaradıldı` : ''}.
+          {done.emailFailed.length > 0 && <div style={{ marginTop: '6px', color: '#92400e' }}>✉️ E-poçt getmədi ({done.emailFailed.length}) — amma aşağıdakı linklərlə əl ilə göndər (WhatsApp).</div>}
           {done.skipped.length > 0 && <div style={{ marginTop: '6px', color: '#555' }}>⏭ Atlanan ({done.skipped.length}): {done.skipped.join(', ')}</div>}
-          {done.failed.length > 0 && <div style={{ marginTop: '6px', color: '#c8102e' }}>✗ Uğursuz ({done.failed.length}): {done.failed.join(', ')}</div>}
           {done.unmatched.length > 0 && <div style={{ marginTop: '6px', color: '#92400e' }}>⚠ Eşleşməyən ({done.unmatched.length}): {done.unmatched.join(', ')}</div>}
+          {done.failed.length > 0 && <div style={{ marginTop: '6px', color: '#c8102e' }}>✗ Xəta ({done.failed.length}): {done.failed.slice(0, 3).join(' | ')}{done.failed.length > 3 ? '…' : ''}</div>}
+
+          {done.links.length > 0 && (
+            <div style={{ marginTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <b style={{ color: '#166534' }}>🔗 Dəvət linkləri ({done.links.length}) — WhatsApp ilə göndər</b>
+                <button type="button" onClick={() => { navigator.clipboard?.writeText(done.links.map(l => `${l.target} (${l.email}): ${l.url}`).join('\n')) }}
+                  style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: '6px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer' }}>📋 Hamısını kopyala</button>
+              </div>
+              <textarea readOnly value={done.links.map(l => `${l.target} (${l.email}): ${l.url}`).join('\n')}
+                style={{ width: '100%', minHeight: '120px', fontSize: '11.5px', fontFamily: 'monospace', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '8px', color: '#26221d', background: '#fff', boxSizing: 'border-box' }} />
+              <div style={{ fontSize: '11.5px', color: '#78716c', marginTop: '4px' }}>Hər link 48 saat etibarlıdır. Müdir linkə basıb ad+şifrə qoyacaq.</div>
+            </div>
+          )}
         </div>
       )}
     </div>
