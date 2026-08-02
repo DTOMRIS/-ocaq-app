@@ -45,20 +45,22 @@ async function deliverEmail({
   subject: string
   html: string
 }) {
-  // Resend (RESEND_API_KEY varsa) — SMTP qurulmayıbsa da işləsin. Kod dəyişmədən mövcud key ilə.
+  const hasSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+
+  // Resend (RESEND_API_KEY varsa) — patlasa SMTP-yə düşsün (sınmış key hər şeyi bloklamasın)
   if (process.env.RESEND_API_KEY) {
+    let resendErr: string | null = null
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ from: FROM, to, subject, html }),
       })
-      if (!res.ok) return { data: null, error: `Resend ${res.status}: ${(await res.text()).slice(0, 300)}` }
-      const d = await res.json() as { id?: string }
-      return { data: { id: d.id ?? '' }, error: null }
-    } catch (error) {
-      return { data: null, error: error instanceof Error ? error.message : 'Resend göndəriş xətası' }
-    }
+      if (res.ok) { const d = await res.json() as { id?: string }; return { data: { id: d.id ?? '' }, error: null } }
+      resendErr = `Resend ${res.status}: ${(await res.text()).slice(0, 300)}`
+    } catch (error) { resendErr = error instanceof Error ? error.message : 'Resend göndəriş xətası' }
+    if (!hasSmtp) return { data: null, error: resendErr }   // SMTP yoxdursa Resend xətasını qaytar
+    // SMTP varsa aşağıya düş (fallback)
   }
 
   // SMTP fallback (SMTP_* env varsa)
