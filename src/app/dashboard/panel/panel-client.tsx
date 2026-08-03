@@ -2,7 +2,7 @@
 
 import { useState, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
-import { parseDaily, parseOlap, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
+import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
 
 const AY_ADI = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 const donemAdi = (p: string) => { const [y, m] = p.split('-'); return `${AY_ADI[+m] ?? m} ${y}` }
@@ -81,16 +81,23 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     try {
       const XLSX = await import('xlsx')
       let daily: Daily | null = null, pl: PlanResult | null = null, yo: YoyResult | null = null
+      let wideData: Daily | null = null, olapData: Daily | null = null  // gün-sütunlu + OLAP birləşəcək
       for (const f of files) {
         const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
-        for (const sn of wb.SheetNames) {  // gedişat raporu: plan + yoy ayrı sheet-lərdə → break yox
+        for (const sn of wb.SheetNames) {  // sheet-lər fərqli parser-lərə uyğun gələ bilər → müstəqil if
           const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: false, defval: null }) as unknown[][]
           const probe = rows.slice(0, 6).map(r => (r ?? []).join(' ')).join(' ')
           if (!daily && /uçot/i.test(probe)) { const dd = parseDaily(rows); if (dd.days.length) daily = dd as Daily }
-          else if (!daily && /(müəssisə|ticarət)/i.test(probe) && /(ödəniş|ödeniş|növ)/i.test(probe) && !/uçot/i.test(probe)) { const oo = parseOlap(rows); if (oo.branches.length) daily = oo as Daily }
-          else if (!pl && /filial/i.test(probe) && /\bplan\b/i.test(probe)) { const pp = parsePlan(rows); if (Object.keys(pp.branches).length) pl = pp }
-          else if (!yo && /filial|müəssisə|ticarət/i.test(probe) && /2025/.test(probe) && /gedişa|gedisa/i.test(probe)) { const yy = parseYoy(rows); if (Object.keys(yy.branches).length) yo = yy }
+          if (!wideData && /(müəssisə|ticarət|filial)/i.test(probe) && /\d{2}\.\d{2}\.\d{4}/.test(probe) && !/uçot/i.test(probe)) { const dw = parseDailyWide(rows); if (dw.days.length) wideData = dw as Daily }
+          if (!olapData && /(müəssisə|ticarət)/i.test(probe) && /(ödəniş|ödeniş|növ)/i.test(probe) && !/uçot/i.test(probe)) { const oo = parseOlap(rows); if (oo.branches.length) olapData = oo as Daily }
+          if (!pl && /filial/i.test(probe) && /\bplan\b/i.test(probe)) { const pp = parsePlan(rows); if (Object.keys(pp.branches).length) pl = pp }
+          if (!yo && /filial|müəssisə|ticarət/i.test(probe) && /2025/.test(probe) && /gedişa|gedisa/i.test(probe)) { const yy = parseYoy(rows); if (Object.keys(yy.branches).length) yo = yy }
         }
+      }
+      // Günlük seçim: uzun-format > (gün-sütunlu qrafik + OLAP ödəniş/filial birləşməsi) > biri
+      if (!daily) {
+        if (wideData && olapData) daily = { ...olapData, days: wideData.days, daily: wideData.daily } as Daily
+        else daily = wideData ?? olapData
       }
       if (!daily) throw new Error('Satış tapılmadı. Ham satış detayı (Uçot günü) və ya OLAP Hesabatı (filial × ödəniş növü) lazım — Proqnoz deyil.')
       setD(daily); setPlan(pl); setYoy(yo)

@@ -173,6 +173,54 @@ function empty(uyarilar: string[]): DailyResult {
   return { period: null, gun: 0, days: [], daily: {}, branches: [], regions: [], pay: { nagd: 0, kart: 0, wolt: 0, bolt: 0 }, toplam: 0, gedisat: 0, uyarilar }
 }
 
+// ─── Gün-sütunlu format (Müqayisə cədvəli): Filial | 01.08.2026 | 02.08.2026 | ... ──
+// Hər tarix sütunu bir gün → günlük qrafik. Ödəniş breakdown-u yoxdur (pay=0).
+export function parseDailyWide(rows: unknown[][]): DailyResult {
+  const uyarilar: string[] = []
+  const hi = rows.findIndex(r => r?.some(c => /müəssisə|ticarət|filial/i.test(String(c ?? ''))) && r?.some(c => /^\d{2}\.\d{2}\.\d{4}$/.test(String(c ?? '').trim())))
+  if (hi < 0) { uyarilar.push('Gün-sütunlu başlıq tapılmadı.'); return empty(uyarilar) }
+  const hdr = rows[hi] ?? []
+  let iF = hdr.findIndex(c => /müəssisə|ticarət|filial/i.test(String(c ?? ''))); if (iF < 0) iF = 0
+  const dateCols: { col: number; date: string }[] = []
+  hdr.forEach((c, col) => { const s = String(c ?? '').trim(); if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) { const nd = normDate(s); if (nd) dateCols.push({ col, date: nd }) } })
+  if (!dateCols.length) { uyarilar.push('Tarix sütunu tapılmadı.'); return empty(uyarilar) }
+
+  const daily: DailyResult['daily'] = {}
+  const branch: Record<string, { bolge: string | null; total: number; wolt: number; bolt: number }> = {}
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i] ?? []
+    const f = String(r[iF] ?? '').trim()
+    if (!f) continue
+    // İ-normalize (İ→i): "CƏMİ" böyük İ ilə TOTAL-a tutsun. İlk CƏMİ filial blokunu bitirir (altdakı ödəniş cədvəlini sayma).
+    if (TOTAL.test(f.normalize('NFD').replace(/[̀-ͯ]/g, ''))) break
+    const kanon = normalizeFilial(f)
+    if (!kanon || EXCLUDE.has(kanon)) continue
+    const b = branch[kanon] ?? (branch[kanon] = { bolge: BRANCH_TO_REGION[kanon] ?? null, total: 0, wolt: 0, bolt: 0 })
+    for (const dc of dateCols) {
+      const v = parseNum(r[dc.col]); if (v == null) continue
+      const d = daily[dc.date] ?? (daily[dc.date] = { total: 0, wolt: 0, bolt: 0 })
+      d.total += v; b.total += v
+    }
+  }
+
+  const days = Object.keys(daily).sort()
+  const toplam = days.reduce((s, d) => s + daily[d].total, 0)
+  const gun = days.length || 1
+  const period = days.length ? days[0].slice(0, 7) : null
+  const daysInMonth = period ? new Date(+period.slice(0, 4), +period.slice(5, 7), 0).getDate() : 31
+  const region: Record<string, number> = {}
+  for (const b of Object.values(branch)) region[b.bolge ?? '?'] = (region[b.bolge ?? '?'] ?? 0) + b.total
+  return {
+    period, gun, days, daily,
+    branches: Object.entries(branch).map(([filial, v]) => ({ filial, ...v })).sort((a, b) => b.total - a.total),
+    regions: Object.entries(region).sort((a, b) => b[1] - a[1]),
+    pay: { nagd: 0, kart: 0, wolt: 0, bolt: 0 },
+    toplam: Math.round(toplam),
+    gedisat: Math.round(toplam / gun * daysInMonth),
+    uyarilar,
+  }
+}
+
 // ─── OLAP Hesabat formatı: filial × ödəniş növü AYLIQ toplam (Uçot günü YOX) ───
 // Başlıq: Ticarət müəssisəsi | Ödəniş növü | Endirimli məbləğ, m. Total
 // Filial adı yalnız qrupun 1-ci sətrində (birləşmiş xana → sonrakılar null); "X Total" ara-toplam.
