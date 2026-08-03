@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 type PromoType = "percent" | "bogo" | "fixed" | "gift";
@@ -13,22 +14,39 @@ const PROMO_TYPES: { id: PromoType; label: string; desc: string }[] = [
 ];
 
 export default function YeniPromoPage() {
+  const router = useRouter();
   const [promoType, setPromoType] = useState<PromoType>("percent");
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSaving(true);
-    const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
-
-    // Gələcəkdə Supabase-ə POST olacaq
-    setTimeout(() => {
+    setSaving(true); setErr(null);
+    const fd = new FormData(e.currentTarget);
+    const g = (k: string) => (fd.get(k) ? String(fd.get(k)).trim() : "");
+    try {
+      const res = await fetch("/api/promotions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: g("title"),
+          description: g("description"),
+          promo_type: promoType,
+          discount_value: g("discountValue"),
+          code: g("code"),
+          valid_from: g("startDate") || null,
+          valid_until: g("endDate") || null,
+          is_active: fd.get("isActive") != null,
+          badge: "AKTİV",
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || d.detail || "Xəta");
+      router.push("/dashboard/promosyonlar"); // siyahıya qayıt
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : String(e2));
       setSaving(false);
-      alert(
-        `Promo yaradıldı!\n${JSON.stringify(data, null, 2)}`
-      );
-    }, 1000);
+    }
   };
 
   return (
@@ -282,6 +300,10 @@ export default function YeniPromoPage() {
             className="w-5 h-5 rounded accent-[var(--ocaq-red)]"
           />
         </label>
+
+        {err && (
+          <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠ {err}</div>
+        )}
 
         {/* Submit */}
         <div className="flex gap-3 pt-2">
