@@ -3,6 +3,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Marka rəngi. Kodda 145 yerdə `var(--ocaq-red)` istifadə olunur, lakin təyinat
+     itmişdi → təyin olunmamış custom property `background-color`-u `transparent`
+     edir; `text-white` ilə birlikdə 32 əsas düymə GÖRÜNMƏZ olurdu (o cümlədən
+     "Checklistı Göndər"). Dəyər kod boyu hardcode edilmiş #C8102E ilə eynidir
+     (137 yerdə: sidebar, cədvəllər) — yeni rəng deyil, mövcud rəngin tokeni. */
+  --ocaq-red: #C8102E;
 }
 
 @theme inline {
@@ -37,7 +44,13 @@ body {
   .dashboard-drawer-layer { display: block; position: fixed; inset: 0; z-index: 100; }
   .dashboard-drawer-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(0,0,0,.5); }
   .dashboard-drawer { position: relative; width: 220px; max-width: 84vw; height: 100%; overflow-y: auto; box-shadow: 8px 0 24px rgba(0,0,0,.22); }
-  .dashboard-main { padding: 16px; }
+  /* `viewportFit: 'cover'` üfüqi safe-area-nı da açır → landscape-də çentiyin
+     altına keçməmək üçün yan padding-lər inset qədər artır. */
+  .dashboard-main {
+    padding: 16px;
+    padding-left: calc(16px + env(safe-area-inset-left));
+    padding-right: calc(16px + env(safe-area-inset-right));
+  }
   .login-visual { display: none !important; }
   .login-panel { width: 100% !important; min-width: 0 !important; }
   .login-topbar { padding: 16px 20px !important; gap: 12px; }
@@ -46,4 +59,11 @@ body {
   .ocaq-topbar { height: auto !important; min-height: 52px; padding: 8px 16px !important; gap: 10px; }
   .ocaq-topbar-user { gap: 8px !important; }
   .ocaq-topbar-name { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* iOS Safari 16px-dən kiçik sahəyə fokusda səhifəni məcburi yaxınlaşdırır və
+     `blur`-da geri qaytarmır → KXT-də hər qeyd yazanda ekran sıçrayır. Yeganə
+     düzgün həll sahəni ≥16px etməkdir (`user-scalable=no` WCAG pozur).
+     `!important` lazımdır: sahələr inline `style`/Tailwind sinifləri ilə yazılıb
+     və onlar adi qaydadan güclüdür. Yalnız ≤767px — masaüstü görünüş dəyişmir. */
+  input, select, textarea { font-size: 16px !important; }
 }

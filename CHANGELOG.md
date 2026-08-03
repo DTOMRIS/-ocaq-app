@@ -111,6 +111,36 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - **ENCRYPTION_KEY fail-fast** (`lib/encryption.ts`): əvvəl açar yoxdursa səssizcə sıfır (proqnozlaşdırıla bilən) AES açarı işlədilirdi. İndi prod-da açar yoxdursa throw; oxumada çökmə yox.
 
 ### Fixed
+- **🔴 KÖK: 32 əsas düymə GÖRÜNMƏZ idi — `--ocaq-red` təyinatı itmişdi**
+  (`src/app/globals.css`): kodda `var(--ocaq-red)` **145 yerdə, 19 faylda** istifadə
+  olunur, lakin `:root`-da təyin edilməmişdi. Təyin olunmamış custom property
+  "invalid at computed-value time"-dır → `background-color` miras alınmadığı üçün
+  initial dəyərə (`transparent`) düşür. `bg-[var(--ocaq-red)]` + `text-white`
+  **32 yerdə birlikdə** işlənir → ağ üzərində ağ. Ən kritik nümunə:
+  `vardiya-checklist/page.tsx:425` **"Checklistı Göndər"** düyməsi, üstəlik
+  `bg-white/95` sticky footer-in içində (`:414`) — filial müdiri KXT-ni doldurub
+  görünməyən düyməyə basırdı. Həmçinin növbə seçicisi (`:236,246`) seçili halı
+  göstərmirdi (istifadəçi TƏRSİNİ görürdü), dashboard CTA (`page.tsx:54`),
+  "Toplantını tamamla" (`vardiya-liderliyi:156`), kasa/fire/haccp/bildirişlər/
+  ekipman göndər düymələri, 40 × görünməz kənarlıq, 7 × itmiş mətn,
+  `focus:ring` fokus görünürlüyü. Dəyər `#C8102E` — kod boyu **137 yerdə**
+  hardcode edilmiş rəngin eynisi (`#E11D48`: 0 yer), yəni yeni vizual qərar deyil.
+  Regressiya: `278e1f6`-da təyinat var idi, sonra itib.
+- **Mobil: iOS fokus zoom-u bütün tətbiqdə bağlandı** (`globals.css`, yalnız
+  ≤767px): iOS Safari 16px-dən kiçik sahəyə fokusda səhifəni məcburi
+  yaxınlaşdırır və `blur`-da geri qaytarmır. Əvvəl düzəliş yalnız **bir** faylda
+  vardı (`sales-client.tsx:259`); 7 ayrı input sistemi 12–14px qalırdı — KXT
+  "Qeyd" sahələri (12px), filial seçici (12px), növbə liderliyi (~12 sahə, 14px),
+  team/profile/regions/complaints/panel (13px), kasa banknot sayımı (14px).
+  100+ maddəli formada hər qeyddə ekran sıçrayırdı. Masaüstü görünüş dəyişmir.
+- **Mobil: `viewport` export-u əlavə edildi** (`src/app/layout.tsx`): `viewport`
+  export-u yox idi → `viewport-fit=cover` göndərilmirdi → `env(safe-area-inset-*)`
+  0px-ə həll olunurdu. Halbuki o kod **artıq yazılmışdı**
+  (`vardiya-checklist/page.tsx:414`, `haccp/page.tsx:218`) — nəticədə çentikli
+  iPhone-larda əsas düymə home indicator zonasına düşürdü. `user-scalable`/
+  `maximum-scale` **qoyulmadı** (WCAG 2.1). Yan təsir bağlandı: `cover` üfüqi
+  safe-area-nı da açdığı üçün `.dashboard-main` yan padding-lərinə
+  `env(safe-area-inset-left/right)` əlavə edildi (landscape).
 - **KÖK: Prod DB migration drift (0005/0007/0008) tətbiq edildi** — Drizzle hər
   `insert`/bare-`select`-də ŞEMANIN BÜTÜN kolonlarını yazır; prod-da 0005/0008 kolonları
   (invitations.revoked_at/source/replaces_manager_id, branches.version, users.must_change_password,
