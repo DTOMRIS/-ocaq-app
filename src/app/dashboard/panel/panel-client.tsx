@@ -98,7 +98,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
       try {
         const brs = daily.branches.map(b => ({ filial: b.filial, bolge: b.bolge, total: b.total, wolt: b.wolt, bolt: b.bolt, plan: pl?.branches[b.filial]?.plan, gedisat: pl?.branches[b.filial]?.gedisat }))
         const r = await fetch('/api/dashboard/analytics/panel-save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ period: daily.period, toplam: daily.toplam, daily, plan: pl, yoy: yo, branches: brs }) })
-        if (r.ok) { setSaved(true); setSaveErr(false) } else setSaveErr(true)
+        if (r.ok) { setSaved(true); setSaveErr(false); router.refresh() } else setSaveErr(true)   // refresh → dövr dropdown-u yeni ayı görsün
       } catch { setSaveErr(true) }   // sessizce yutma — istifadəçi bilsin (AGENTS.md: xəta udma)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
