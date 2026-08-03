@@ -7,6 +7,19 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
+- **🎁 Promosyonlar (marketing) modulu — mock-dan gerçəyə** (`src/db/schema/promotions.ts`,
+  `/api/promotions`, `/api/upload/promo-image`, `dashboard/promosyonlar/*`,
+  `admin/promosyonlar/yeni`): promotions cədvəli (Neon/Drizzle), CRUD API, R2-yə
+  şəkil yüklə (sharp→webp, public URL), DB-bağlı promo grid + QR modal, tam admin form
+  (başlıq, tip, endirim, kod, tarix, saat, günlər, lokasyon, şəkil), sidebar 🎁 linki.
+- **📥 Toplu Dəvət — email Excel → 34 menecer** (`src/lib/analytics/parse-invites.ts`,
+  `/api/invitations/bulk`, `dashboard/team/BulkInviteUpload.tsx`): Shaurma email
+  siyahısından 5 bölgə + 29 filial meneceri ayrılır, dryRun önizləmə (e-poçt getmir),
+  super_admin göndərir. E-poçt getməsə **accept linkləri** qaytarılır (WhatsApp fallback).
+- **🔗 Filialları bölgələrə təyin et** (`/api/branches/assign-regions`): BOLGELER
+  xəritəsi ilə hər filialı bölgəsinə təyin edir (region_manager filiallarını görsün).
+- **Panel gün-sütunlu format** (`parseDailyWide`): "Satış hesabatı" Müqayisə cədvəli
+  (Filial | 01.08 | 02.08 | …) → günlük qrafik; OLAP ödəniş qarışığı ilə birləşir.
 - **📈 Günlük Panel — self-servis satış analizi motoru** (`src/app/dashboard/panel/*`,
   `src/lib/analytics/parse-daily.ts`): super_admin iiko satış hesabatını (Excel)
   atır, panel çıxır — toplam satış, günlük ortalama, bölgə satışı, ödəniş qarışığı
@@ -98,6 +111,27 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - **ENCRYPTION_KEY fail-fast** (`lib/encryption.ts`): əvvəl açar yoxdursa səssizcə sıfır (proqnozlaşdırıla bilən) AES açarı işlədilirdi. İndi prod-da açar yoxdursa throw; oxumada çökmə yox.
 
 ### Fixed
+- **KÖK: Prod DB migration drift (0005/0007/0008) tətbiq edildi** — Drizzle hər
+  `insert`/bare-`select`-də ŞEMANIN BÜTÜN kolonlarını yazır; prod-da 0005/0008 kolonları
+  (invitations.revoked_at/source/replaces_manager_id, branches.version, users.must_change_password,
+  tenants.provisioned_*) yox idi → ~15 sorğu 500 verirdi (dəvət qəbul, filial müdür atama,
+  Filiallar, tək dəvət...). `scripts/migrate-prod.mjs` ilə additiv tətbiq → hamısı düzəldi.
+- **RBAC sızıntısı bağlandı** (`dashboard/panel/page.tsx`): branch/region müdiri bütün
+  şəbəkənin cirosunu görürdü. İndi rol-scoped (accessibleBranchIds); aqreqatlar əlçatan
+  filiallara görə yenidən hesablanır.
+- **self-HTTP-fetch → birbaşa DB** (`lib/request-origin.ts` + team/page.tsx): `getRequestOrigin`
+  VERCEL_URL (*.vercel.app) istifadə edirdi → auth cookie custom domenə bağlı → 401 → boş
+  data ("Serverlə əlaqə qurulmadı"). İndi request host öncəlikli; Komanda birbaşa DB.
+- **Email**: RESEND_API_KEY varsa Resend (SMTP qurulmasa da); Resend uğursuzsa SMTP-yə
+  düşür (sınmış key hər şeyi bloklamırdı); BASE prod domeninə (NEXTAUTH_URL prod-da yox idi).
+- **Bölgə eşleşməsi** (bulk invite + region-assign): "İsmayıl bölgəsi" ⊇ "İsmayıl"
+  (canon-includes); İ/ə harf-katlama.
+- **Ay sonu proqnozu** artıq sabit 31 deyil ayın gerçək gün sayı (parseDaily + panel).
+- **CƏMİ (böyük İ) TOTAL-a tutmurdu** → gün-sütunlu formatda çift sayım (4×) → İ-normalize.
+- Gündəlik satış dedupe (çift kayıt 2 dəfə sayılmasın); panel-save xətası görünür;
+  yükləmə sonrası dropdown refresh; Əcəmi lookbehind (toplu hədəf).
+- **Mobil**: iç-içə `<main>`→`<div>` (a11y + genişlik), grid `auto-fit`, iOS input 16px
+  (zoom), üfüqi padding azaldıldı.
 - Parola sıfırlamasından sonra giriş yapamayan ilk süper yönetici için
   kontrollü kurtarma akışı eklendi: sistem üretimli geçici parola doğrudan
   hesaba atanır, markalı e-postayla yalnız hesap sahibine gönderilir ve
