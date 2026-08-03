@@ -44,6 +44,8 @@ export default async function PromosyonlarPage() {
     validUntil: p.valid_until,
     discountLabel: discountLabel(p),
     code: p.code || "",
+    timeRange: p.start_time && p.end_time ? `${p.start_time}-${p.end_time}` : (p.start_time || ""),
+    location: p.location || "",
   }));
 
   const canManage = ["super_admin", "region_manager"].includes(session.user.role);

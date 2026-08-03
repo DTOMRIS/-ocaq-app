@@ -13,6 +13,8 @@ export type Promo = {
   validUntil: string | null;
   discountLabel: string;
   code: string;
+  timeRange: string;
+  location: string;
 };
 
 export default function PromoClient({ promos, canManage }: { promos: Promo[]; canManage: boolean }) {
@@ -89,6 +91,12 @@ export default function PromoClient({ promos, canManage }: { promos: Promo[]; ca
             </div>
             <div className="p-5">
               <p className="text-sm text-slate-600 mb-4">{selected.description}</p>
+              {(selected.timeRange || selected.location) && (
+                <div className="flex flex-wrap gap-2 mb-4 text-xs">
+                  {selected.timeRange && <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg">🕐 {selected.timeRange}</span>}
+                  {selected.location && <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg">📍 {selected.location}</span>}
+                </div>
+              )}
               <div className="bg-slate-50 rounded-xl p-6 flex flex-col items-center mb-4">
                 <div className="w-40 h-40 bg-white border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center mb-3">
                   <div className="text-center">

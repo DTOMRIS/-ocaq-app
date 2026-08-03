@@ -15,6 +15,10 @@ export const promotions = pgTable('promotions', {
   badge:          text('badge').default('AKTİV'),                  // AKTİV | YENİ
   valid_from:     date('valid_from'),
   valid_until:    date('valid_until'),
+  start_time:     text('start_time'),                              // "12:00"
+  end_time:       text('end_time'),                                // "15:00"
+  active_days:    text('active_days'),                             // "1,2,3,4,5" (B.e-Cümə)
+  location:       text('location'),
   is_active:      boolean('is_active').notNull().default(true),
   branch_id:      uuid('branch_id').references(() => branches.id), // null = bütün filiallar
   created_by:     uuid('created_by').references(() => users.id),

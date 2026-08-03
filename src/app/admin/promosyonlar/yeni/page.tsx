@@ -22,9 +22,23 @@ export default function YeniPromoPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true); setErr(null);
-    const fd = new FormData(e.currentTarget);
+    const fd = new FormData(e.currentTarget); // await-dən əvvəl al (event pooling)
     const g = (k: string) => (fd.get(k) ? String(fd.get(k)).trim() : "");
     try {
+      // 1) Görsel varsa R2-yə yüklə
+      let imageUrl = "";
+      const file = fd.get("image");
+      if (file instanceof File && file.size > 0) {
+        const up = new FormData();
+        up.append("file", file);
+        const r = await fetch("/api/upload/promo-image", { method: "POST", body: up });
+        const dj = await r.json();
+        if (!r.ok) throw new Error(dj.error || dj.detail || "Şəkil yüklənmədi");
+        imageUrl = dj.url;
+      }
+      // 2) Seçilmiş günlər
+      const days = fd.getAll("days").map(String).join(",");
+      // 3) Promonu saxla
       const res = await fetch("/api/promotions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -36,6 +50,11 @@ export default function YeniPromoPage() {
           code: g("code"),
           valid_from: g("startDate") || null,
           valid_until: g("endDate") || null,
+          start_time: g("startTime") || null,
+          end_time: g("endTime") || null,
+          active_days: days || null,
+          location: g("location") || null,
+          image_url: imageUrl || null,
           is_active: fd.get("isActive") != null,
           badge: "AKTİV",
         }),
