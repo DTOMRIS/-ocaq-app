@@ -73,6 +73,9 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // E-poçt getmədikdə əl ilə göndərilməli olan dəvət linki (WhatsApp fallback)
+  const [manualLink, setManualLink] = useState<{ email: string; url: string; warning: string | null } | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const pending = invitations.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) > new Date())
   const expired = invitations.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) <= new Date())
@@ -110,10 +113,23 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           region_id: invRole === 'region_manager' ? invRegion : null,
         }),
       })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error((d as { error?: string }).error ?? `Xəta: ${res.status}`)
+      const d = await res.json().catch(() => ({})) as {
+        error?: string; emailFailed?: boolean; acceptUrl?: string; warning?: string
       }
+      if (!res.ok) {
+        throw new Error(d.error ?? `Xəta: ${res.status}`)
+      }
+
+      // E-poçt getməyibsə dəvət yenə yaradılıb — linki göstər ki əl ilə göndərilsin.
+      // Modal QAPANMIR və avtomatik refresh olmur: link kopyalanmadan itməməlidir.
+      if (d.emailFailed && d.acceptUrl) {
+        setManualLink({ email: invEmail.trim(), url: d.acceptUrl, warning: d.warning ?? null })
+        setInvEmail('')
+        setInvRegion('')
+        router.refresh()
+        return
+      }
+
       setSuccess(`${invEmail} adresinə dəvət göndərildi!`)
       setInvEmail('')
       setInvRegion('')
@@ -423,6 +439,54 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
               {success && (
                 <div style={{ padding: '10px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '7px', marginBottom: '16px', fontSize: '13px', color: '#059669' }}>
                   {success}
+                </div>
+              )}
+
+              {/* E-poçt getməyəndə: dəvət YARADILDI, link əl ilə göndərilir (WhatsApp) */}
+              {manualLink && (
+                <div style={{ padding: '12px 14px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '7px', marginBottom: '16px' }}>
+                  <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: '600', color: '#92400e' }}>
+                    ⚠️ Dəvət yaradıldı, amma e-poçt göndərilmədi
+                  </p>
+                  <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#78350f', lineHeight: '1.5' }}>
+                    <b>{manualLink.email}</b> üçün link aşağıdadır — WhatsApp və ya digər yolla göndərin.
+                    Link <b>48 saat</b> etibarlıdır.
+                  </p>
+                  <textarea
+                    readOnly
+                    value={manualLink.url}
+                    onFocus={(e) => e.currentTarget.select()}
+                    style={{
+                      width: '100%', minHeight: '64px', padding: '8px 10px', fontSize: '16px',
+                      border: '1px solid #fcd34d', borderRadius: '6px', background: '#fff',
+                      fontFamily: 'monospace', wordBreak: 'break-all', resize: 'vertical', color: '#1f2937',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(manualLink.url)
+                          .then(() => setLinkCopied(true))
+                          .catch(() => setLinkCopied(false))
+                      }}
+                      style={{
+                        padding: '9px 16px', fontSize: '13px', fontWeight: '600', border: 'none',
+                        borderRadius: '7px', background: '#92400e', color: '#fff', cursor: 'pointer', minHeight: '44px',
+                      }}
+                    >{linkCopied ? '✓ Kopyalandı' : 'Linki kopyala'}</button>
+                    <button
+                      type="button"
+                      onClick={() => { setManualLink(null); setLinkCopied(false); setShowInvite(false) }}
+                      style={{
+                        padding: '9px 16px', fontSize: '13px', border: '1px solid #e0e0e0',
+                        borderRadius: '7px', background: '#fff', color: '#555', cursor: 'pointer', minHeight: '44px',
+                      }}
+                    >Bağla</button>
+                  </div>
+                  {manualLink.warning && (
+                    <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#a16207' }}>{manualLink.warning}</p>
+                  )}
                 </div>
               )}
 

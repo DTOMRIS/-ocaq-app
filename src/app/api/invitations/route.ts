@@ -10,6 +10,7 @@ import { accessibleBranchIds, accessibleRegionIds } from '@/lib/branch-access'
 import { invitationScope, isInvitableRole } from './_scope'
 import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 import { isBranchManagerInvitation } from './_contract'
+import { getRequestOrigin } from '@/lib/request-origin'
 
 export async function GET() {
   const session = await auth()
@@ -157,22 +158,40 @@ export async function POST(req: NextRequest) {
     recipientRole: body.role,
     branchName,
   })
+  // ─── E-poçt getməsə DƏVƏT SİLİNMİR ─────────────────────────────────────────
+  // Əvvəl: mail xətası → dəvət ləğv edilirdi (revoked_at) + 502. Nəticə: SMTP/Resend
+  // sınıq olduqda idarəçi HEÇ KİMİ dəvət edə bilmirdi — ortada nə dəvət, nə link
+  // qalırdı. Niyyət düzgün idi (saxta uğur göstərməmək), amma modulu tamamilə
+  // bloklayırdı.
+  // İndi: dəvət qalır və accept linki qaytarılır → idearəçi WhatsApp ilə göndərir.
+  // Bu, toplu dəvətin (api/invitations/bulk/route.ts:90-96) artıq işlədən desenidir:
+  //   "Davet linki — email getməsə də super_admin WhatsApp ilə göndərə bilsin (silmirik)"
+  // Xəta UDULMUR: cavabda `emailFailed: true` + səbəb gedir, audit-ə yazılır.
   if (error) {
-    await sqlClient.query(`
-      with revoked as (
-        update invitations set revoked_at = now(), revoked_by = $3::uuid,
-          revoked_reason = 'Dəvət e-poçtu göndərilə bilmədi'
-        where id = $1::uuid and tenant_id = $2::uuid
-          and accepted_at is null and revoked_at is null
-        returning id
-      )
-      insert into audit_logs (tenant_id, user_id, action, entity, entity_id, metadata)
-      select $2::uuid, $3::uuid, 'user.invite.delivery_failed', 'invitation', revoked.id::text,
-        jsonb_build_object('email', $4::text, 'role', $5::text)::text
-      from revoked
-    `, [invitation.id, session.user.tenant_id, session.user.id, email, body.role])
+    try {
+      await db.insert(audit_logs).values({
+        tenant_id: session.user.tenant_id,
+        user_id: session.user.id,
+        action: 'user.invite.delivery_failed',
+        entity: 'invitation',
+        entity_id: invitation.id,
+        metadata: JSON.stringify({ email, role: body.role, reason: error }),
+      })
+    } catch (auditError) {
+      console.error('Audit log write error:', auditError)
+    }
     console.error('Invitation mail error:', error)
-    return NextResponse.json({ error: 'Dəvət e-poçtu göndərilə bilmədi' }, { status: 502 })
+
+    const acceptUrl = `${getRequestOrigin(req.headers)}/accept-invite?token=${token}`
+    return NextResponse.json({
+      ok: true,
+      emailFailed: true,
+      acceptUrl,
+      email,
+      role: body.role,
+      warning: 'Dəvət yaradıldı, lakin e-poçt göndərilə bilmədi. Linki əl ilə göndərin.',
+      detail: error,
+    }, { status: 200 })
   }
 
   try {
