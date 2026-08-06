@@ -267,6 +267,22 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
         </details>
       )}
 
+      {/* Dövr seçilib, amma o dövr üçün panel verisi yoxdur → açıq izahat.
+          Əks halda istifadəçi boş yükləmə ekranı görür və "ay itdi" sanır. */}
+      {!d && selectedPeriod && (
+        <div style={{ ...card, padding: '16px 18px', marginBottom: 16, borderLeft: '4px solid #F2A81D' }}>
+          <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 650, color: '#26221d' }}>
+            {donemAdi(selectedPeriod)} üçün panel verisi yoxdur
+          </p>
+          <p style={{ margin: 0, fontSize: 12.5, color: '#6b6259', lineHeight: 1.6 }}>
+            Bu ay <b>silinməyib</b> — sadəcə bu səhifənin oxuduğu formatda (<code>panel-1.0</code>)
+            saxlanılmayıb. Yuxarıdaki <b>🗂️ Bazada qeydə alınmış dövrlər</b> siyahısını açıb
+            həmin ayın hansı yazıcı ilə qeydə alındığını görə bilərsiniz.
+            {canUpload && ' Bərpa üçün həmin ayın satış faylını aşağıdan yenidən yükləyin.'}
+          </p>
+        </div>
+      )}
+
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>
           Hələ panel məlumatı yüklənməyib. Sistem admini aylıq satışı yükləyəndə burada görünəcək.

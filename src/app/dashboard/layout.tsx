@@ -8,7 +8,12 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const session = await auth()
-  if (!session) redirect('/login')
+  // `!session` KİFAYƏT DEYİL. `auth.ts` session callback-i sessiya ləğv edildikdə
+  // (məs. şifrə dəyişdi → `users.updated_at` dəyişdi → `session_version` uyğun
+  // gəlmir) `null` qaytarır, lakin NextAuth bunu BOŞ AMMA TRUTHY obyekt kimi
+  // verə bilir. O halda `!session` yoxlaması keçir və shell `user: undefined`
+  // ilə render olunur → sidebar boş, KPI-lar boş. Rol yoxsa sessiya etibarsızdır.
+  if (!session?.user?.role) redirect('/login')
 
   return <DashboardShell user={session.user}>{children}</DashboardShell>
 }

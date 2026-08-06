@@ -16,7 +16,13 @@ export async function proxy(req: NextRequest) {
   const isPublic = PUBLIC_ROUTES.some(r => pathname.startsWith(r))
 
   // Auth yoxla
-  const session = await auth()
+  const rawSession = await auth()
+  // `auth.ts` session callback-i ləğv edilmiş sessiyada `null` qaytarır, lakin
+  // NextAuth bunu BOŞ AMMA TRUTHY obyekt kimi verə bilir. Rol yoxdursa sessiya
+  // etibarsızdır — əks halda aşağıdaki `/login → /dashboard` yönləndirməsi
+  // istifadəçini ölü sessiya ilə dashboard-a GERİ FIRLADIRDI (şifrə dəyişəndən
+  // sonra boş sidebar-ın səbəbi bu idi).
+  const session = rawSession?.user?.role ? rawSession : null
 
   // Doğrulanmamış istifadəçini login-ə yönləndir
   if (!session && !isPublic) {

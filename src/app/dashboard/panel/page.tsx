@@ -163,8 +163,18 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
       targets={targets}
       canUpload={session.user.role === 'super_admin'}
       savedAt={latest?.gen ? new Date(latest.gen).toLocaleDateString('az') : null}
+      // `key` VACİBDİR: PanelClient state-ini `useState(initial...)` ilə qurur
+      // (`panel-client.tsx:63-65`). `useState` başlanğıc dəyəri YALNIZ ilk
+      // mount-da işlədir. Dövr dəyişdirildikdə `router.push` client-side
+      // naviqasiya edir → server yeni `initial` göndərir, lakin komponent EYNİ
+      // instance olduğu üçün state köhnə ayda qalırdı (iyul seçilir, avqust
+      // görünür). `key` dəyişəndə React komponenti yenidən qurur → state təzə
+      // prop-dan oxunur.
+      key={wantPeriod ?? latest?.period ?? 'none'}
       periods={periods}
-      selectedPeriod={latest?.period ?? null}
+      // Dropdown istifadəçinin SEÇDİYİNİ göstərsin — həmin dövr üçün panel
+      // verisi olmasa da (əks halda seçim "geri atlayır" kimi görünür).
+      selectedPeriod={wantPeriod ?? latest?.period ?? null}
       inventory={inventory}
     />
   )
