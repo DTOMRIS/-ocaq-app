@@ -77,6 +77,82 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
   const [manualLink, setManualLink] = useState<{ email: string; url: string; warning: string | null } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
 
+  // ── Birbaşa istifadəçi yaratma (dəvət/e-poçt olmadan) ──────────────────────
+  const [showCreate, setShowCreate] = useState(false)
+  const [cName, setCName] = useState('')
+  const [cEmail, setCEmail] = useState('')
+  const [cRole, setCRole] = useState<'super_admin' | 'region_manager' | 'branch_manager'>('region_manager')
+  const [cRegion, setCRegion] = useState('')
+  const [cBranch, setCBranch] = useState('')
+  const [created, setCreated] = useState<{ email: string; name: string; role: string; password: string } | null>(null)
+  const [pwCopied, setPwCopied] = useState(false)
+
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (!cName.trim()) { setError('Ad daxil edin'); return }
+    if (!cEmail.trim()) { setError('E-poçt daxil edin'); return }
+    if (cRole === 'region_manager' && !cRegion) { setError('Bölgə seçin'); return }
+    if (cRole === 'branch_manager' && !cBranch) { setError('Filial seçin'); return }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cName.trim(),
+          email: cEmail.trim(),
+          role: cRole,
+          region_id: cRole === 'region_manager' ? cRegion : null,
+          branch_id: cRole === 'branch_manager' ? cBranch : null,
+        }),
+      })
+      const d = await res.json().catch(() => ({})) as {
+        error?: string; temporaryPassword?: string; email?: string; name?: string; role?: string
+      }
+      if (!res.ok) throw new Error(d.error ?? `Xəta: ${res.status}`)
+      // Şifrə YALNIZ bu cavabda gəlir — modal bağlanmır, kopyalanmadan itməməlidir.
+      setCreated({
+        email: d.email ?? cEmail.trim(),
+        name: d.name ?? cName.trim(),
+        role: d.role ?? cRole,
+        password: d.temporaryPassword ?? '',
+      })
+      setPwCopied(false)
+      setCName(''); setCEmail(''); setCRegion(''); setCBranch('')
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xəta baş verdi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleRoleChange(u: { id: string; email: string; role: string }) {
+    const next = prompt(
+      `${u.email} — yeni rol yazın:\n\nsuper_admin · region_manager · branch_manager\n\nHazırkı rol: ${u.role}`,
+      u.role,
+    )
+    if (!next || next.trim() === u.role) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/users/${u.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: next.trim() }),
+      })
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) { alert(d.error ?? 'Xəta baş verdi'); return }
+      alert(`${u.email} → ${next.trim()}`)
+      router.refresh()
+    } catch {
+      alert('Xəta baş verdi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const pending = invitations.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) > new Date())
   const expired = invitations.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) <= new Date())
   const accepted = invitations.filter(i => !!i.accepted_at)
@@ -146,9 +222,17 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
     setLoading(true)
     try {
       const res = await fetch(`/api/invitations/${inv.id}`, { method: 'PATCH' })
+      const d = await res.json().catch(() => ({})) as {
+        error?: string; emailFailed?: boolean; acceptUrl?: string; warning?: string
+      }
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        alert((d as { error?: string }).error ?? 'Xəta baş verdi')
+        alert(d.error ?? 'Xəta baş verdi')
+      } else if (d.emailFailed && d.acceptUrl) {
+        // E-poçt getmədi, amma dəvət yeniləndi → linki modal-da göstər (kopyalanmalı)
+        setShowInvite(true)
+        setManualLink({ email: inv.email, url: d.acceptUrl, warning: d.warning ?? null })
+        setLinkCopied(false)
+        router.refresh()
       } else {
         alert('Yenidən göndərildi!')
         router.refresh()
@@ -240,6 +324,14 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           </p>
         </div>
         {isSuperAdmin && (
+          <button type="button" onClick={() => { setShowCreate(true); setCreated(null); setError(null) }} style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '9px 16px', fontSize: '13px', fontWeight: '600',
+            border: 'none', borderRadius: '7px', background: '#C8102E', color: '#fff',
+            cursor: 'pointer', minHeight: '44px',
+          }}>+ İstifadəçi yarat</button>
+        )}
+        {isSuperAdmin && (
           <button type="button" onClick={() => { setShowInvite(true); setError(null); setSuccess(null) }} style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
             padding: '9px 18px', background: '#C8102E', color: '#fff', border: 'none',
@@ -283,7 +375,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-                {['Ad', 'E-poçt', 'Rol'].map(h => (
+                {(isSuperAdmin ? ['Ad', 'E-poçt', 'Rol', ''] : ['Ad', 'E-poçt', 'Rol']).map(h => (
                   <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
                 ))}
               </tr>
@@ -294,10 +386,18 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                   <td style={{ padding: '12px 16px', fontWeight: '500' }}>{u.name ?? '—'}</td>
                   <td style={{ padding: '12px 16px', color: '#555' }}>{u.email}</td>
                   <td style={{ padding: '12px 16px' }}><RoleBadge role={u.role} /></td>
+                  {isSuperAdmin && (
+                    <td style={{ padding: '8px 16px', textAlign: 'right' }}>
+                      <button type="button" onClick={() => handleRoleChange(u)} disabled={loading} style={{
+                        padding: '6px 12px', fontSize: '12px', border: '1px solid #e0e0e0', borderRadius: '6px',
+                        background: '#fff', color: '#555', cursor: loading ? 'not-allowed' : 'pointer', minHeight: '44px',
+                      }}>Rolü dəyiş</button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr><td colSpan={3} style={{ padding: '30px', textAlign: 'center', color: '#ccc' }}>İstifadəçi yoxdur</td></tr>
+                <tr><td colSpan={isSuperAdmin ? 4 : 3} style={{ padding: '30px', textAlign: 'center', color: '#ccc' }}>İstifadəçi yoxdur</td></tr>
               )}
             </tbody>
           </table>
@@ -502,6 +602,136 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                 }}>{loading ? 'Göndərilir...' : 'Dəvət göndər'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── İstifadəçi yarat (dəvət/e-poçt olmadan) ───────────────────────── */}
+      {showCreate && isSuperAdmin && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !created) setShowCreate(false) }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+          }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: '12px', padding: '22px', width: '100%', maxWidth: '460px',
+            maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto',
+          }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px' }}>İstifadəçi yarat</h3>
+            <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px', lineHeight: '1.5' }}>
+              Hesab dərhal yaradılır — e-poçt gözlənilmir. Müvəqqəti şifrə ekranda
+              göstərilir, siz çatdırırsınız. İstifadəçi ilk girişdə onu dəyişməlidir.
+            </p>
+
+            {created ? (
+              <div style={{ padding: '14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px' }}>
+                <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '600', color: '#065f46' }}>
+                  ✅ {created.name} yaradıldı — {ROLE_LABELS[created.role] ?? created.role}
+                </p>
+                <div style={{ fontSize: '12px', color: '#065f46', marginBottom: '4px' }}>E-poçt</div>
+                <div style={{
+                  padding: '8px 10px', background: '#fff', border: '1px solid #a7f3d0', borderRadius: '6px',
+                  fontFamily: 'monospace', fontSize: '14px', marginBottom: '10px', wordBreak: 'break-all',
+                }}>{created.email}</div>
+                <div style={{ fontSize: '12px', color: '#065f46', marginBottom: '4px' }}>
+                  Müvəqqəti şifrə — <b>yalnız indi görünür</b>
+                </div>
+                <input
+                  readOnly
+                  value={created.password}
+                  onFocus={(e) => e.currentTarget.select()}
+                  style={{
+                    width: '100%', padding: '10px', fontSize: '16px', fontFamily: 'monospace',
+                    border: '2px solid #059669', borderRadius: '6px', background: '#fff', color: '#065f46',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => {
+                    navigator.clipboard?.writeText(`${created.email}\n${created.password}`)
+                      .then(() => setPwCopied(true)).catch(() => setPwCopied(false))
+                  }} style={{
+                    padding: '9px 16px', fontSize: '13px', fontWeight: '600', border: 'none', borderRadius: '7px',
+                    background: '#059669', color: '#fff', cursor: 'pointer', minHeight: '44px',
+                  }}>{pwCopied ? '✓ Kopyalandı' : 'E-poçt + şifrəni kopyala'}</button>
+                  <button type="button" onClick={() => { setCreated(null) }} style={{
+                    padding: '9px 16px', fontSize: '13px', border: '1px solid #e0e0e0', borderRadius: '7px',
+                    background: '#fff', color: '#555', cursor: 'pointer', minHeight: '44px',
+                  }}>Daha bir istifadəçi</button>
+                  <button type="button" onClick={() => { setCreated(null); setShowCreate(false) }} style={{
+                    padding: '9px 16px', fontSize: '13px', border: '1px solid #e0e0e0', borderRadius: '7px',
+                    background: '#fff', color: '#555', cursor: 'pointer', minHeight: '44px',
+                  }}>Bağla</button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateUser}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>Ad Soyad</label>
+                <input value={cName} onChange={e => setCName(e.target.value)} disabled={loading}
+                  placeholder="Doğan Tomris"
+                  style={{ width: '100%', padding: '10px', fontSize: '16px', border: '1px solid #e0e0e0', borderRadius: '7px', marginBottom: '12px' }} />
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>E-poçt</label>
+                <input type="email" value={cEmail} onChange={e => setCEmail(e.target.value)} disabled={loading}
+                  placeholder="ad@shaurma.az"
+                  style={{ width: '100%', padding: '10px', fontSize: '16px', border: '1px solid #e0e0e0', borderRadius: '7px', marginBottom: '12px' }} />
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>Rol</label>
+                <select value={cRole} onChange={e => setCRole(e.target.value as typeof cRole)} disabled={loading}
+                  style={{ width: '100%', padding: '10px', fontSize: '16px', border: '1px solid #e0e0e0', borderRadius: '7px', marginBottom: '12px', cursor: 'pointer' }}>
+                  <option value="super_admin">Süper Admin</option>
+                  <option value="region_manager">Bölgə Meneceri</option>
+                  <option value="branch_manager">Filial Meneceri</option>
+                </select>
+
+                {cRole === 'region_manager' && (
+                  <>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>Bölgə</label>
+                    <select value={cRegion} onChange={e => setCRegion(e.target.value)} disabled={loading}
+                      style={{ width: '100%', padding: '10px', fontSize: '16px', border: '1px solid #e0e0e0', borderRadius: '7px', marginBottom: '12px', cursor: 'pointer' }}>
+                      <option value="">Seçin</option>
+                      {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                    <p style={{ fontSize: '11px', color: '#b45309', margin: '-6px 0 12px' }}>
+                      Bölgənin mövcud müdiri varsa dəyişdiriləcək (audit-ə yazılır).
+                    </p>
+                  </>
+                )}
+
+                {cRole === 'branch_manager' && (
+                  <>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>Filial</label>
+                    <select value={cBranch} onChange={e => setCBranch(e.target.value)} disabled={loading}
+                      style={{ width: '100%', padding: '10px', fontSize: '16px', border: '1px solid #e0e0e0', borderRadius: '7px', marginBottom: '12px', cursor: 'pointer' }}>
+                      <option value="">Seçin</option>
+                      {branches.map(b => <option key={b.id} value={b.id}>{b.code} {b.name}</option>)}
+                    </select>
+                    <p style={{ fontSize: '11px', color: '#b45309', margin: '-6px 0 12px' }}>
+                      Filialın mövcud müdiri varsa dəyişdiriləcək (audit-ə yazılır).
+                    </p>
+                  </>
+                )}
+
+                {error && (
+                  <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '7px', marginBottom: '14px', fontSize: '13px', color: '#C8102E' }}>
+                    {error}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setShowCreate(false)} disabled={loading} style={{
+                    padding: '9px 20px', fontSize: '13px', border: '1px solid #e0e0e0', borderRadius: '7px',
+                    background: '#fff', color: '#555', cursor: loading ? 'not-allowed' : 'pointer', minHeight: '44px',
+                  }}>Ləğv et</button>
+                  <button type="submit" disabled={loading} style={{
+                    padding: '9px 20px', fontSize: '13px', fontWeight: '600', border: 'none', borderRadius: '7px',
+                    background: loading ? '#e0a0aa' : '#C8102E', color: '#fff',
+                    cursor: loading ? 'not-allowed' : 'pointer', minHeight: '44px',
+                  }}>{loading ? 'Yaradılır...' : 'Yarat'}</button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

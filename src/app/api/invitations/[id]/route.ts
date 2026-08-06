@@ -8,6 +8,7 @@ import { sendInvitationEmail } from '@/lib/email'
 import { canManageInvitation } from '../_scope'
 import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 import { isBranchManagerInvitation, managerScopeMatches } from '../_contract'
+import { getRequestOrigin } from '@/lib/request-origin'
 
 async function invitationForActor(id: string, tenantId: string) {
   const [invitation] = await db.select().from(invitations)
@@ -17,7 +18,7 @@ async function invitationForActor(id: string, tenantId: string) {
 }
 
 export async function PATCH(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
@@ -113,17 +114,34 @@ export async function PATCH(
     recipientRole: invitation.role,
     branchName,
   })
+  // E-poçt getməsə token GERİ ALINMIR — yeni link qaytarılır ki əl ilə göndərilsin.
+  // Əvvəl: token köhnəyə qaytarılırdı + 502 → dəvət müddəti bitmiş qalırdı və
+  // "Yenidən göndər" düyməsi heç nə etmirdi. Tək dəvət POST-u ilə eyni desen.
   if (error) {
-    await db.update(invitations).set({ token: invitation.token, expires_at: invitation.expires_at })
-      .where(and(
-        eq(invitations.id, id),
-        eq(invitations.tenant_id, session.user.tenant_id),
-        eq(invitations.token, tokenHash),
-        isNull(invitations.accepted_at),
-        isNull(invitations.revoked_at),
-      ))
+    try {
+      await db.insert(audit_logs).values({
+        tenant_id: session.user.tenant_id,
+        user_id: session.user.id,
+        action: 'user.invite.delivery_failed',
+        entity: 'invitation',
+        entity_id: id,
+        metadata: JSON.stringify({ email: invitation.email, role: invitation.role, reason: error, resend: true }),
+      })
+    } catch (auditError) {
+      console.error('Audit log write error:', auditError)
+    }
     console.error('Invitation resend mail error:', error)
-    return NextResponse.json({ error: 'Dəvət e-poçtu göndərilə bilmədi' }, { status: 502 })
+
+    const acceptUrl = `${getRequestOrigin(req.headers)}/accept-invite?token=${token}`
+    return NextResponse.json({
+      ok: true,
+      emailFailed: true,
+      acceptUrl,
+      email: invitation.email,
+      expires_at: expiresAt,
+      warning: 'Dəvət yeniləndi, lakin e-poçt göndərilə bilmədi. Linki əl ilə göndərin.',
+      detail: error,
+    }, { status: 200 })
   }
 
   await db.insert(audit_logs).values({
