@@ -53,8 +53,10 @@ function Chart({ d }: { d: Daily }) {
   )
 }
 
-export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null }: {
-  initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null
+type IngestRow = { period: string; engine: string; status: string; created: string; readable: boolean }
+
+export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [] }: {
+  initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null; inventory?: IngestRow[]
 }) {
   const router = useRouter()
   const [files, setFiles] = useState<File[]>([])
@@ -210,6 +212,60 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           </label>
         )}
       </div>
+
+      {/* ── Diaqnostika: DB-də qeydə alınmış bütün dövrlər ────────────────────
+          "Ay itdi" şikayətinin cavabı burada. Data silinmir — sadəcə bu səhifə
+          yalnız `panel-1.0` yazılarını göstərə bilir (digər yazıcıların
+          `network` sxemi fərqlidir). Bu siyahı DB-də NƏ OLDUĞUNU açıq göstərir. */}
+      {inventory.length > 0 && (
+        <details className="no-print" style={{ ...card, padding: '10px 14px', marginBottom: 16 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#26221d' }}>
+            🗂️ Bazada qeydə alınmış dövrlər ({inventory.length})
+            {inventory.some(r => !r.readable) && (
+              <span style={{ color: '#b45309', fontWeight: 500 }}>
+                {' '}— {inventory.filter(r => !r.readable).length} qeyd bu səhifədə göstərilə bilmir
+              </span>
+            )}
+          </summary>
+          <div style={{ overflowX: 'auto', marginTop: 10 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 460 }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: '#8b8378' }}>
+                  <th style={{ padding: '6px 8px' }}>Dövr</th>
+                  <th style={{ padding: '6px 8px' }}>Yazıcı</th>
+                  <th style={{ padding: '6px 8px' }}>Status</th>
+                  <th style={{ padding: '6px 8px' }}>Tarix</th>
+                  <th style={{ padding: '6px 8px' }}>Panel-də</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventory.map((r, i) => (
+                  <tr key={`${r.period}-${r.engine}-${i}`} style={{ borderTop: '1px solid #efe9dd' }}>
+                    <td style={{ padding: '6px 8px', fontWeight: 600 }}>{r.period}</td>
+                    <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: '#6b6259' }}>{r.engine}</td>
+                    <td style={{ padding: '6px 8px', color: '#6b6259' }}>{r.status}</td>
+                    <td style={{ padding: '6px 8px', color: '#6b6259' }}>{r.created}</td>
+                    <td style={{ padding: '6px 8px' }}>
+                      {r.readable
+                        ? <span style={{ color: '#1c8a5b', fontWeight: 600 }}>✓ görünür</span>
+                        : <span style={{ color: '#b45309', fontWeight: 600 }}>✗ göstərilmir</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {inventory.some(r => !r.readable) && (
+              <p style={{ fontSize: 11.5, color: '#8b6914', margin: '10px 0 0', lineHeight: 1.55 }}>
+                <b>«✗ göstərilmir» nə deməkdir:</b> həmin dövr bazada VAR, silinməyib — lakin
+                başqa yükləmə yolu ilə yazılıb və onun saxladığı struktur bu səhifənin
+                gözlədiyindən fərqlidir (yalnız ümumi ciro/delivery saxlanılıb, günlük
+                detal yox). <b>Bərpa:</b> həmin ayın satış faylını bu səhifədən yenidən
+                yükləyin — yükləmə idempotentdir, təkrar yazı yaratmır.
+              </p>
+            )}
+          </div>
+        </details>
+      )}
 
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>

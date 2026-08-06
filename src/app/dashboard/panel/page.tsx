@@ -35,6 +35,35 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
     .where(and(eq(analytics_ingest.tenant_id, tenantId), eq(analytics_ingest.engine_version, 'panel-1.0')))
   const periods = periodRows.map(r => r.period).filter((p): p is string => !!p).sort().reverse()
 
+  // ── Diaqnostika: DB-də NƏ VAR (bütün engine_version-lar) ───────────────────
+  // Niyə lazımdır: `analytics_ingest`-ə DÖRD fərqli yazıcı var, hər biri fərqli
+  // `engine_version` qoyur, amma bu səhifə yalnız `panel-1.0` oxuyur. Nəticədə
+  // başqa yolla yüklənən dövr DB-də QALIR, lakin heç yerdə GÖRÜNMÜR →
+  // istifadəçi "ay itdi" deyir, halbuki data yerindədir, sadəcə oxunmur.
+  // Bu siyahı görünməzliyi bitirir: super_admin DB-də nə olduğunu görür.
+  const inventory = session.user.role === 'super_admin'
+    ? await db.select({
+        period: analytics_ingest.period,
+        engine: analytics_ingest.engine_version,
+        status: analytics_ingest.status,
+        created: analytics_ingest.created_at,
+      })
+      .from(analytics_ingest)
+      .where(eq(analytics_ingest.tenant_id, tenantId))
+      .orderBy(desc(analytics_ingest.created_at))
+      .limit(50)
+      .then(rows => rows.map(r => ({
+        period: r.period,
+        engine: r.engine ?? '—',
+        status: r.status,
+        created: r.created ? new Date(r.created).toLocaleDateString('az') : '—',
+        // Yalnız `panel-1.0` bu səhifədə göstərilə bilir — digərlərinin
+        // `network` sxemi fərqlidir (məs. excel-upload-1.0 yalnız 3 ədəd saxlayır).
+        readable: r.engine === 'panel-1.0',
+      })))
+      .catch(() => [])
+    : []
+
   // Seçilən dövr (yoxdursa ən sonuncu) panel verisi
   const [latest] = await db.select({ network: analytics_ingest.network, gen: analytics_ingest.generated_at, period: analytics_ingest.period })
     .from(analytics_ingest)
@@ -136,6 +165,7 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
       savedAt={latest?.gen ? new Date(latest.gen).toLocaleDateString('az') : null}
       periods={periods}
       selectedPeriod={latest?.period ?? null}
+      inventory={inventory}
     />
   )
 }
