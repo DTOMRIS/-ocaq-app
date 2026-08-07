@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null) as {
     email?: unknown; name?: unknown; role?: unknown
-    region_id?: unknown; branch_id?: unknown
+    region_id?: unknown; region_ids?: unknown; branch_id?: unknown
   } | null
   if (!body) return NextResponse.json({ error: 'Giriş formatı düzgün deyil' }, { status: 400 })
 
@@ -128,12 +128,24 @@ export async function POST(req: NextRequest) {
   }
 
   // Əhatə yoxlaması — verilibsə bu tenant-a aid olmalıdır (cross-tenant bağlanmasın)
-  const regionId = typeof body.region_id === 'string' && body.region_id ? body.region_id : null
+  //
+  // ÇOX BÖLGƏ dəstəyi: `regions.manager_id` hər bölgə üçün ayrı sahədir, yəni
+  // EYNİ istifadəçi bir neçə bölgəyə müdir təyin edilə bilər.
+  // `accessibleRegionIds` (`branch-access.ts:22-30`) `manager_id = user.id`
+  // olan BÜTÜN bölgələri qaytarır → bir nəfər bütün şəbəkəni görə bilər,
+  // amma `super_admin` səlahiyyətləri OLMADAN (hesab yaratma / rol dəyişdirmə
+  // yalnız super_admin-dir). Ofis işçiləri üçün nəzərdə tutulan model budur.
+  const regionIdsRaw = Array.isArray(body.region_ids)
+    ? body.region_ids.filter((r): r is string => typeof r === 'string' && !!r)
+    : (typeof body.region_id === 'string' && body.region_id ? [body.region_id] : [])
+  const regionIds = [...new Set(regionIdsRaw)]
   const branchId = typeof body.branch_id === 'string' && body.branch_id ? body.branch_id : null
-  if (regionId) {
-    const [region] = await db.select({ id: regions.id }).from(regions)
-      .where(and(eq(regions.id, regionId), eq(regions.tenant_id, tenantId))).limit(1)
-    if (!region) return NextResponse.json({ error: 'Bölgə tapılmadı' }, { status: 404 })
+  if (regionIds.length) {
+    const found = await db.select({ id: regions.id }).from(regions)
+      .where(and(inArray(regions.id, regionIds), eq(regions.tenant_id, tenantId)))
+    if (found.length !== regionIds.length) {
+      return NextResponse.json({ error: 'Bölgə tapılmadı (və ya bu tenant-a aid deyil)' }, { status: 404 })
+    }
   }
   if (branchId) {
     const [branch] = await db.select({ id: branches.id }).from(branches)
@@ -161,11 +173,11 @@ export async function POST(req: NextRequest) {
   // Köhnə müdir varsa DƏYİŞDİRİLİR (super_admin qərarı) və audit-ə yazılır.
   let replacedRegionManager: string | null = null
   let replacedBranchManager: string | null = null
-  if (role === 'region_manager' && regionId) {
-    const [prev] = await db.update(regions).set({ manager_id: created.id })
-      .where(and(eq(regions.id, regionId), eq(regions.tenant_id, tenantId)))
+  if (role === 'region_manager' && regionIds.length) {
+    const prevRows = await db.update(regions).set({ manager_id: created.id })
+      .where(and(inArray(regions.id, regionIds), eq(regions.tenant_id, tenantId)))
       .returning({ previous: regions.manager_id })
-    replacedRegionManager = prev?.previous ?? null
+    replacedRegionManager = prevRows.map(r => r.previous).filter(Boolean).join(', ') || null
   }
   if (role === 'branch_manager' && branchId) {
     const [prev] = await db.update(branches).set({ manager_id: created.id })
@@ -182,7 +194,7 @@ export async function POST(req: NextRequest) {
       entity: 'user',
       entity_id: created.id,
       metadata: JSON.stringify({
-        email, name, role, region_id: regionId, branch_id: branchId,
+        email, name, role, region_ids: regionIds, branch_id: branchId,
         replaced_region_manager: replacedRegionManager,
         replaced_branch_manager: replacedBranchManager,
       }),

@@ -23,6 +23,9 @@ interface User {
   name: string | null
   email: string
   role: string
+  last_login_at?: string | null
+  is_active?: boolean
+  must_change_password?: boolean
 }
 
 interface Branch {
@@ -82,7 +85,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
   const [cName, setCName] = useState('')
   const [cEmail, setCEmail] = useState('')
   const [cRole, setCRole] = useState<'super_admin' | 'region_manager' | 'branch_manager'>('region_manager')
-  const [cRegion, setCRegion] = useState('')
+  const [cRegions, setCRegions] = useState<string[]>([])   // çox bölgə: ofis işçisi bütün şəbəkəni görsün
   const [cBranch, setCBranch] = useState('')
   const [created, setCreated] = useState<{ email: string; name: string; role: string; password: string } | null>(null)
   const [pwCopied, setPwCopied] = useState(false)
@@ -92,7 +95,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
     setError(null)
     if (!cName.trim()) { setError('Ad daxil edin'); return }
     if (!cEmail.trim()) { setError('E-poçt daxil edin'); return }
-    if (cRole === 'region_manager' && !cRegion) { setError('Bölgə seçin'); return }
+    if (cRole === 'region_manager' && cRegions.length === 0) { setError('Ən azı bir bölgə seçin'); return }
     if (cRole === 'branch_manager' && !cBranch) { setError('Filial seçin'); return }
 
     setLoading(true)
@@ -104,7 +107,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           name: cName.trim(),
           email: cEmail.trim(),
           role: cRole,
-          region_id: cRole === 'region_manager' ? cRegion : null,
+          region_ids: cRole === 'region_manager' ? cRegions : [],
           branch_id: cRole === 'branch_manager' ? cBranch : null,
         }),
       })
@@ -120,10 +123,35 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
         password: d.temporaryPassword ?? '',
       })
       setPwCopied(false)
-      setCName(''); setCEmail(''); setCRegion(''); setCBranch('')
+      setCName(''); setCEmail(''); setCRegions([]); setCBranch('')
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xəta baş verdi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleResetPassword(u: User) {
+    if (!confirm(`${u.email} üçün YENİ müvəqqəti parol yaradılsın?\n\nKöhnə parol işləməyəcək və mövcud sessiyaları bağlanacaq.`)) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/users/${u.id}/reset-password`, { method: 'POST' })
+      const d = await res.json().catch(() => ({})) as { error?: string; temporaryPassword?: string; email?: string; name?: string }
+      if (!res.ok) { alert(d.error ?? 'Xəta baş verdi'); return }
+      // Parol YALNIZ bu cavabda gəlir — yaratma modalının eyni ekranında göstər
+      // ki kopyalanmadan itməsin (əvvəl ekran bağlanıb parol itmişdi).
+      setShowCreate(true)
+      setCreated({
+        email: d.email ?? u.email,
+        name: d.name ?? u.name ?? u.email,
+        role: u.role,
+        password: d.temporaryPassword ?? '',
+      })
+      setPwCopied(false)
+      router.refresh()
+    } catch {
+      alert('Xəta baş verdi')
     } finally {
       setLoading(false)
     }
@@ -375,7 +403,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-                {(isSuperAdmin ? ['Ad', 'E-poçt', 'Rol', ''] : ['Ad', 'E-poçt', 'Rol']).map(h => (
+                {(isSuperAdmin ? ['Ad', 'E-poçt', 'Rol', 'Son giriş', ''] : ['Ad', 'E-poçt', 'Rol', 'Son giriş']).map(h => (
                   <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
                 ))}
               </tr>
@@ -386,18 +414,31 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                   <td style={{ padding: '12px 16px', fontWeight: '500' }}>{u.name ?? '—'}</td>
                   <td style={{ padding: '12px 16px', color: '#555' }}>{u.email}</td>
                   <td style={{ padding: '12px 16px' }}><RoleBadge role={u.role} /></td>
+                  <td style={{ padding: '12px 16px', color: u.last_login_at ? '#555' : '#bbb', whiteSpace: 'nowrap' }}>
+                    {u.last_login_at
+                      ? new Date(u.last_login_at).toLocaleString('az', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                      : 'heç vaxt'}
+                    {u.must_change_password && (
+                      <span style={{ marginLeft: 6, fontSize: 10, color: '#b45309', fontWeight: 600 }}>· parol dəyişməli</span>
+                    )}
+                  </td>
                   {isSuperAdmin && (
-                    <td style={{ padding: '8px 16px', textAlign: 'right' }}>
+                    <td style={{ padding: '8px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <button type="button" onClick={() => handleRoleChange(u)} disabled={loading} style={{
                         padding: '6px 12px', fontSize: '12px', border: '1px solid #e0e0e0', borderRadius: '6px',
                         background: '#fff', color: '#555', cursor: loading ? 'not-allowed' : 'pointer', minHeight: '44px',
                       }}>Rolü dəyiş</button>
+                      <button type="button" onClick={() => handleResetPassword(u)} disabled={loading} style={{
+                        padding: '6px 12px', fontSize: '12px', border: '1px solid #e0e0e0', borderRadius: '6px',
+                        background: '#fff', color: '#555', cursor: loading ? 'not-allowed' : 'pointer',
+                        minHeight: '44px', marginLeft: '6px',
+                      }}>Parolu sıfırla</button>
                     </td>
                   )}
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr><td colSpan={isSuperAdmin ? 4 : 3} style={{ padding: '30px', textAlign: 'center', color: '#ccc' }}>İstifadəçi yoxdur</td></tr>
+                <tr><td colSpan={isSuperAdmin ? 5 : 4} style={{ padding: '30px', textAlign: 'center', color: '#ccc' }}>İstifadəçi yoxdur</td></tr>
               )}
             </tbody>
           </table>
@@ -687,14 +728,46 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
 
                 {cRole === 'region_manager' && (
                   <>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>Bölgə</label>
-                    <select value={cRegion} onChange={e => setCRegion(e.target.value)} disabled={loading}
-                      style={{ width: '100%', padding: '10px', fontSize: '16px', border: '1px solid #e0e0e0', borderRadius: '7px', marginBottom: '12px', cursor: 'pointer' }}>
-                      <option value="">Seçin</option>
-                      {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                    <p style={{ fontSize: '11px', color: '#b45309', margin: '-6px 0 12px' }}>
-                      Bölgənin mövcud müdiri varsa dəyişdiriləcək (audit-ə yazılır).
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#555', marginBottom: '5px' }}>
+                      Bölgə(lər) — bir neçəsini seçə bilərsiniz
+                    </label>
+                    <div style={{ border: '1px solid #e0e0e0', borderRadius: '7px', padding: '6px', marginBottom: '8px' }}>
+                      {regions.map(r => {
+                        const on = cRegions.includes(r.id)
+                        return (
+                          <label key={r.id} style={{
+                            display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 8px',
+                            minHeight: '44px', cursor: 'pointer', borderRadius: '6px',
+                            background: on ? '#f5f3ff' : 'transparent',
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              disabled={loading}
+                              onChange={() => setCRegions(prev => on ? prev.filter(x => x !== r.id) : [...prev, r.id])}
+                              style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '14px', color: '#26221d' }}>{r.name}</span>
+                          </label>
+                        )
+                      })}
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setCRegions(cRegions.length === regions.length ? [] : regions.map(r => r.id))}
+                        style={{
+                          width: '100%', marginTop: '4px', padding: '9px', fontSize: '12px', fontWeight: 600,
+                          border: '1px dashed #c4b5fd', borderRadius: '6px', background: '#fff',
+                          color: '#7C3AED', cursor: 'pointer', minHeight: '44px',
+                        }}
+                      >{cRegions.length === regions.length ? 'Seçimi təmizlə' : `Bütün bölgələri seç (${regions.length}) — ofis işçisi`}</button>
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#7C3AED', margin: '0 0 6px', lineHeight: 1.5 }}>
+                      <b>Ofis işçisi üçün:</b> bütün bölgələri seçin → bütün şəbəkəni görür,
+                      lakin hesab yaratma / rol dəyişdirmə edə bilmir (onlar yalnız super admin-dədir).
+                    </p>
+                    <p style={{ fontSize: '11px', color: '#b45309', margin: '0 0 12px' }}>
+                      Seçilən bölgələrin mövcud müdiri varsa dəyişdiriləcək (audit-ə yazılır).
                     </p>
                   </>
                 )}

@@ -44,8 +44,14 @@ export default async function TeamPage() {
     db.select({ id: branches.id, code: branches.code, name: branches.name, region_id: branches.region_id })
       .from(branches).where(and(eq(branches.tenant_id, tenantId), inArray(branches.id, branchIds))).orderBy(branches.code), []) : []
 
+  // `last_login_at` + `is_active` da gətirilir: "kim nə vaxt girdi" sualı
+  // Komanda cədvəlində cavablanır (sahə DB-də var idi, heç yerdə göstərilmirdi).
   usersData = await safe('users', () =>
-    db.select({ id: users.id, name: users.name, email: users.email, role: users.role })
+    db.select({
+      id: users.id, name: users.name, email: users.email, role: users.role,
+      last_login_at: users.last_login_at, is_active: users.is_active,
+      must_change_password: users.must_change_password,
+    })
       .from(users).where(eq(users.tenant_id, tenantId)).orderBy(users.name), [])
 
   const invConds = [eq(invitations.tenant_id, tenantId)]
