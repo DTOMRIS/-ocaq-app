@@ -45,6 +45,51 @@ immutable backup. Biri deşilsə, o biri tutur. [3]
   riskli əməliyyatdan (seed, toplu update, migration) əvvəl **snapshot** al.
   Bir agent/skript datanı silsə → geriyə branch yarat, 2 saniyədə bərpa.
 
+### 3.1 RUNBOOK — migration tətbiqi (addım-addım)
+
+> ⚠️ Deploy migration **İŞLƏTMİR**. `drizzle/migrations/meta/_journal.json`
+> **0007-də donmuşdur** → 0008, 0009, 0010 əl ilə yazılıb və
+> `drizzle-kit migrate` onları **görmür**. Ona görə addımlar aşağıdakı kimidir.
+
+**1) Snapshot al (Neon Console)** — [Backup & restore səhifəsi][n1]
+1. Neon Console → layihə → sol menyu **Backup & restore**
+2. Yuxarıda **root branch** seçilməlidir (`main`/`production` — valideyni olmayan
+   branch). Snapshot yalnız root branch-dən alınır; `preview-codex` kimi uşaq
+   branch-də düymə çıxmır.
+3. **Create snapshot** → «Manual snapshot» kimi görünür. Tarixi/adı yaz.
+
+**2) Dry-run (DB-yə heç nə yazılmır)**
+```bash
+npm run db:migrate -- 0010_analytics_fact_tables.sql
+```
+İfadə sayını, DB host-unu (maskalanmış) və destruktiv xəbərdarlıqları göstərir.
+
+**3) Tətbiq et**
+```bash
+npm run db:migrate -- 0010_analytics_fact_tables.sql --apply
+```
+Sonunda **doğrulama** çıxır: hər cədvəlin kolon və indeks sayı. Tətbiq
+`schema_migrations_manual` cədvəlinə qeyd olunur — «hansı migration işləyib?»
+sualı bir daha cavabsız qalmasın.
+
+**4) Yarıda kəsilsə** — migration-lar `IF NOT EXISTS` ilə **idempotent**
+yazılır: səbəbi düzəlt və **təkrar işlət**, uğurlu ifadələr no-op olur.
+(Neon HTTP sürücüsü çoxifadəli tranzaksiya vermir — ona görə idempotentlik
+məcburidir, ad-hoc SQL deyil.)
+
+**Bərpa (rollback)** — snapshot-u **yeni branch-ə** restore edib əvvəlcə
+yoxla, sonra finalize et; birbaşa prod üzərinə yazma. [n2]
+
+**Qaydalar:**
+- Destruktiv ifadə (`DROP`/`TRUNCATE`/`DELETE`/`ALTER COLUMN`/`RENAME`) varsa
+  skript **DAYANIR**; `--allow-destructive` yalnız snapshot-dan SONRA.
+- `DATABASE_URL` heç vaxt loga/fayla/chat-ə yazılmır — skript yalnız maskalanmış
+  host göstərir.
+- Prod-a ad-hoc SQL yox: hər dəyişiklik `drizzle/migrations/`-də versiyalı fayl.
+
+[n1]: https://neon.com/docs/guides/backup-restore
+[n2]: https://neon.com/blog/announcing-neon-snapshots-a-smoother-path-to-recovery
+
 ## 4. Blast radius-i məhdudlaşdır & least privilege
 
 - **Least privilege:** hər kəs/hər proses yalnız işinə lazım olana çıxış alır;

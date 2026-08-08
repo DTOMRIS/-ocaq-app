@@ -7,6 +7,18 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
+- **🛠 Migration tətbiqçisi** (`scripts/apply-migration.mjs`, `npm run db:migrate`):
+  `drizzle/migrations/meta/_journal.json` **0007-də donub** → 0008/0009/0010 əl ilə
+  yazılmış SQL-dir və `drizzle-kit migrate` onları GÖRMÜR; deploy də migration
+  işlətmir. Bu boşluq indi bağlandı:
+  - **Standart rejim DRY-RUN** — `--apply` olmadan DB-yə heç nə yazılmır.
+  - Destruktiv ifadə (`DROP`/`TRUNCATE`/`DELETE`/`ALTER COLUMN`/`RENAME`) görsə
+    **dayanır**; `--allow-destructive` yalnız snapshot-dan sonra.
+  - `DATABASE_URL` **loga yazılmır** — yalnız maskalanmış host.
+  - Tətbiq `schema_migrations_manual` cədvəlinə qeyd olunur → «hansı migration
+    işləyib?» sualı cavabsız qalmır.
+  - Sonda doğrulama: hər cədvəlin kolon + indeks sayı.
+  - Runbook: `docs/DATA-PROTECTION.md` §3.1 (Neon snapshot addımları daxil).
 - **📊 Analitika FACT cədvəlləri — PRODMIX + ÇEK saxlanması** (`drizzle/migrations/0010_analytics_fact_tables.sql`,
   `src/db/schema/analytics.ts`, `/api/dashboard/analytics/fact-save`):
   `analytics_daily_fact` (filial × gün × ödəniş növü) və `analytics_item_fact`
