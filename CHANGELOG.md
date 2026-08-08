@@ -7,6 +7,30 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
+- **📦 Günlük detay yükləməsi — PRODMIX + ÇEK** (`src/app/dashboard/panel/detail-upload.tsx`):
+  `/dashboard/panel`-də super_admin üçün ayrıca bölmə (aylıq panel yükləməsinə
+  TOXUNMUR — o fayllar ayrı tempdə gəlir). Fayl **brauzerdə** parse olunur
+  (Vercel 4,5 MB limiti; 7 günlük fayl 83 361 sətir), nəticə 4000-lik chunk-larla
+  `/api/dashboard/analytics/fact-save`-ə göndərilir.
+  - **ƏVVƏLCƏ TUTUŞDURMA, SONRA YAZMA:** iki fayl gün-gün müqayisə olunur və
+    fərq varsa cədvəldə göstərilir — yazmadan əvvəl. 08.08.2026-da çek faylının
+    7 avqustu prodmix-dən 40 652 ₼ əskik idi; bu natamamlıq tək faylın içindən
+    GÖRÜNMÜRDÜ (öz ortalamasına yaxın idi), yalnız müqayisədə çıxdı.
+  - Parser xəbərdarlıqları, tanınmayan ödəniş növləri, validasiyadan keçməyən
+    sətirlər və OCAQ-da tapılmayan filial adları **ekranda göstərilir** — udulmur.
+  - Sətir tipi seçimi ad/heuristika ilə təxmin edilmir: hər vərəqə iki parser də
+    tətbiq olunur, hansı data qaytarsa o götürülür.
+- **Dashboard KPI kartları canlandı** (`src/app/dashboard/page.tsx`):
+  `Ortalama Çek`, `Müştəri Sayı`, `Çek Sayı` artıq `analytics_daily_fact`-dən
+  real data oxuyur (`payment_type='__day__'` gün cəmi sətri).
+  - `Ortalama Çek` = ciro / **unikal** qəbz sayı (son gün) + ay ortalaması alt
+    yazıda. Sıfıra bölmə yox → data yoxdursa dürüst `—`.
+  - `Müştəri Sayı` = son günün qəbz sayı (istifadəçi təsdiqi: «çek ise müşteri»);
+    `Çek Sayı` = ayın cəmi. Eyni mənbə, fərqli dövr — kartlar təkrar deyil.
+  - **RBAC:** super_admin şəbəkəni görür; digər rollar yalnız öz filiallarını,
+    `branch_id` boş sətirlər onlara GÖRÜNMÜR (hansı filiala aid olduğu təsdiqsizdir).
+  - Cədvəl yoxdursa (migration tətbiq olunmayıbsa) dashboard **açılmağa davam
+    edir**, kartlar `—` göstərir, səbəb loga yazılır.
 - **🛠 Migration tətbiqçisi** (`scripts/apply-migration.mjs`, `npm run db:migrate`):
   `drizzle/migrations/meta/_journal.json` **0007-də donub** → 0008/0009/0010 əl ilə
   yazılmış SQL-dir və `drizzle-kit migrate` onları GÖRMÜR; deploy də migration

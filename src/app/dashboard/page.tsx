@@ -6,6 +6,7 @@ import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
 import { daily_sales, sales_targets } from '@/db/schema/sales'
 import { checklists } from '@/db/schema/checklists'
+import { analytics_daily_fact } from '@/db/schema/analytics'
 import { eq, and, inArray, gte, lte } from 'drizzle-orm'
 
 // Verisi olmayan metrik üçün göstərici (mock yox, dürüst)
@@ -90,8 +91,9 @@ export default async function DashboardPage() {
   // ─── REAL satış (rol əhatəsinə görə) — mock deyil, DB-dən ───
   let monthSales = 0, monthTarget = 0, dayActual = 0, dayYesterday = 0
   let hasSalesData = false
+  // `ids` fact KPI sorğusunda da lazımdır (aşağıda) → try-dan KƏNARDA elan olunur.
+  let ids: string[] = []
   try {
-    let ids: string[] = []
     if (role === 'super_admin') {
       ids = (await db.select({ id: branches.id }).from(branches).where(eq(branches.is_archived, false))).map(b => b.id)
     } else {
@@ -133,6 +135,60 @@ export default async function DashboardPage() {
   } catch (err) {
     console.error("Dashboard sales query error:", err)
   }
+
+  // ─── ÇEK KPI-ları — `analytics_daily_fact`-dən (PRODMIX/ÇEK yükləməsi) ───────
+  // Mənbə: `/dashboard/panel` → «Günlük detay» yükləməsi. `payment_type='__day__'`
+  // sətri gün cəmini və UNİKAL qəbz sayını daşıyır (ödəniş növlərinə bölünmür —
+  // bir qəbz həm nağd həm kart ola bilər, paylasaydıq müştəri sayı şişərdi).
+  // Data yoxdursa `null` qalır və kartda dürüst `—` görünür (uydurma rəqəm yox).
+  let monthReceipts: number | null = null, monthReceiptAmount = 0
+  let dayReceipts: number | null = null, dayReceiptAmount = 0
+  let lastFactDate: string | null = null
+  try {
+    const now = new Date()
+    const yr = now.getFullYear(), mo = now.getMonth()
+    const mStart = `${yr}-${String(mo + 1).padStart(2, '0')}-01`
+    const mEnd = `${yr}-${String(mo + 1).padStart(2, '0')}-${new Date(yr, mo + 1, 0).getDate()}`
+
+    // RBAC: super_admin şəbəkəni görür (filial adı uyğunlaşmayan sətirlər daxil).
+    // Digər rollar YALNIZ öz filiallarını — `branch_id` boş sətirlər onlara
+    // GÖRÜNMÜR, çünki hansı filiala aid olduğu təsdiqlənməmişdir.
+    const scoped = role === 'super_admin' ? [] : [inArray(analytics_daily_fact.branch_id, ids)]
+    if (role === 'super_admin' || ids.length > 0) {
+      const rows = await db.select({
+        d: analytics_daily_fact.business_date,
+        amt: analytics_daily_fact.amount,
+        rec: analytics_daily_fact.receipts,
+      })
+        .from(analytics_daily_fact)
+        .where(and(
+          eq(analytics_daily_fact.tenant_id, session.user.tenant_id),
+          eq(analytics_daily_fact.payment_type, '__day__'),
+          gte(analytics_daily_fact.business_date, mStart),
+          lte(analytics_daily_fact.business_date, mEnd),
+          ...scoped,
+        ))
+      if (rows.length > 0) {
+        monthReceipts = rows.reduce((s, r) => s + (r.rec ?? 0), 0)
+        monthReceiptAmount = rows.reduce((s, r) => s + Number(r.amt), 0)
+        lastFactDate = rows.map(r => r.d).sort().at(-1) ?? null
+        const lastRows = rows.filter(r => r.d === lastFactDate)
+        dayReceipts = lastRows.reduce((s, r) => s + (r.rec ?? 0), 0)
+        dayReceiptAmount = lastRows.reduce((s, r) => s + Number(r.amt), 0)
+      }
+    }
+  } catch (err) {
+    // Cədvəl hələ yaradılmayıbsa (migration 0010) burada bitir — dashboard
+    // AÇILMAĞA DAVAM EDİR, kartlar `—` göstərir. Səbəb loga yazılır, udulmur.
+    console.error("Dashboard fact KPI query error:", err)
+  }
+
+  // Ortalama çek = ciro / unikal qəbz. Sıfıra bölmə yox → null (dürüst `—`).
+  const dayAvgCheck = dayReceipts && dayReceipts > 0 ? dayReceiptAmount / dayReceipts : null
+  const monthAvgCheck = monthReceipts && monthReceipts > 0 ? monthReceiptAmount / monthReceipts : null
+  const factDateLabel = lastFactDate
+    ? new Date(lastFactDate + 'T00:00:00').toLocaleDateString('az-AZ', { day: 'numeric', month: 'long' })
+    : null
 
   const now2 = new Date()
   const dim = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate()
@@ -242,28 +298,48 @@ export default async function DashboardPage() {
 
       {/* ═══ KPI KARTLARI ═══ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        {/* Mənbə: `/dashboard/panel` → «Günlük detay» (PRODMIX + ÇEK) yükləməsi.
+            Data yoxdursa `—` qalır — uydurma rəqəm YOX (AGENTS.md). */}
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Ortalama Çek</p>
           <div className="flex items-end gap-1">
-            <span className="text-2xl font-bold text-slate-300">{NA}</span>
+            <span className={`text-2xl font-bold ${dayAvgCheck !== null ? 'text-slate-900' : 'text-slate-300'}`}>
+              {dayAvgCheck !== null ? dayAvgCheck.toFixed(2) : NA}
+            </span>
+            {dayAvgCheck !== null && <span className="text-sm text-slate-400 mb-0.5">₼</span>}
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">Məlumat mənbəyi yoxdur</p>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {dayAvgCheck !== null
+              ? `${factDateLabel} · ay ortalaması ${monthAvgCheck!.toFixed(2)} ₼`
+              : 'Çek faylı yüklənməyib'}
+          </p>
         </div>
 
+        {/* «Müştəri sayı» = unikal qəbz sayı. Bir qəbz = bir müştəri (istifadəçi
+            təsdiqi 08.08.2026: «çek ise müşteri»). Ona görə Çek Sayı kartı ilə
+            eyni mənbədən gəlir — fərq YALNIZ dövrdür (bu kart son gün, o kart ay). */}
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Müştəri Sayı</p>
           <div className="flex items-end gap-1">
-            <span className="text-2xl font-bold text-slate-300">{NA}</span>
+            <span className={`text-2xl font-bold ${dayReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
+              {dayReceipts !== null ? dayReceipts.toLocaleString('az-AZ') : NA}
+            </span>
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">Məlumat mənbəyi yoxdur</p>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {dayReceipts !== null ? `${factDateLabel} · bir qəbz = bir müştəri` : 'Çek faylı yüklənməyib'}
+          </p>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Çek Sayı</p>
           <div className="flex items-end gap-1">
-            <span className="text-2xl font-bold text-slate-300">{NA}</span>
+            <span className={`text-2xl font-bold ${monthReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
+              {monthReceipts !== null ? monthReceipts.toLocaleString('az-AZ') : NA}
+            </span>
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">Məlumat mənbəyi yoxdur</p>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {monthReceipts !== null ? 'Bu ay (cəmi)' : 'Çek faylı yüklənməyib'}
+          </p>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-4">

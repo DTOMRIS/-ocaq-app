@@ -3,6 +3,7 @@
 import { useState, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
+import DetailUpload from './detail-upload'
 
 const AY_ADI = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 const donemAdi = (p: string) => { const [y, m] = p.split('-'); return `${AY_ADI[+m] ?? m} ${y}` }
@@ -282,6 +283,13 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           </p>
         </div>
       )}
+
+      {/* ── Günlük detay (PRODMIX + ÇEK) → fact cədvəlləri ─────────────────────
+          Aylıq panel faylından AYRI: bu fayllar hər gün atılır və
+          `analytics_daily_fact` / `analytics_item_fact`-a upsert olunur.
+          Ortalama çek, müştəri sayı və menyu analizinin mənbəyi budur.
+          Panel verisi olsun-olmasın həmişə görünür (aşağıdaki bloklara toxunmur). */}
+      {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><DetailUpload /></div>}
 
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>
