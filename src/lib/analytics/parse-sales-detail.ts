@@ -1,0 +1,410 @@
+// ─── iiko satış detalı parser'ları: PRODMIX (məhsul×ədəd) + ÇEK (qəbz) ────────
+//
+// Mənbə fayllar (gündəlik yüklənir):
+//   1. «avqust_plan.xlsx» → `BAZA 2026` / `BAZA 2025` vərəqi
+//      Uçot günü · Bölmə kodu · Ticarət müəssisəsi · Məhsulun kodu · Məhsul
+//      · Məhsulların sayı · Endirimli məbləğ
+//   2. «ödəniş şərtləri.xlsx» → `Baza 2026` / `Baza 2025` vərəqi
+//      Ticarət müəssisəsi · Tarix · Ödəniş növü · Qəbzin nömrəsi · məbləğ
+//
+// Bu iki fayl OCAQ-ın uzun müddət «yoxdur» dediyi iki şeyi verir:
+//   • məhsul bazlı ƏDƏD → Kasavana-Smith matrisi, çəkili food cost, upsell
+//   • qəbz nömrəsi → ÇEK SAYI və ORTALAMA ÇEK (dashboard-da hazırda «—»)
+//
+// Doğrulama (08.08.2026, 01–07 avqust datası):
+//   prodmix cəmi 961 237,84 ₼ = PLAN vərəqinin «Faktiki satış»ı (birebir)
+//   1–6 avqust: prodmix və çek faylı KURUŞU KURUŞUNA eyni
+//   7 avqust: çek faylı yarımçıq (169 845 vs 129 193) → son gün natamam ola
+//   bilər, bax `PARTIAL_LAST_DAY_NOTE`.
+
+import { normalizeFilial, EXCLUDE } from './filial-map'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Azərbaycan hərf qatlanması (İ/I/ı/i tələsi)
+//
+// JS `toLowerCase()` Azərbaycan/Türk əlifbasını SƏHV qatlayır:
+//   'I'.toLowerCase() === 'i'   (doğru: 'ı')
+//   'İ'.toLowerCase() === 'i̇'   (i + birləşən nöqtə — GÖRÜNMƏZ fərq!)
+// Nəticədə `/sayı/i` regex-i 'SAYI' ilə UYĞUN GƏLMİR.
+//
+// Bu tələ bu repoda ARTIQ zərər vermişdi — CHANGELOG:
+//   «CƏMİ (böyük İ) TOTAL-a tutmurdu → gün-sütunlu formatda çift sayım (4×)»
+//
+// `azFold` nöqtəli/nöqtəsiz fərqi tamamilə aradan qaldırır: hər dördü → 'i'.
+// Bu, dil sıralaması üçün deyil, YALNIZ açar söz uyğunlaşdırması üçündür.
+// ─────────────────────────────────────────────────────────────────────────────
+export function azFold(v: unknown): string {
+  return String(v ?? '').replace(/[\u0130\u0131Ii]/g, 'i').toLowerCase().trim()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ödəniş növü normalizasiyası
+//
+// Faylda 2026-da 9, 2025-də 7 fərqli ad var və illər arası UYĞUN GƏLMİR.
+// İstifadəçi təsdiqi (08.08.2026):
+//   • Çatdırılma bu il YALNIZ Wolt və Bolt-dur. YANGO 2025-də var idi, ARTIQ YOX.
+//   • ATB və Pasha bank ÖDƏNİŞ SİSTEMİDİR (bank kartı) → `kart`, çatdırılma deyil.
+//
+// ⚠️ YANGO ayrı kateqoriyada saxlanılır (silinmir): 2025 çatdırılması YANGO-nu
+// da əhatə etdiyi üçün «Delivery YoY» iki fərqli cür hesablana bilər —
+// YANGO daxil (kanaldan çıxış görünür) və xaric (yalnız wolt/bolt müqayisəsi).
+// Onu `kart`/`nagd` içinə qatmaq YoY-u səssizcə təhrif edərdi.
+// ─────────────────────────────────────────────────────────────────────────────
+export const PAYMENT_KINDS = ['nagd', 'kart', 'wolt', 'bolt', 'own_delivery', 'yango_legacy'] as const
+export type PaymentKind = (typeof PAYMENT_KINDS)[number]
+
+// Qeyd: naxışlar `azFold` çıxışına (kiçik hərf, nöqtəsiz ı → i) görə yazılıb.
+const PAYMENT_MAP: Array<[RegExp, PaymentKind]> = [
+  [/^nağd|^nagd|^naqd/,                   'nagd'],
+  [/wolt/,                                'wolt'],   // WOLT SATIŞ · *WOLT · Wolt Storefront
+  [/bolt/,                                'bolt'],   // BOLT SATIŞ · BOLT
+  [/yango/,                               'yango_legacy'],
+  [/^delivery\s/,                         'own_delivery'], // Delivery SeaBreeze (öz kanal)
+  [/uni\s*bank|unibank|kapital|atb|pasha/, 'kart'],   // 4 acquirer + PAX terminal
+]
+
+/** Ödəniş növü adını kanonik səbətə çevirir. Tanınmayan → null (udulmur, sayılır). */
+export function normalizePayment(raw: string): PaymentKind | null {
+  const s = azFold(raw)
+  if (!s) return null
+  for (const [re, kind] of PAYMENT_MAP) if (re.test(s)) return kind
+  return null
+}
+
+/** Çatdırılma sayılan səbətlər. 2026 reallığı: yalnız wolt + bolt (+ öz kanalı). */
+export const DELIVERY_KINDS: PaymentKind[] = ['wolt', 'bolt', 'own_delivery']
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sətir növü təsnifatı
+//
+// 443 unikal «məhsul» adının 157-si SIFIR məbləğlidir və satış deyil:
+// sayğac (Servis 98 160, Take away 40 086, Stəkan sayı 15 034), modifikator
+// (AZ SOUS, BOL SOUS, SOUSSUZ, ACILI, TURŞUSUZ, KƏKLİKOTU), kombo daxilində
+// pulsuz gedən məhsul (Ketçup, Mayonez, Kartof Fri).
+//
+// QAYDA: `məbləğ > 0` → real satış. `məbləğ = 0` → gəlir gətirməyən sətir.
+// Bu qayda ƏLLƏ SAXLANILAN qara siyahı tələb etmir və İTKİSİZDİR:
+// məbləği olan 286 ad tam 961 237,84 ₼ verir (faylın bütün cirosu).
+//
+// Sıfır məbləğli sətirlər SİLİNMİR — təsnif olunur, çünki özləri məlumatdır:
+// «Servis» vs «Take away» nisbəti zalda/götür-apar qarışığını verir, modifikator
+// sayları isə resept/hazırlıq meylini göstərir. Menyu mühəndisliyi yalnız
+// `product` sətirlərini işlədir.
+// ─────────────────────────────────────────────────────────────────────────────
+export const LINE_KINDS = ['product', 'service', 'packaging', 'modifier', 'included'] as const
+export type LineKind = (typeof LINE_KINDS)[number]
+
+// Naxışlar `azFold` çıxışına görə (SAYI → sayi, KƏKLİKOTU → kəklikotu).
+const SERVICE_RE   = /^servis|^take\s*away|çay dəstgahı servis|^zalda /
+const PACKAGING_RE = /stəkan sayi|^paket|^bardaq/
+const MODIFIER_RE  = /sous(suz)?$|^az sous|^bol sous|^acili|^turşusuz|^presdə|kəklikotu|^samuray|^şirin çili/
+
+/**
+ * Sətrin növünü təyin edir. Məbləği olan HƏR sətir `product`-dır — sıfır
+ * məbləğlilər isə ada görə alt-təsnif olunur.
+ */
+export function classifyLine(name: string, amount: number): LineKind {
+  if (amount > 0) return 'product'
+  const s = azFold(name)
+  if (SERVICE_RE.test(s)) return 'service'
+  if (PACKAGING_RE.test(s)) return 'packaging'
+  if (MODIFIER_RE.test(s)) return 'modifier'
+  return 'included'   // pulsuz gedən real qida (kombo tərkibi, ketçup, mayonez)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Excel serial → ISO tarix
+// ─────────────────────────────────────────────────────────────────────────────
+const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30)
+export function excelSerialToISO(serial: unknown): string | null {
+  const n = typeof serial === 'number' ? serial : Number(String(serial ?? '').trim())
+  if (!Number.isFinite(n) || n <= 0 || n > 100000) return null
+  return new Date(EXCEL_EPOCH_UTC + Math.floor(n) * 86400000).toISOString().slice(0, 10)
+}
+
+function num(v: unknown): number {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  const t = String(v ?? '').replace(/\s/g, '').replace(',', '.')
+  const n = parseFloat(t)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Başlıq sətrini tapır və kolon adı → indeks xəritəsi qurur (sıra dəyişə bilər). */
+function headerIndex(rows: unknown[][], required: RegExp[]): { row: number; idx: number[] } | null {
+  for (let r = 0; r < Math.min(rows.length, 30); r++) {
+    const cells = (rows[r] ?? []).map(c => azFold(c))
+    const idx = required.map(re => cells.findIndex(c => re.test(c)))
+    if (idx.every(i => i >= 0)) return { row: r, idx }
+  }
+  return null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRODMIX
+// ─────────────────────────────────────────────────────────────────────────────
+export type ProdmixLine = {
+  filial: string
+  date: string            // YYYY-MM-DD
+  itemCode: string
+  itemName: string
+  qty: number
+  amount: number
+  kind: LineKind
+}
+
+export type ProdmixResult = {
+  lines: ProdmixLine[]              // filial × gün × məhsul (upsert qranulu)
+  dates: string[]
+  branches: string[]
+  totals: { qty: number; amount: number; productAmount: number }
+  /** Gəlir gətirməyən sətirlər — silinmir, ayrıca sayılır. */
+  nonRevenue: Record<Exclude<LineKind, 'product'>, number>
+  warnings: string[]
+}
+
+/** `BAZA 20xx` vərəqini parse edir. `rows` = sheet_to_json(header:1) çıxışı. */
+export function parseProdmix(rows: unknown[][]): ProdmixResult {
+  const warnings: string[] = []
+  const h = headerIndex(rows, [
+    /uçot günü/, /ticarət müəssisəsi/, /məhsulun kodu/, /^məhsul$/, /məhsullarin sayi/, /endirimli məbləğ/,
+  ])
+  if (!h) {
+    return {
+      lines: [], dates: [], branches: [],
+      totals: { qty: 0, amount: 0, productAmount: 0 },
+      nonRevenue: { service: 0, packaging: 0, modifier: 0, included: 0 },
+      warnings: ['Prodmix başlıqları tapılmadı (Uçot günü / Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ gözlənilir)'],
+    }
+  }
+  const [cDate, cBranch, cCode, cName, cQty, cAmt] = h.idx
+
+  const lines: ProdmixLine[] = []
+  const dates = new Set<string>(), branches = new Set<string>()
+  let qty = 0, amount = 0, productAmount = 0, skippedDate = 0, skippedBranch = 0
+  const nonRevenue = { service: 0, packaging: 0, modifier: 0, included: 0 }
+
+  for (let r = h.row + 1; r < rows.length; r++) {
+    const row = rows[r] ?? []
+    const rawBranch = String(row[cBranch] ?? '').trim()
+    if (!rawBranch) continue
+    const date = excelSerialToISO(row[cDate])
+    if (!date) { skippedDate++; continue }
+
+    const filial = normalizeFilial(rawBranch) ?? rawBranch
+    if (EXCLUDE.has(filial)) { skippedBranch++; continue }
+
+    const itemName = String(row[cName] ?? '').trim()
+    if (!itemName) continue
+    const q = num(row[cQty]), a = num(row[cAmt])
+    const kind = classifyLine(itemName, a)
+
+    lines.push({
+      filial, date,
+      itemCode: String(row[cCode] ?? '').trim(),
+      itemName, qty: q, amount: a, kind,
+    })
+    dates.add(date); branches.add(filial)
+    qty += q; amount += a
+    if (kind === 'product') productAmount += a
+    else nonRevenue[kind] += q
+  }
+
+  if (skippedDate) warnings.push(`${skippedDate} sətrin tarixi oxunmadı`)
+  if (skippedBranch) warnings.push(`${skippedBranch} sətir EXCLUDE filialına aiddir`)
+  if (!lines.length) warnings.push('Heç bir sətir oxunmadı')
+  // Sıfır məbləğli sətirlər gəlirə təsir etməməlidir — yoxla.
+  if (Math.abs(amount - productAmount) > 0.01) {
+    warnings.push(`Gəlir uyğunsuzluğu: cəmi ${amount.toFixed(2)} ≠ məhsul ${productAmount.toFixed(2)}`)
+  }
+
+  return {
+    lines,
+    dates: [...dates].sort(),
+    branches: [...branches].sort(),
+    totals: { qty, amount, productAmount },
+    nonRevenue, warnings,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ÇEK / ÖDƏNİŞ
+// ─────────────────────────────────────────────────────────────────────────────
+export type ReceiptDay = {
+  filial: string
+  date: string
+  receipts: number                          // unikal qəbz sayı → ÇEK SAYI
+  amount: number
+  avgCheck: number | null                   // amount / receipts → ORTALAMA ÇEK
+  byPayment: Record<PaymentKind, number>
+  deliveryAmount: number                    // wolt + bolt + own_delivery
+}
+
+export type ReceiptsResult = {
+  days: ReceiptDay[]                        // filial × gün (upsert qranulu)
+  dates: string[]
+  totals: {
+    receipts: number; amount: number; avgCheck: number | null
+    byPayment: Record<PaymentKind, number>
+    unknownPayments: Record<string, number>
+  }
+  warnings: string[]
+}
+
+const emptyPay = (): Record<PaymentKind, number> =>
+  ({ nagd: 0, kart: 0, wolt: 0, bolt: 0, own_delivery: 0, yango_legacy: 0 })
+
+/** `Baza 20xx` (ödəniş şərtləri) vərəqini parse edir. */
+export function parseReceipts(rows: unknown[][]): ReceiptsResult {
+  const warnings: string[] = []
+  const h = headerIndex(rows, [/ticarət müəssisəsi/, /^tarix$/, /ödəniş növü/, /qəbzin nömrəsi/, /endirimli məbləğ/])
+  if (!h) {
+    return {
+      days: [], dates: [],
+      totals: { receipts: 0, amount: 0, avgCheck: null, byPayment: emptyPay(), unknownPayments: {} },
+      warnings: ['Çek başlıqları tapılmadı (Ticarət müəssisəsi / Tarix / Ödəniş növü / Qəbzin nömrəsi / Endirimli məbləğ gözlənilir)'],
+    }
+  }
+  const [cBranch, cDate, cPay, cRec, cAmt] = h.idx
+
+  // filial|gün → aqreqat. Qəbz nömrəsi UNİKAL sayılır: bir çekin bir neçə
+  // ödəniş sətri ola bilər (qismən nağd + qismən kart) → iki dəfə sayılmasın.
+  const agg = new Map<string, { filial: string; date: string; recs: Set<string>; amount: number; pay: Record<PaymentKind, number> }>()
+  const unknown: Record<string, number> = {}
+  let skipped = 0
+
+  for (let r = h.row + 1; r < rows.length; r++) {
+    const row = rows[r] ?? []
+    const rawBranch = String(row[cBranch] ?? '').trim()
+    if (!rawBranch) continue
+    const date = excelSerialToISO(row[cDate])
+    if (!date) { skipped++; continue }
+    const filial = normalizeFilial(rawBranch) ?? rawBranch
+    if (EXCLUDE.has(filial)) continue
+
+    const key = `${filial}|${date}`
+    let cell = agg.get(key)
+    if (!cell) { cell = { filial, date, recs: new Set(), amount: 0, pay: emptyPay() }; agg.set(key, cell) }
+
+    const a = num(row[cAmt])
+    const receiptNo = String(row[cRec] ?? '').trim()
+    if (receiptNo) cell.recs.add(receiptNo)
+    cell.amount += a
+
+    const kind = normalizePayment(String(row[cPay] ?? ''))
+    if (kind) cell.pay[kind] += a
+    else {
+      const name = String(row[cPay] ?? '').trim() || '(boş)'
+      unknown[name] = (unknown[name] ?? 0) + a
+    }
+  }
+
+  const days: ReceiptDay[] = [...agg.values()].map(c => {
+    const receipts = c.recs.size
+    const deliveryAmount = DELIVERY_KINDS.reduce((s, k) => s + c.pay[k], 0)
+    return {
+      filial: c.filial, date: c.date, receipts, amount: c.amount,
+      avgCheck: receipts > 0 ? c.amount / receipts : null,
+      byPayment: c.pay, deliveryAmount,
+    }
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.filial.localeCompare(b.filial))
+
+  const byPayment = emptyPay()
+  let receipts = 0, amount = 0
+  for (const d of days) {
+    receipts += d.receipts; amount += d.amount
+    for (const k of PAYMENT_KINDS) byPayment[k] += d.byPayment[k]
+  }
+
+  if (skipped) warnings.push(`${skipped} sətrin tarixi oxunmadı`)
+  const unknownKeys = Object.keys(unknown)
+  if (unknownKeys.length) {
+    // Xəta UDULMUR: tanınmayan ödəniş növü səssizcə itməməlidir.
+    warnings.push(`Tanınmayan ödəniş növü (${unknownKeys.length}): ${unknownKeys.slice(0, 5).join(', ')}`)
+  }
+  if (!days.length) warnings.push('Heç bir sətir oxunmadı')
+
+  return {
+    days,
+    dates: [...new Set(days.map(d => d.date))].sort(),
+    totals: { receipts, amount, avgCheck: receipts > 0 ? amount / receipts : null, byPayment, unknownPayments: unknown },
+    warnings,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gündəlik yükləmə qaydası — natamam son gün
+//
+// Fayllar HƏR GÜN atılır və son gün TAM OLMAYA BİLƏR: 08.08.2026 datasında
+// çek faylının 7 avqustu 129 193 ₼, prodmix-in 7 avqustu 169 845 ₼ idi
+// (1–6 avqust kuruşu kuruşuna eyni). Yəni çek export-u daha erkən saatda
+// çıxarılmışdı.
+//
+// Ona görə DB yazısı mütləq (filial, gün) açarı üzrə ÜZƏRİNƏ YAZMA (upsert)
+// olmalıdır — ƏLAVƏ ETMƏ (insert) yox. Əks halda sabah tam 7 avqust gələndə
+// həmin gün İKİ DƏFƏ sayılar.
+// ─────────────────────────────────────────────────────────────────────────────
+export const PARTIAL_LAST_DAY_NOTE =
+  'Son gün natamam ola bilər (export saatına görə). Yazı (filial, gün) açarı ilə upsert olunur — təkrar yükləmə günü ikiqat saymır.'
+
+/** Bir dövrün son günü digər günlərdən nəzərəçarpacaq dərəcədə azdırsa xəbər ver. */
+export function detectPartialLastDay(dayTotals: Array<{ date: string; amount: number }>): string | null {
+  if (dayTotals.length < 3) return null
+  const sorted = [...dayTotals].sort((a, b) => a.date.localeCompare(b.date))
+  const last = sorted[sorted.length - 1]
+  const prev = sorted.slice(0, -1)
+  const avg = prev.reduce((s, d) => s + d.amount, 0) / prev.length
+  if (avg > 0 && last.amount < avg * 0.7) {
+    const pct = Math.round((1 - last.amount / avg) * 100)
+    return `${last.date} günü ortalamadan %${pct} aşağıdır — export natamam ola bilər.`
+  }
+  return null
+}
+
+/**
+ * İKİ FAYLI GÜN-GÜN TUTUŞDURUR — natamam export-un ƏSL detektoru.
+ *
+ * `detectPartialLastDay` tək faylın içindəki kənarlaşmaya baxır və 08.08.2026
+ * hadisəsini TUTMADI: çek faylının 7 avqustu (129 193 ₼) öz faylının
+ * ortalamasına yaxın idi, yəni daxildən NORMAL görünürdü. Natamamlıq yalnız
+ * prodmix ilə müqayisədə göründü (169 845 vs 129 193).
+ *
+ * Ona görə əsas yoxlama BUDUR: iki fayl eyni günü eyni məbləği göstərməlidir.
+ * 1–6 avqust kuruşu kuruşuna uyğun idi; fərq yalnız son gündə çıxdı.
+ */
+export type DayReconcile = {
+  date: string
+  prodmixAmount: number
+  receiptsAmount: number
+  diff: number
+  diffPct: number
+  ok: boolean
+}
+
+export function reconcileProdmixReceipts(
+  prodmix: Pick<ProdmixResult, 'lines'>,
+  receipts: Pick<ReceiptsResult, 'days'>,
+  tolerance = 0.01,
+): { days: DayReconcile[]; warnings: string[] } {
+  const p = new Map<string, number>()
+  for (const l of prodmix.lines) p.set(l.date, (p.get(l.date) ?? 0) + l.amount)
+  const r = new Map<string, number>()
+  for (const d of receipts.days) r.set(d.date, (r.get(d.date) ?? 0) + d.amount)
+
+  const days: DayReconcile[] = [...new Set([...p.keys(), ...r.keys()])].sort().map(date => {
+    const pa = p.get(date) ?? 0, ra = r.get(date) ?? 0
+    const diff = pa - ra
+    const diffPct = pa > 0 ? diff / pa : 0
+    return { date, prodmixAmount: pa, receiptsAmount: ra, diff, diffPct, ok: Math.abs(diff) <= tolerance }
+  })
+
+  const warnings: string[] = []
+  const bad = days.filter(d => !d.ok)
+  for (const d of bad) {
+    const who = d.diff > 0 ? 'çek' : 'prodmix'
+    warnings.push(
+      `${d.date}: prodmix ${d.prodmixAmount.toFixed(2)} ₼ ≠ çek ${d.receiptsAmount.toFixed(2)} ₼ ` +
+      `(fərq ${Math.abs(d.diff).toFixed(2)} ₼ · %${Math.abs(d.diffPct * 100).toFixed(1)}) — ${who} faylı natamam ola bilər`,
+    )
+  }
+  return { days, warnings }
+}
