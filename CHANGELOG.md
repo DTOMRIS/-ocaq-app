@@ -7,6 +7,29 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Added
+- **📊 Analitika FACT cədvəlləri — PRODMIX + ÇEK saxlanması** (`drizzle/migrations/0010_analytics_fact_tables.sql`,
+  `src/db/schema/analytics.ts`, `/api/dashboard/analytics/fact-save`):
+  `analytics_daily_fact` (filial × gün × ödəniş növü) və `analytics_item_fact`
+  (filial × gün × məhsul). Blob deyil cədvəl, çünki 7 günlük export **83 361
+  sətirdir** (bir ay ≈ 350 000) — JSON-a sığmaz və sorğulanmazdır.
+  - **UPSERT, insert deyil:** fayllar hər gün atılır və son gün natamam ola bilər
+    (08.08.2026-da çek faylının 7 avqustu prodmix-dən 40 652 ₼ əskik idi, 1–6
+    avqust kuruşuna uyğun). `ON CONFLICT DO UPDATE` → təkrar yükləmə gün İKİ DƏFƏ
+    saymır.
+  - **Chunk daxili təkrar açar toplanır:** Postgres `ON CONFLICT DO UPDATE` eyni
+    sətrə iki dəfə toxunanda «cannot affect row a second time» xətası verir.
+  - `source` sütunu **yalnız lineage**-dir, oxuma filtri kimi işlədilmir — iyul
+    hadisəsində datanı görünməz edən `engine_version` deseninin təkrarı olmasın
+    (`docs/DENETIM-2026-08-04.md` §1).
+  - Çek sayı gün başına bir dəfə (`payment_type='__day__'`): bir qəbz həm nağd
+    həm kart ola bilər, ödəniş növlərinə paylasaydıq müştəri sayı şişərdi.
+  - Filial adı OCAQ-da yoxdursa sətir **yenə yazılır** (`branch_id` null) — data
+    itmir; cavabda `unmatchedBranches` qaytarılır.
+- **`canonBranchKey()`** (`src/lib/analytics/filial-map.ts`): OCAQ `branches.name`
+  ↔ iiko export adı müqayisəsi. `'I'.toLowerCase()==='i'` (olmalıydı `'ı'`) və
+  `'İ'.toLowerCase()`-in birləşən nöqtə (U+0307) əlavə etməsi — CHANGELOG-da qeyd
+  olunan 4× ikiqat saymanın səbəbi — indi regresiya testi ilə qorunur
+  (`tests/filial-map.test.ts`, 12 test).
 - **🎁 Promosyonlar (marketing) modulu — mock-dan gerçəyə** (`src/db/schema/promotions.ts`,
   `/api/promotions`, `/api/upload/promo-image`, `dashboard/promosyonlar/*`,
   `admin/promosyonlar/yeni`): promotions cədvəli (Neon/Drizzle), CRUD API, R2-yə
@@ -69,6 +92,14 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - `drizzle/migrations/0003_black_whistler.sql` — Generated and pushed database migration for checklists table.
 
 ### Changed
+- **Filial xəritəsi (`filial-map.ts`) — 08.2026 vəziyyəti** (istifadəçi təsdiqi 08.08.2026):
+  `Mytcha` İsmayıl bölgəsinə **ayrı filial** olaraq əlavə olundu (`Bulvar Festival`-ın
+  başqa yazılışı DEYİL — `docs/VERI-ANALIZI-2026-08-08.md` §2.4-dəki açıq sual bağlandı).
+  Yeni `CLOSED` çoxluğu (`Masazır`, `Bulvar Festival`) və `isActiveBranch()`:
+  bağlanmış filial «aktiv» sayılmır, **amma xəritədən silinmir** — tarixi ciro
+  YoY-da lazımdır. `EXCLUDE` («bizim olmayan») ilə qarışdırılmır. Aktiv filial: 29.
+  ⚠️ `Mytcha` OCAQ-da filial kimi yaradılmayıb → `/api/branches/assign-regions`
+  onu `unmatchedBranches`-də qaytaracaq (sındırmır); `/admin/filiallar`-da açılmalıdır.
 - **Panel cila:** sortable tablo (kolona tıkla ▲▼) + zebra + hover + yapışkan başlık;
   KPI tile'lara accent üst çizgi + gölge; bölgə barlarında % payı; filial tablosunda
   Hədəf (rakam) + Wolt/Bolt həm ₼ həm %.

@@ -4,7 +4,7 @@
 // `EXCLUDE` rapora girməyən adlar (bağlanmış / bizim olmayan).
 
 export const BOLGELER: Record<string, string[]> = {
-  'İsmayıl': ['Bulvar', 'Bayıl', '5 Mərtəbə', 'Torgoviy', 'Corner', 'Badamdar', 'Bulvar Festival'],
+  'İsmayıl': ['Bulvar', 'Bayıl', '5 Mərtəbə', 'Torgoviy', 'Corner', 'Badamdar', 'Bulvar Festival', 'Mytcha'],
   'Ceyhun':  ['Hüseyn Cavid', 'Əcəmi', 'İnşaatçılar', 'Masazır', 'Space', 'Sumqayıt'],
   'Elnur':   ['Neftçilər', 'Bakıxanov 1', 'Zığ', 'Bakıxanov 2', 'Həzi Aslanov', 'Əhmədli'],
   'Taleh':   ['Binəqədi', 'Duet', 'Ayna Sultanova', 'Nərimanov', 'Amay', 'Azadlıq'],
@@ -82,4 +82,46 @@ export function normalizeFilial(name: unknown): string | null {
   const n = String(name).trim()
   if (!n) return null
   return ALIASES[n] ?? n
+}
+
+// ─── Bağlanmış filiallar ─────────────────────────────────────────────────────
+// `EXCLUDE`-dan FƏRQLİDİR: EXCLUDE «bizim olmayan» adlardır və rapordan
+// tamamilə çıxarılır. `CLOSED` isə BİZİM olan, keçmişdə satışı olan, lakin
+// artıq işləməyən filiallardır → TARİXİ DATA QORUNUR (silinmir, YoY-da lazımdır),
+// amma «gözlənilən filial sayı»na daxil edilmir.
+//
+// Niyə vacibdir: bağlanmış filialı aktiv saymaq «göndərmədi» siyahısında
+// əbədi qırmızı sətir yaradır; EXCLUDE-a atmaq isə keçən ilin cirosunu itirir
+// və YoY-u səhv göstərir.
+//
+// Masazır: 08.2026-da bağlı (Saha Nəzarət matrisi 28 filial deyir; 08.2026
+//   satış export-unda yoxdur).
+// Bulvar Festival: istifadəçi qeydi (08.08.2026) — avqusta qədər işləyib,
+//   08.2026 export-unda yoxdur.
+export const CLOSED = new Set(['Masazır', 'Bulvar Festival'])
+
+/** Filial hazırda işləyirmi? (bağlanmışlar tarixi hesabatda qalır) */
+export function isActiveBranch(name: string): boolean {
+  const canon = normalizeFilial(name)
+  return !!canon && !EXCLUDE.has(canon) && !CLOSED.has(canon)
+}
+
+/**
+ * Filial adını MÜQAYİSƏ açarına çevir (OCAQ `branches.name` ↔ iiko export adı).
+ *
+ * NİYƏ SADƏ `toLowerCase()` YETƏRSİZDİR — Azərbaycan hərf tələsi:
+ *   'I'.toLowerCase() === 'i'   (olmalıydı 'ı')
+ *   'İ'.toLowerCase() === 'i' + U+0307 birləşən nöqtə  → gözlə görünməyən fərq
+ * Bu tələ CHANGELOG-da qeyd olunan 4× ikiqat sayma hadisəsinin səbəbidir.
+ * Ona görə İ/I/ı/i əvvəlcə 'i'-yə yığılır, sonra diakritiklər NFD ilə atılır
+ * (ç→c, ş→s, ğ→g, ö→o, ü→u) və 'ə'→'e' edilir — `assign-regions` ilə eyni qayda.
+ */
+export function canonBranchKey(name: unknown): string {
+  return (normalizeFilial(name) ?? '')
+    .replace(/[İıIi]/g, 'i')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/ə/g, 'e')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
