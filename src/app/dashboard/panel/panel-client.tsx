@@ -4,6 +4,7 @@ import { useState, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
 import DetailUpload from './detail-upload'
+import { computeAttainment, attainmentByRegion } from '@/lib/analytics/target-attainment'
 
 const AY_ADI = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 const donemAdi = (p: string) => { const [y, m] = p.split('-'); return `${AY_ADI[+m] ?? m} ${y}` }
@@ -134,7 +135,6 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const rmax = d ? Math.max(...d.regions.map(r => r[1]), 1) : 1
   // Hədəf: plan faylı (Plana görə) VEYA manuel /sales hədəfləri (sales_targets)
   const netTarget = (plan?.network.plan ?? 0) || Object.values(targets).reduce((a, b) => a + b, 0)
-  const netTargetPct = netTarget && d ? d.gedisat / netTarget : null
   const hasTarget = netTarget > 0
   const branchTarget = (b: { filial: string; total: number }): { pct: number | null } => {
     const pb = plan?.branches[b.filial]
@@ -164,19 +164,30 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     edge: { bg: '#fef9c3', c: '#854d0e', t: p => `~ %${p}` },
     miss: { bg: '#fee2e2', c: '#991b1b', t: p => `✗ %${p}` },
   }
-  const tutList = d ? d.branches.map(b => {
-    const pb = plan?.branches[b.filial]
-    const planV = (pb && pb.plan) ? pb.plan : (targets[b.filial] ?? 0)
-    const actualV = b.total                          // yüklənən satış = gerçək
-    const pct = planV ? actualV / planV : null
-    return { filial: b.filial, bolge: b.bolge, planV, actualV, diff: actualV - planV, pct }
-  }).filter(x => x.planV > 0) : []
-  const tutNet = tutList.reduce((a, t) => ({ plan: a.plan + t.planV, actual: a.actual + t.actualV }), { plan: 0, actual: 0 })
-  const tutRegions = (() => {
-    const m: Record<string, { plan: number; actual: number }> = {}
-    tutList.forEach(t => { const r = (m[t.bolge ?? '—'] ??= { plan: 0, actual: 0 }); r.plan += t.planV; r.actual += t.actualV })
-    return Object.entries(m).map(([bolge, v]) => ({ bolge, ...v, pct: v.plan ? v.actual / v.plan : null })).sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9))
-  })()
+  // Hesablama SAF funksiyada (`target-attainment.ts`) — iki səhvin izahı və
+  // regresiya testləri oradadır. Burada yalnız məlumat forması bağlanır.
+  const att = computeAttainment(
+    (d?.branches ?? []).map(b => {
+      const pb = plan?.branches[b.filial]
+      return {
+        filial: b.filial, bolge: b.bolge, actual: b.total,
+        target: (pb && pb.plan) ? pb.plan : (targets[b.filial] ?? 0),
+      }
+    }),
+    { days: d?.gun ?? 0, daysInMonth },
+  )
+  const tutList = att.rows.map(r => ({
+    filial: r.filial, bolge: r.bolge, planV: r.target, actualV: r.actual, diff: r.diff, pct: r.pct,
+  }))
+  const untargeted = att.untargeted.map(u => ({ filial: u.filial, bolge: u.bolge, actualV: u.actual }))
+  const untargetedSales = att.untargetedSales
+  const tutNet = { plan: att.net.target, actual: att.net.actual }
+  const targetDenom = att.net.target > 0 ? att.net.target : netTarget
+  const netTargetPct = att.projectionPct
+  // Bölgə tutturması da eyni saf funksiyadan — iki yerdə hesablanmasın.
+  const tutRegions = attainmentByRegion(att).map(r => ({
+    bolge: r.bolge, plan: r.target, actual: r.actual, pct: r.pct,
+  }))
   const tutRows = [...tutList].sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9))
   const planByFilial: Record<string, number> = Object.fromEntries(tutList.map(t => [t.filial, t.planV]))
 
@@ -349,10 +360,43 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             <Tile k="Toplam satış" v={money(d.toplam)} sub={`${d.gun} gün`} />
             <Tile k="Günlük ort." v={money(d.toplam / d.gun)} />
             {d.days.length > 0 && <Tile k="Ay proqnozu" v={money(d.gedisat)} sub="proqnoz (ay sonu)" />}
-            {netTargetPct != null && <Tile k="Hədəfə görə" v={Math.round(netTargetPct * 100) + '%'} sub={money(netTarget) + ' hədəf'} tone={netTargetPct >= 0.98 ? '#1c7a4e' : '#c8102e'} />}
+            {/* Alt yazı ARTIQ AÇIQ: bu, ay sonu PROQNOZUNUN hədəfə nisbətidir və
+                YALNIZ hədəfi olan filialları əhatə edir. Əvvəl bu yazılmadığı
+                üçün %102 (proqnoz) və %22 (bugünə qədər) yan-yana ziddiyyət
+                kimi görünürdü. */}
+            {netTargetPct != null && (
+              <Tile
+                k="Hədəfə görə (proqnoz)"
+                v={Math.round(netTargetPct * 100) + '%'}
+                sub={`ay sonu proqnozu / ${money(targetDenom)} hədəf${untargeted.length ? ` · ${untargeted.length} filial hədəfsiz` : ''}`}
+                tone={netTargetPct >= 0.98 ? '#1c7a4e' : '#c8102e'}
+              />
+            )}
             {netYoyPct != null && <Tile k="Keçən ilə" v={(netYoyPct >= 0 ? '+' : '') + Math.round(netYoyPct * 100) + '%'} sub="2026 vs 2025" tone={netYoyPct >= 0 ? '#1c7a4e' : '#c8102e'} />}
-            <Tile k="Delivery" v={d.toplam ? Math.round(deliv / d.toplam * 100) + '%' : '—'} sub="Wolt+Bolt" />
+            <Tile k="Delivery" v={d.toplam ? Math.round(deliv / d.toplam * 100) + '%' : '—'} sub={d.pay.own_delivery ? 'Wolt+Bolt+öz' : 'Wolt+Bolt'} />
           </div>
+
+          {/* ── HƏDƏFİ OLMAYAN FİLİALLAR — satış İTMİR, görünür ─────────────── */}
+          {untargeted.length > 0 && hasTarget && (
+            <div style={{ ...card, borderColor: '#f5dea8', background: '#fffaf0', padding: '13px 15px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#8a5a00', marginBottom: 6 }}>
+                ⚠ {untargeted.length} filialın satış hədəfi təyin edilməyib
+              </div>
+              <div style={{ fontSize: 12, color: '#8a5a00', lineHeight: 1.6, marginBottom: 8 }}>
+                Bu filialların <b>{money(untargetedSales)}</b> satışı «Plan vs Gerçək» müqayisəsinə
+                <b> daxil deyil</b> (hədəf olmadan tutturma hesablanmır). Şəbəkə satışı{' '}
+                <b>{money(d.toplam)}</b>, müqayisəyə girən <b>{money(tutNet.actual)}</b>.{' '}
+                <a href="/dashboard/sales" style={{ color: '#8a5a00', fontWeight: 700 }}>Satış hədəfi</a> səhifəsindən hədəf təyin edin.
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {untargeted.sort((a, b) => b.actualV - a.actualV).map(u => (
+                  <span key={u.filial} style={{ background: '#fff', border: '1px solid #f5dea8', borderRadius: 8, padding: '3px 9px', fontSize: 12 }}>
+                    <b>{u.filial}</b> <span style={{ color: '#8a5a00' }}>{money(u.actualV)}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {flagged.length > 0 && (
             <div style={{ ...card, borderColor: '#f0c9cf', background: '#fdf2f3', padding: '13px 15px' }}>
@@ -370,12 +414,24 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           {tutList.length > 0 && (
             <div style={{ ...card, overflow: 'hidden' }}>
               <div style={{ padding: '13px 16px', borderBottom: '1px solid #efeae0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 800 }}>🎯 Plan vs Gerçək · Tutturma</div>
-                <div style={{ fontSize: 12.5, color: '#8b8378' }}>
-                  Plan <b style={{ color: '#26221d' }}>{money(tutNet.plan)}</b> · Gerçək <b style={{ color: '#26221d' }}>{money(tutNet.actual)}</b> · {(() => {
-                    const p = tutNet.plan ? Math.round(tutNet.actual / tutNet.plan * 100) : 0, s = tutStat(tutNet.plan ? tutNet.actual / tutNet.plan : null)
-                    return <span style={{ fontWeight: 800, color: s ? TUT[s].c : '#8b8378' }}>{s ? TUT[s].t(p) : '—'}</span>
-                  })()}
+                <div style={{ fontSize: 14, fontWeight: 800 }}>
+                  🎯 Plan vs Gerçək · Tutturma
+                  <span style={{ fontWeight: 500, fontSize: 11.5, color: '#8b8378' }}> · {tutList.length} hədəfli filial · bugünə qədər</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: '#8b8378', textAlign: 'right' }}>
+                  <div>
+                    Plan <b style={{ color: '#26221d' }}>{money(tutNet.plan)}</b> · Gerçək <b style={{ color: '#26221d' }}>{money(tutNet.actual)}</b> · {(() => {
+                      const p = tutNet.plan ? Math.round(tutNet.actual / tutNet.plan * 100) : 0, s = tutStat(tutNet.plan ? tutNet.actual / tutNet.plan : null)
+                      return <span style={{ fontWeight: 800, color: s ? TUT[s].c : '#8b8378' }}>{s ? TUT[s].t(p) : '—'}</span>
+                    })()}
+                  </div>
+                  {/* Cəm İZLƏNƏ BİLƏN olsun: hədəfsiz satış + müqayisə = şəbəkə satışı.
+                      Əvvəl bu fərq heç yerdə görünmürdü və 53 186 ₼ yoxa çıxırdı. */}
+                  {untargetedSales > 0 && (
+                    <div style={{ fontSize: 11, color: '#8a5a00', marginTop: 2 }}>
+                      + hədəfsiz {money(untargetedSales)} = şəbəkə satışı <b>{money(d.toplam)}</b>
+                    </div>
+                  )}
                 </div>
               </div>
 

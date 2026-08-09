@@ -6,6 +6,32 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — Panelde 53 186 ₼ satış səssiz itirdi + hədəf faizi şişik idi
+- **🔴 HƏDƏFİ OLMAYAN FİLİALIN SATIŞI «Plan vs Gerçək»dən TAMAMİLƏ ÇIXIRDI**
+  (`panel-client.tsx`, artıq `src/lib/analytics/target-attainment.ts`):
+  `tutList` `.filter(planV > 0)` ilə qurulurdu, hədəfsiz filial düşürdü və
+  satışı **heç yerdə görünmürdü**. Real datada (avqust 2026):
+  **Əcəmi 33 261 ₼ + Abdülkerim Alizadə 19 925 ₼ = 53 186 ₼**. Panel şəbəkə
+  satışını 920 586 ₼, «Gerçək» cəmini isə 867 401 ₼ göstərirdi — fərq izahsız.
+  - Artıq hədəfsiz filiallar **adla və satışla ekranda göstərilir**, «Satış
+    hədəfi» səhifəsinə keçid verilir, və cəm izlənə bilir:
+    `müqayisə + hədəfsiz = şəbəkə satışı`.
+  - Bölgə səviyyəsində də eyni: İsmayıl 266 371 ₼ yerinə 246 446 ₼,
+    Ceyhun 145 518 ₼ yerinə 112 257 ₼ görünürdü.
+- **🔴 «HƏDƏFƏ GÖRƏ %102» ŞİŞİK İDİ — doğru rəqəm %96.**
+  Pay BÜTÜN filialların ay proqnozu (4 076 881 ₼), məxrəc isə YALNIZ hədəfli
+  filialların hədəfi (4 008 000 ₼) idi. «Hədəfi aşdıq» kimi oxunurdu, halbuki
+  hədəfin **altında**. Pay və məxrəc artıq **eyni filial dəstindədir**.
+  Üstəlik etiket dəqiqləşdi («Hədəfə görə (proqnoz) · ay sonu proqnozu / hədəf»)
+  — əvvəl %102 (proqnoz) və %22 (bugünə qədər) yan-yana ziddiyyət kimi görünürdü;
+  ikisi FƏRQLİ sualdır, hər ikisi doğrudur.
+- **Hesablama saf funksiyaya çıxarıldı** (`target-attainment.ts`): məntiq
+  komponentin içində olduğu üçün heç bir test onu tutmurdu. Artıq **8 regresiya
+  testi** var, o cümlədən köhnə səhv davranışın reproduksiyası (%102 vs %96) və
+  «cəm izlənə bilir» iddiası. Bölgə hesablaması da eyni funksiyadan gəlir.
+- Delivery alt yazısı `own_delivery` varsa «Wolt+Bolt+öz» olur (əvvəl bu sətir
+  cəmə daxil idi, amma etiket «Wolt+Bolt» deyirdi).
+
 ### Fixed — «/dashboard niyə boşdur» + tək fayl kifayət edir
 - **🔴 Dashboard boş görünürdü — səbəb: İKİ AYRI MƏNBƏ.** Böyük «Günlük Satış»
   kartı `daily_sales` cədvəlindən oxuyurdu, onu isə YALNIZ `/api/sales/daily`
