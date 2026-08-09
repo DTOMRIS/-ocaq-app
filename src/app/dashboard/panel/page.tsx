@@ -1,7 +1,8 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { desc, eq, and, inArray } from 'drizzle-orm'
-import { db } from '@/db'
+import { db, sqlClient } from '@/db'
+import { factsToPanel, type FactRow } from '@/lib/analytics/facts-to-panel'
 import { analytics_ingest } from '@/db/schema/analytics'
 import { sales_targets } from '@/db/schema/sales'
 import { branches } from '@/db/schema/branches'
@@ -33,7 +34,21 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
   const periodRows = await db.selectDistinct({ period: analytics_ingest.period })
     .from(analytics_ingest)
     .where(and(eq(analytics_ingest.tenant_id, tenantId), eq(analytics_ingest.engine_version, 'panel-1.0')))
-  const periods = periodRows.map(r => r.period).filter((p): p is string => !!p).sort().reverse()
+  // Fakt cədvəlindəki dövrlər də siyahıya girir — əks halda yalnız PRODMIX/ÇEK
+  // yüklənmiş ay dropdown-da GÖRÜNMƏZ qalardı (iyul hadisəsinin eyni tələsi).
+  let factPeriods: string[] = []
+  try {
+    const fp = await sqlClient.query(
+      `select distinct to_char(business_date,'YYYY-MM') as p
+       from analytics_daily_fact where tenant_id = $1`, [tenantId],
+    )
+    factPeriods = ((Array.isArray(fp) ? fp : (fp as { rows?: unknown[] }).rows ?? []) as Array<{ p: string }>)
+      .map(r => String(r.p))
+  } catch { /* cədvəl yoxdursa siyahı blob-dan qalır */ }
+  const periods = [...new Set([
+    ...periodRows.map(r => r.period).filter((p): p is string => !!p),
+    ...factPeriods,
+  ])].sort().reverse()
 
   // ── Diaqnostika: DB-də NƏ VAR (bütün engine_version-lar) ───────────────────
   // Niyə lazımdır: `analytics_ingest`-ə DÖRD fərqli yazıcı var, hər biri fərqli
@@ -76,6 +91,36 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
 
   let initial: { daily: unknown; plan: unknown; yoy?: unknown } | null = null
   if (latest?.network) { try { initial = JSON.parse(latest.network) } catch { initial = null } }
+
+  // ── FAKT CƏDVƏLİ ÜSTÜNLÜKLƏ OXUNUR ──────────────────────────────────────────
+  // NİYƏ: PRODMIX/ÇEK yükləməsi `analytics_daily_fact`-a yazır, bu səhifə isə
+  // ayrıca aylıq satış faylının JSON blob-unu oxuyurdu → istifadəçi iki fayl
+  // yükləmək məcburiyyətində qalırdı. Fakt datası daha incə qranuldadır (gün ×
+  // filial × ödəniş növü) və çek sayını da daşıyır, ona görə mövcud olduqda
+  // ONDAN qurulur. Blob yolu SİLİNMİR — köhnə aylar (fakt yüklənməmiş dövrlər)
+  // yenə görünür.
+  let factSource = false
+  try {
+    const fr = await sqlClient.query(
+      `select filial, business_date::text as business_date, payment_type,
+              amount::float8 as amount, receipts
+       from analytics_daily_fact
+       where tenant_id = $1
+         ${wantPeriod ? `and to_char(business_date,'YYYY-MM') = $2` : ''}`,
+      wantPeriod ? [tenantId, wantPeriod] : [tenantId],
+    )
+    const rows = (Array.isArray(fr) ? fr : (fr as { rows?: unknown[] }).rows ?? []) as FactRow[]
+    const built = factsToPanel(rows, wantPeriod)
+    if (built) {
+      // Plan/YoY blob-dan gəlməyə davam edir (fakt cədvəlində plan yoxdur).
+      initial = { daily: built, plan: initial?.plan ?? null, yoy: initial?.yoy }
+      factSource = true
+    }
+  } catch (err) {
+    // Cədvəl yoxdursa (migration 0010 tətbiq olunmayıb) blob yolu işləyir.
+    // Xəta UDULMUR — loga yazılır.
+    console.error('Panel fact read error:', err)
+  }
 
   const dailyObj = initial?.daily as { period?: string; branches?: Array<{ filial: string; total: number }> } | undefined
   const period = dailyObj?.period ?? latest?.period ?? null
@@ -163,6 +208,7 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
       targets={targets}
       canUpload={session.user.role === 'super_admin'}
       savedAt={latest?.gen ? new Date(latest.gen).toLocaleDateString('az') : null}
+      factSource={factSource}
       // `key` VACİBDİR: PanelClient state-ini `useState(initial...)` ilə qurur
       // (`panel-client.tsx:63-65`). `useState` başlanğıc dəyəri YALNIZ ilk
       // mount-da işlədir. Dövr dəyişdirildikdə `router.push` client-side

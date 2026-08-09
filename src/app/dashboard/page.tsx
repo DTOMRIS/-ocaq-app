@@ -12,6 +12,14 @@ import { eq, and, inArray, gte, lte } from 'drizzle-orm'
 // Verisi olmayan metrik üçün göstərici (mock yox, dürüst)
 const NA = '—'
 
+/**
+ * Rəqəm formatı — MİNLİK AYIRICI BOŞLUQ.
+ * `toLocaleString('az-AZ')` minlikləri NÖQTƏ ilə ayırır: 129 193 → «129.193».
+ * Bu, pul dəyərində «129 manat» kimi oxuna bilər — təhlükəli qarışıqlıq.
+ * Günlük Panel-də işlədilən desen budur (boşluqlu), dashboard da ona uyğunlaşır.
+ */
+const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/[, ]/g, ' ')
+
 const pctOf = (actual: number, target: number) =>
   target > 0 ? Math.round((actual / target) * 100) : 0
 
@@ -144,6 +152,9 @@ export default async function DashboardPage() {
   let monthReceipts: number | null = null, monthReceiptAmount = 0
   let dayReceipts: number | null = null, dayReceiptAmount = 0
   let lastFactDate: string | null = null
+  // Satış rəqəmi hansı mənbədən gəldi — ekranda göstərilir ki mənbə görünməz
+  // qalmasın (iyul hadisəsinin dərsi).
+  let salesSource: 'fact' | 'manual' | null = hasSalesData ? 'manual' : null
   try {
     const now = new Date()
     const yr = now.getFullYear(), mo = now.getMonth()
@@ -171,10 +182,29 @@ export default async function DashboardPage() {
       if (rows.length > 0) {
         monthReceipts = rows.reduce((s, r) => s + (r.rec ?? 0), 0)
         monthReceiptAmount = rows.reduce((s, r) => s + Number(r.amt), 0)
-        lastFactDate = rows.map(r => r.d).sort().at(-1) ?? null
+        const allDays = [...new Set(rows.map(r => r.d))].sort()
+        lastFactDate = allDays.at(-1) ?? null
+        const prevFactDate = allDays.at(-2) ?? null
         const lastRows = rows.filter(r => r.d === lastFactDate)
         dayReceipts = lastRows.reduce((s, r) => s + (r.rec ?? 0), 0)
         dayReceiptAmount = lastRows.reduce((s, r) => s + Number(r.amt), 0)
+
+        // ─── SATIŞ KARTI DA FAKTDAN ────────────────────────────────────────
+        // NİYƏ: bu kart `daily_sales` cədvəlindən oxuyurdu, onu isə YALNIZ
+        // `/api/sales/daily` (ƏL İLƏ giriş) doldurur — heç kim işlətmirdi, ona
+        // görə dashboard boş görünürdü, halbuki real satış fakt cədvəlində
+        // HAZIR dururdu. Artıq fakt varsa ondan oxunur.
+        //
+        // Faktı `daily_sales`-ə KÖÇÜRMÜRÜK: eyni rəqəm iki cədvəldə = İKİ
+        // HƏQİQƏT, iyulda datanın «yoxa çıxması» məhz bundan oldu
+        // (docs/DENETIM-2026-08-04.md §1). Tək mənbə, çox oxucu.
+        monthSales = monthReceiptAmount
+        dayActual = dayReceiptAmount
+        dayYesterday = prevFactDate
+          ? rows.filter(r => r.d === prevFactDate).reduce((s, r) => s + Number(r.amt), 0)
+          : 0
+        hasSalesData = true
+        salesSource = 'fact'
       }
     }
   } catch (err) {
@@ -220,6 +250,9 @@ export default async function DashboardPage() {
 
   const salesPct = pctOf(salesActual, salesTarget)
   const salesDiff = salesActual - salesTarget
+  // Satış var, HƏDƏF yoxdursa faiz göstərmək yanıldıcıdır (0% qırmızı çubuq
+  // «pis gedir» kimi oxunur, halbuki hədəf sadəcə təyin edilməyib).
+  const hasTarget = salesTarget > 0
   const priorityActions = role === 'branch_manager'
     ? [
         { href: '/dashboard/vardiya-liderliyi', icon: '◆', title: 'Növbəni hazırla', desc: '5 dəqiqəlik görüşü, tapşırıqları və devir qeydini tamamla.' },
@@ -271,29 +304,47 @@ export default async function DashboardPage() {
       </div>
 
       {/* ═══ SATIŞ HƏDƏFİ — ana kart ═══ */}
-      <div className={`rounded-2xl border-2 p-5 mb-4 ${!hasSalesData ? "bg-white border-slate-200" : salesPct >= 100 ? "bg-emerald-50 border-emerald-200" : salesPct >= 75 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
+      {/* Rəng YALNIZ hədəf varsa hesablanır: hədəfsiz 0% qırmızı çubuq «pis
+          gedir» kimi oxunur, halbuki hədəf sadəcə təyin edilməyib. */}
+      <div className={`rounded-2xl border-2 p-5 mb-4 ${!hasSalesData ? "bg-white border-slate-200" : !hasTarget ? "bg-slate-50 border-slate-200" : salesPct >= 100 ? "bg-emerald-50 border-emerald-200" : salesPct >= 75 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-slate-900">📊 Günlük Satış</h2>
-          <span className={`text-sm font-bold px-3 py-1 rounded-full ${!hasSalesData ? "bg-slate-100 text-slate-500" : salesPct >= 100 ? "bg-emerald-100 text-emerald-700" : salesPct >= 75 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
-            {hasSalesData ? `${salesPct}%` : 'Məlumat yoxdur'}
+          <h2 className="font-bold text-slate-900">📊 Günlük Satış{factDateLabel && salesSource === 'fact' ? <span className="ml-2 text-xs font-normal text-slate-400">{factDateLabel}</span> : null}</h2>
+          <span className={`text-sm font-bold px-3 py-1 rounded-full ${!hasSalesData ? "bg-slate-100 text-slate-500" : !hasTarget ? "bg-slate-100 text-slate-500" : salesPct >= 100 ? "bg-emerald-100 text-emerald-700" : salesPct >= 75 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
+            {!hasSalesData ? 'Məlumat yoxdur' : hasTarget ? `${salesPct}%` : 'Hədəf yoxdur'}
           </span>
         </div>
         <div className="flex items-end gap-2 mb-2">
-          <span className={`text-3xl font-bold ${hasSalesData ? 'text-slate-900' : 'text-slate-300'}`}>{hasSalesData ? `${salesActual.toLocaleString()} ₼` : NA}</span>
-          {hasSalesData && <span className="text-sm text-slate-500 mb-1">/ {salesTarget.toLocaleString()} ₼ hədəf</span>}
+          <span className={`text-3xl font-bold ${hasSalesData ? 'text-slate-900' : 'text-slate-300'}`}>{hasSalesData ? `${fmt(salesActual)} ₼` : NA}</span>
+          {hasSalesData && hasTarget && <span className="text-sm text-slate-500 mb-1">/ {fmt(salesTarget)} ₼ hədəf</span>}
         </div>
-        <div className="h-3 bg-white/60 rounded-full overflow-hidden mb-2">
-          <div className={`h-full rounded-full transition-all ${salesPct >= 100 ? "bg-emerald-500" : salesPct >= 75 ? "bg-amber-500" : "bg-red-500"}`}
-            style={{ width: `${hasSalesData ? Math.min(salesPct, 100) : 0}%` }} />
-        </div>
-        <div className="flex items-center justify-between text-xs text-slate-500">
+        {hasTarget && (
+          <div className="h-3 bg-white/60 rounded-full overflow-hidden mb-2">
+            <div className={`h-full rounded-full transition-all ${salesPct >= 100 ? "bg-emerald-500" : salesPct >= 75 ? "bg-amber-500" : "bg-red-500"}`}
+              style={{ width: `${hasSalesData ? Math.min(salesPct, 100) : 0}%` }} />
+          </div>
+        )}
+        <div className="flex items-center justify-between text-xs text-slate-500 gap-3 flex-wrap">
           {hasSalesData ? <>
-            <span>Əvvəlki gün: {salesYesterday.toLocaleString()} ₼</span>
-            <span className={salesDiff >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
-              {salesDiff >= 0 ? "+" : ""}{salesDiff.toLocaleString()} ₼ fərq
+            <span>
+              Əvvəlki gün: {fmt(salesYesterday)} ₼
+              {salesSource === 'fact' && <span className="text-slate-400"> · bu ay {fmt(monthSales)} ₼</span>}
             </span>
+            {hasTarget
+              ? <span className={salesDiff >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                  {salesDiff >= 0 ? "+" : ""}{fmt(salesDiff)} ₼ fərq
+                </span>
+              : <Link href="/dashboard/sales" className="text-[var(--ocaq-red)] font-medium">Satış hədəfi təyin et →</Link>}
           </> : <span>Satış daxil edildikdə burada real nəticə görünəcək.</span>}
         </div>
+        {/* Mənbə GÖRÜNMƏZ QALMASIN — iyulda datanın «yoxa çıxması» oxucunun
+            hansı mənbəyə baxdığı bilinmədiyi üçün gec anlaşıldı. */}
+        {salesSource && (
+          <div className="mt-2 text-[10px] text-slate-400">
+            Mənbə: {salesSource === 'fact'
+              ? <>PRODMIX/ÇEK yükləməsi (<Link href="/dashboard/analitika" className="underline">Məhsul Analizi</Link>)</>
+              : 'əl ilə daxil edilmiş günlük satış'}
+          </div>
+        )}
       </div>
 
       {/* ═══ KPI KARTLARI ═══ */}
@@ -310,7 +361,7 @@ export default async function DashboardPage() {
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
             {dayAvgCheck !== null
-              ? `${factDateLabel} · ay ortalaması ${monthAvgCheck!.toFixed(2)} ₼`
+              ? `${factDateLabel}${monthAvgCheck !== null ? ` · ay ortalaması ${monthAvgCheck.toFixed(2)} ₼` : ''}`
               : 'Çek faylı yüklənməyib'}
           </p>
         </div>
@@ -322,7 +373,7 @@ export default async function DashboardPage() {
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Müştəri Sayı</p>
           <div className="flex items-end gap-1">
             <span className={`text-2xl font-bold ${dayReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
-              {dayReceipts !== null ? dayReceipts.toLocaleString('az-AZ') : NA}
+              {dayReceipts !== null ? fmt(dayReceipts) : NA}
             </span>
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
@@ -334,7 +385,7 @@ export default async function DashboardPage() {
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Çek Sayı</p>
           <div className="flex items-end gap-1">
             <span className={`text-2xl font-bold ${monthReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
-              {monthReceipts !== null ? monthReceipts.toLocaleString('az-AZ') : NA}
+              {monthReceipts !== null ? fmt(monthReceipts) : NA}
             </span>
           </div>
           <p className="text-[10px] text-slate-400 mt-1">

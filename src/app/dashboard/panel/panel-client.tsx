@@ -13,8 +13,13 @@ type Daily = {
   daily: Record<string, { total: number; wolt: number; bolt: number }>
   branches: Array<{ filial: string; bolge: string | null; total: number; wolt: number; bolt: number }>
   regions: Array<[string, number]>
-  pay: { nagd: number; kart: number; wolt: number; bolt: number }
+  // `own_delivery` YALNIZ fakt cədvəlindən gələn datada olur (blob-da yoxdur) →
+  // istəyə bağlı. Delivery payına daxil edilir, yoxsa qarışıq cəmə çatmır.
+  pay: { nagd: number; kart: number; wolt: number; bolt: number; own_delivery?: number }
   toplam: number; gedisat: number
+  /** Fakt mənbəyində çek sayı və ortalama çek də var — blob-da yoxdur. */
+  receipts?: number
+  avgCheck?: number | null
 }
 
 const money = (n?: number | null) => (n == null ? '—' : Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + '₼')
@@ -56,8 +61,10 @@ function Chart({ d }: { d: Daily }) {
 
 type IngestRow = { period: string; engine: string; status: string; created: string; readable: boolean }
 
-export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [] }: {
+export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [], factSource = false }: {
   initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null; inventory?: IngestRow[]
+  /** Panel datası fakt cədvəlindən quruldu (blob-dan deyil) — mənbə göstərilir. */
+  factSource?: boolean
 }) {
   const router = useRouter()
   const [files, setFiles] = useState<File[]>([])
@@ -114,7 +121,8 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     finally { setBusy(false) }
   }
 
-  const deliv = d ? d.pay.wolt + d.pay.bolt : 0
+  // Öz çatdırılma da delivery-dir (fakt mənbəyində ayrı sətirdir).
+  const deliv = d ? d.pay.wolt + d.pay.bolt + (d.pay.own_delivery ?? 0) : 0
   // Ayın gerçək gün sayı (31 sabiti deyil) — filial proqnozu düzgün olsun
   const daysInMonth = d?.period ? new Date(+d.period.slice(0, 4), +d.period.slice(5, 7), 0).getDate() : 31
   const bolgeler = d ? [...new Set(d.branches.map(b => b.bolge).filter(Boolean))] as string[] : []
@@ -324,7 +332,14 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
       {d && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 12, color: '#8b8378', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-            <span>Dövr {d.period} · {d.gun} gün {plan ? '· plan ✓' : ''} {saveErr ? <b style={{ color: '#c8102e' }}>· ⚠ saxlanmadı — yenidən yüklə</b> : saved ? '· yadda saxlanıldı ✓' : savedAt ? `· ${savedAt} yüklənib` : ''}</span>
+            <span>
+              Dövr {d.period} · {d.gun} gün {plan ? '· plan ✓' : ''}
+              {/* MƏNBƏ GÖRÜNSÜN — iyulda datanın «yoxa çıxması» oxucunun hansı
+                  mənbəyə baxdığı bilinmədiyi üçün gec anlaşıldı. */}
+              {factSource && <b style={{ color: '#1c7a4e' }}> · PRODMIX/ÇEK datası</b>}
+              {d.receipts ? <> · {d.receipts.toLocaleString('ru-RU').replace(/,/g, ' ')} çek{d.avgCheck ? ` · ort.çek ${d.avgCheck.toFixed(2)}₼` : ''}</> : null}
+              {saveErr ? <b style={{ color: '#c8102e' }}>· ⚠ saxlanmadı — yenidən yüklə</b> : saved ? '· yadda saxlanıldı ✓' : savedAt ? `· ${savedAt} yüklənib` : ''}
+            </span>
             <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <button className="no-print" onClick={() => window.print()} style={{ background: 'none', border: 'none', color: '#26221d', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>🖨️ Çap / PDF</button>
               {canUpload && <button className="no-print" onClick={() => { setD(null); setPlan(null); setYoy(null); setFiles([]); setSaved(false) }} style={{ background: 'none', border: 'none', color: '#c8102e', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontWeight: 600 }}>↻ yeni ay yüklə</button>}

@@ -6,6 +6,39 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — «/dashboard niyə boşdur» + tək fayl kifayət edir
+- **🔴 Dashboard boş görünürdü — səbəb: İKİ AYRI MƏNBƏ.** Böyük «Günlük Satış»
+  kartı `daily_sales` cədvəlindən oxuyurdu, onu isə YALNIZ `/api/sales/daily`
+  (ƏL İLƏ giriş) doldurur — heç kim işlətmirdi. Real satış datası
+  `analytics_daily_fact`-da HAZIR dururdu, lakin dashboard ona baxmırdı.
+  Artıq fakt varsa **ondan** oxunur: günlük satış, əvvəlki gün, ay cəmi.
+  - **Fakt `daily_sales`-ə KÖÇÜRÜLMÜR:** eyni rəqəmi iki cədvəldə saxlamaq
+    İKİ HƏQİQƏT yaradır — iyulda datanın «yoxa çıxması» məhz bundan oldu
+    (`docs/DENETIM-2026-08-04.md` §1). **Tək mənbə, çox oxucu.**
+  - **Hədəf yoxdursa faiz göstərilmir:** əvvəl hədəfsiz halda `0%` və qırmızı
+    çubuq çıxırdı — «pis gedir» kimi oxunurdu, halbuki hədəf sadəcə təyin
+    edilməyib. Artıq «Hədəf yoxdur» yazılır + hədəf təyin etmə linki.
+  - **Mənbə ekranda göstərilir** (fakt / əl ilə) — oxucunun hansı mənbəyə
+    baxdığı görünməz qalmasın (iyul hadisəsinin dərsi).
+  - **Rəqəm formatı düzəldildi:** `toLocaleString('az-AZ')` minlikləri NÖQTƏ
+    ilə ayırır (`129.193 ₼`) və «129 manat» kimi oxuna bilirdi → boşluqlu
+    formata keçildi (`129 193 ₼`), Günlük Panel deseni ilə eyni.
+- **📈 Günlük Panel artıq fakt cədvəlindən qurulur** (`src/lib/analytics/facts-to-panel.ts`,
+  `panel/page.tsx`): PRODMIX + ÇEK faylını atmaq **kifayət edir** — ayrıca aylıq
+  satış faylı yükləmək məcburiyyəti bitdi. Fakt datası daha incə qranuldadır
+  (gün × filial × ödəniş növü) və **çek sayını da daşıyır**, ona görə mövcud
+  olduqda ondan qurulur. Blob yolu **SİLİNMİR** — fakt yüklənməmiş köhnə aylar
+  yenə görünür; dövr siyahısına fakt ayları da əlavə olunur (əks halda yalnız
+  PRODMIX/ÇEK yüklənmiş ay dropdown-da görünməz qalardı).
+  - Panel başlığında mənbə və çek sayı/ortalama çek göstərilir.
+  - `own_delivery` delivery payına daxil edildi (blob-da bu sətir yox idi).
+  - Adapter SAF funksiyadır → 9 unit testlə örtülü.
+  - **Doğrulama (PGlite + real fayl):** paneldeki bütün cəmlər üst-üstə düşür —
+    toplam **920 585,71 ₼**, ödəniş qarışığı cəmi = toplam, günlük seriya cəmi =
+    toplam, filial cəmi = toplam, 29 filial · 5 bölgə, 43 212 çek ·
+    ortalama çek 21,30 ₼. Dashboard: günlük satış 129 193 ₼ (07.08),
+    əvvəlki gün 127 139 ₼, ay 920 586 ₼, müştəri 6 123.
+
 ### Added — Maya/kateqoriya hazırlığı (sütun gələn gün işləyəcək)
 - **`Maya dəyəri` + `Kateqoriya` sütunları əvvəlcədən dəstəkləndi**
   (`parse-sales-detail.ts`, `fact-save/route.ts`, `detail-upload.tsx`,
