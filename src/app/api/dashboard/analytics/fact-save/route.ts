@@ -20,6 +20,20 @@ import { PAYMENT_KINDS, LINE_KINDS } from '@/lib/analytics/parse-sales-detail'
  * (mövcud panel deseni), nəticə hissə-hissə göndərilir. Hər çağırış müstəqil
  * idempotentdir — yarıda kəsilsə təkrar göndərmək zərərsizdir.
  *
+ * 🔴 NİYƏ `unnest`, ÇOX SƏTİRLİ `VALUES` DEYİL (09.08.2026 hadisəsi):
+ * Əvvəl hər sətir üçün ayrı placeholder qrupu qurulurdu. 4000 məhsul sətri =
+ * 40 000 parametr + ~440 KB SQL MƏTNİ. Neon HTTP sürücüsü bunu qəbul etmədi:
+ * «Database request failed» (Postgres xətası deyil — HTTP qatının rəddi; ona
+ * görə heç bir izahat gəlmirdi). `daily` keçdi (~600 sətir), `item` sındı.
+ *
+ * `unnest` ilə sütun başına BİR massiv parametri gedir:
+ *   • SQL mətni SABİT (~600 bayt), sətir sayından asılı deyil
+ *   • parametr sayı SABİT 10 (40 000 deyil)
+ *   • Postgres limiti 65 535 parametrdir — artıq ona heç yaxınlaşmırıq
+ * Sürücü JS massivini Postgres massiv literalına çevirir və `null`-ı `NULL`
+ * kimi kodlayır (`@neondatabase/serverless` → `arrayString`), yəni boş
+ * `branch_id` təhlükəsizdir.
+ *
  * ÇAĞIRANIN ÖHDƏLİYİ (vacib): sətirlər açar başına BİR DƏFƏ göndərilməlidir.
  * `parseProdmix().lines` və `parseReceipts().days` artıq bu qranuldadır
  * («upsert qranulu» şərhinə bax), ona görə chunk-ları sərbəst böləbilərsiniz —
@@ -118,28 +132,30 @@ export async function POST(req: NextRequest) {
         if (branchIdOf(r.filial) == null) unmatched.add(r.filial)
       }
 
-      // Toplu upsert — hər sətir üçün ayrı sorğu ATMIRIQ (5000 round-trip olardı).
-      const vals: unknown[] = []
-      const holes: string[] = []
-      rows.forEach((r, i) => {
-        const b = i * 8
-        holes.push(`($${b + 1}::uuid, $${b + 2}::uuid, $${b + 3}::text, $${b + 4}::date, $${b + 5}::text, $${b + 6}::numeric, $${b + 7}::integer, $${b + 8}::text)`)
-        vals.push(tenantId, branchIdOf(r.filial), r.filial, r.date, r.payment_type,
-          r.amount.toFixed(2), r.receipts, source)
-      })
-      if (holes.length) {
+      if (rows.length) {
+        // `unnest` — sütun başına BİR massiv parametri (bax yuxarıdaki şərh).
         await sqlClient.query(`
           insert into analytics_daily_fact
             (tenant_id, branch_id, filial, business_date, payment_type, amount, receipts, source)
-          values ${holes.join(',')}
+          select $1::uuid, t.branch_id, t.filial, t.business_date, t.payment_type, t.amount, t.receipts, $2::text
+          from unnest($3::uuid[], $4::text[], $5::date[], $6::text[], $7::numeric[], $8::integer[])
+            as t(branch_id, filial, business_date, payment_type, amount, receipts)
           on conflict (tenant_id, filial, business_date, payment_type) do update set
             amount     = excluded.amount,
             receipts   = coalesce(excluded.receipts, analytics_daily_fact.receipts),
             branch_id  = coalesce(excluded.branch_id, analytics_daily_fact.branch_id),
             source     = coalesce(excluded.source, analytics_daily_fact.source),
             updated_at = now()
-        `, vals)
-        written = holes.length
+        `, [
+          tenantId, source,
+          rows.map(r => branchIdOf(r.filial)),
+          rows.map(r => r.filial),
+          rows.map(r => r.date),
+          rows.map(r => r.payment_type),
+          rows.map(r => r.amount.toFixed(2)),
+          rows.map(r => r.receipts),
+        ])
+        written = rows.length
       }
     } else {
       const valid = (body.rows as ItemRow[]).filter((r, i) => {
@@ -177,19 +193,13 @@ export async function POST(req: NextRequest) {
         if (branchIdOf(r.filial) == null) unmatched.add(r.filial)
       }
 
-      const vals: unknown[] = []
-      const holes: string[] = []
-      rows.forEach((r, i) => {
-        const b = i * 10
-        holes.push(`($${b + 1}::uuid, $${b + 2}::uuid, $${b + 3}::text, $${b + 4}::date, $${b + 5}::text, $${b + 6}::text, $${b + 7}::numeric, $${b + 8}::numeric, $${b + 9}::text, $${b + 10}::text)`)
-        vals.push(tenantId, branchIdOf(r.filial), r.filial, r.date,
-          r.item_code, r.item_name, r.qty.toFixed(3), r.amount.toFixed(2), r.line_kind, source)
-      })
-      if (holes.length) {
+      if (rows.length) {
         await sqlClient.query(`
           insert into analytics_item_fact
             (tenant_id, branch_id, filial, business_date, item_code, item_name, qty, amount, line_kind, source)
-          values ${holes.join(',')}
+          select $1::uuid, t.branch_id, t.filial, t.business_date, t.item_code, t.item_name, t.qty, t.amount, t.line_kind, $2::text
+          from unnest($3::uuid[], $4::text[], $5::date[], $6::text[], $7::text[], $8::numeric[], $9::numeric[], $10::text[])
+            as t(branch_id, filial, business_date, item_code, item_name, qty, amount, line_kind)
           on conflict (tenant_id, filial, business_date, item_code) do update set
             item_name  = excluded.item_name,
             qty        = excluded.qty,
@@ -198,8 +208,18 @@ export async function POST(req: NextRequest) {
             branch_id  = coalesce(excluded.branch_id, analytics_item_fact.branch_id),
             source     = coalesce(excluded.source, analytics_item_fact.source),
             updated_at = now()
-        `, vals)
-        written = holes.length
+        `, [
+          tenantId, source,
+          rows.map(r => branchIdOf(r.filial)),
+          rows.map(r => r.filial),
+          rows.map(r => r.date),
+          rows.map(r => r.item_code),
+          rows.map(r => r.item_name),
+          rows.map(r => r.qty.toFixed(3)),
+          rows.map(r => r.amount.toFixed(2)),
+          rows.map(r => r.line_kind),
+        ])
+        written = rows.length
       }
     }
 
@@ -228,8 +248,22 @@ export async function POST(req: NextRequest) {
     }, { status: 200 })
   } catch (e) {
     // Xəta UDULMUR (CLAUDE.md §2.7) — real səbəb qaytarılır.
-    const detail = e instanceof Error ? e.message : String(e)
-    console.error('fact-save error:', detail)
-    return NextResponse.json({ error: 'Yazma xətası', detail }, { status: 500 })
+    //
+    // TEŞHİS EDİLƏ BİLƏN OLSUN: «Database request failed» tək başına heç nə
+    // demir (09.08.2026-da bir saat itirdik). Neon sürücüsünün əlavə sahələri
+    // (`code`, `sourceError`, `severity`) və sətir sayı da qaytarılır ki
+    // növbəti dəfə səbəb dərhal görünsün.
+    const err = e as { message?: string; code?: string; severity?: string; detail?: string; sourceError?: { message?: string } }
+    const detail = err?.message ?? String(e)
+    const meta = {
+      kind,
+      rowsReceived: Array.isArray(body.rows) ? body.rows.length : 0,
+      pgCode: err?.code ?? null,
+      pgDetail: err?.detail ?? null,
+      severity: err?.severity ?? null,
+      cause: err?.sourceError?.message ?? null,
+    }
+    console.error('fact-save error:', detail, meta)
+    return NextResponse.json({ error: 'Yazma xətası', detail, meta }, { status: 500 })
   }
 }

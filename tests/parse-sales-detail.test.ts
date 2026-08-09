@@ -78,6 +78,60 @@ test('parseProdmix formatlanmış tarixlə də işləyir (raw:false yolu)', () =
   assert.deepEqual(withText.lines, withSerial.lines)
 })
 
+// ── 🔴 09.08.2026 REGRESİYASI №2 — təkrar açar / səssiz data itkisi ─────────
+// Faylda EYNİ (filial, gün, məhsul kodu) təkrarlanır: real datada 39 549
+// sətirdə 36 975 unikal açar (2 538 təkrar, hamısının adı eyni). Parser
+// toplamayanda chunk-lar təkrarı ayırırdı, ikinci chunk birincinin ÜZƏRİNƏ
+// yazırdı (toplamırdı) → 2 574 sətir və 102 227,56 ₼ ciro SƏSSİZ yox olurdu.
+test('parseProdmix təkrar açarı toplayır — ciro itmir', () => {
+  const head = ['Uçot günü', 'Ticarət müəssisəsi', 'Məhsulun kodu', 'Məhsul', 'Məhsulların sayı', 'Endirimli məbləğ, m.']
+  const res = parseProdmix([
+    head,
+    // Real fayldan: Mytcha|2026-08-07|1000051 iki sətir
+    [46241, 'Mytcha', '1000051', 'SHAURMA LAVASHDA ORTA (210 qr)', '59', '348.10'],
+    [46241, 'Mytcha', '1000051', 'SHAURMA LAVASHDA ORTA (210 qr)', '23', '135.70'],
+    [46241, 'Mytcha', '1000052', 'SHAURMA LAVAŞDA BÖYÜK (300 qr)', '65', '451.50'],
+  ])
+  assert.equal(res.lines.length, 2, 'təkrar açar BİR sətrə yığılmalıdır')
+  assert.equal(res.mergedKeys, 1)
+  const l = res.lines.find(x => x.itemCode === '1000051')!
+  assert.equal(l.qty, 82)                       // 59 + 23
+  assert.equal(l.amount.toFixed(2), '483.80')   // 348.10 + 135.70
+  // ƏSAS İDDİA: aqreqasiya cironu QORUYUR.
+  assert.equal(res.totals.amount.toFixed(2), '935.30')
+  assert.equal(res.totals.qty, 147)
+  // Hər açar bir dəfə → chunk-lı yükləmə təhlükəsizdir.
+  const keys = res.lines.map(l2 => `${l2.filial}|${l2.date}|${l2.itemCode}`)
+  assert.equal(new Set(keys).size, keys.length)
+})
+
+test('parseProdmix təkrarsız faylda heç nə birləşdirmir', () => {
+  const head = ['Uçot günü', 'Ticarət müəssisəsi', 'Məhsulun kodu', 'Məhsul', 'Məhsulların sayı', 'Endirimli məbləğ, m.']
+  const res = parseProdmix([
+    head,
+    [46241, 'Bayıl', '1000051', 'A', '5', '30.00'],
+    [46241, 'Bayıl', '1000052', 'B', '3', '20.00'],
+    [46242, 'Bayıl', '1000051', 'A', '4', '25.00'],   // fərqli gün → ayrı açar
+  ])
+  assert.equal(res.lines.length, 3)
+  assert.equal(res.mergedKeys, 0)
+  assert.equal(res.totals.amount.toFixed(2), '75.00')
+})
+
+test('parseProdmix birləşmiş sətirdə kind-i TOPLANMIŞ məbləğə görə təyin edir', () => {
+  const head = ['Uçot günü', 'Ticarət müəssisəsi', 'Məhsulun kodu', 'Məhsul', 'Məhsulların sayı', 'Endirimli məbləğ, m.']
+  const res = parseProdmix([
+    head,
+    [46241, 'Bayıl', '1000051', 'SHAURMA LAVAŞDA BÖYÜK', '2', '0.00'],    // pulsuz gedən
+    [46241, 'Bayıl', '1000051', 'SHAURMA LAVAŞDA BÖYÜK', '8', '56.00'],   // satılan
+  ])
+  // Birləşəndən sonra məbləğ müsbətdir → real gəlirli məhsuldur.
+  assert.equal(res.lines.length, 1)
+  assert.equal(res.lines[0].kind, 'product')
+  assert.equal(res.lines[0].qty, 10)
+  assert.equal(res.totals.productAmount.toFixed(2), '56.00')
+})
+
 test('parseReceipts formatlanmış tarixlə də işləyir (raw:false yolu)', () => {
   const head = ['Ticarət müəssisəsi', 'Tarix', 'Ödəniş növü', 'Qəbzin nömrəsi', 'Endirimli məbləğ, m. Total']
   const rows = [

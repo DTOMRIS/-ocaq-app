@@ -7,6 +7,38 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 ## [Unreleased]
 
 ### Fixed
+- **🔴 `item: Database request failed` — 40 000 parametrli sorğu** (`fact-save/route.ts`):
+  yazma sındı. Səbəb: hər sətir üçün ayrı placeholder qrupu qurulurdu → 4000
+  məhsul sətri = **40 000 parametr + ~440 KB SQL mətni**. Neon HTTP sürücüsü
+  bunu rədd etdi (Postgres xətası deyil, HTTP qatının rəddi — ona görə izahat
+  gəlmirdi). `daily` keçdi (~600 sətir), `item` sındı.
+  **Düzəliş:** `unnest($1::uuid[], …)` — sütun başına BİR massiv parametri.
+  SQL mətni **sabit ~600 bayt**, parametr sayı **sabit 10** (Postgres limiti
+  65 535; artıq ona yaxınlaşmırıq). Sürücünün `arrayString` kodlayıcısı `null`-ı
+  `NULL` kimi yazır → boş `branch_id` təhlükəsizdir (mənbədən yoxlandı).
+  Chunk 4000 → **2000**, üstəlik sınma halında **avtomatik yarıya enən** paket
+  (idempotent olduğu üçün təkrar cəhd zərərsizdir). Xəta mesajı artıq
+  teşhis edilə bilir (`pgCode`, `cause`, sətir sayı).
+- **🔴 SƏSSİZ DATA İTKİSİ — təkrar açar chunk-lar arasında** (`parse-sales-detail.ts`):
+  `parseProdmix`-in sənədlənmiş qranulu «filial × gün × məhsul» idi, LAKİN
+  aqreqasiya etmirdi — hər xam sətri ayrıca qaytarırdı. Faylda eyni açar
+  təkrarlanır (real data: 39 549 sətir → **36 975 unikal açar**, 2 538 təkrar;
+  hamısının məhsul adı EYNİ). Chunk-lar təkrarı ayırırdı, ikinci chunk
+  birincinin **üzərinə yazırdı (toplamırdı)** → **2 574 sətir və 102 227,56 ₼
+  ciro yox olurdu** (859 010,28 ₼ yerinə 961 237,84 ₼ olmalıydı).
+  Səbəb: bir kanonik filial altında iki fiziki nöqtə ola bilər (məs. ALIASES
+  `Torgoviy Yuxarı` + `Torgoviy Aşağı` → `Torgoviy`).
+  **Düzəliş:** parser açar üzrə toplayır → hər açar bir dəfə, chunk-lama
+  təhlükəsiz. `kind` TOPLANMIŞ məbləğə görə təyin olunur. Birləşdirmə **səssiz
+  deyil**: `mergedKeys` qaytarılır və yükləmə ekranında göstərilir.
+- **Doğrulama — REAL POSTGRES + REAL FAYL (PGlite WASM):** migration 0010 tətbiq
+  olundu (təkrar tətbiq no-op), route-un ƏSL SQL-i işlədildi, 36 975 məhsul +
+  983 gün sətri 20 sorğuda yazıldı (2,5 s). Nəticələr:
+  göndərilən = yazılan (**itki YOX**), məhsul cirosu **961 237,84 ₼** (birebir),
+  ay cəmi **920 585,71 ₼ · 43 212 çek · ortalama çek 21,30 ₼**,
+  ikinci yükləmə sətir sayını **artırmadı** (idempotent), uyğunlaşmayan filial
+  **yox** (Mytcha daxil), `coalesce` semantikası doğru (null `receipts`/`source`
+  köhnə dəyəri qorudu). Unit testlər: **41/41**.
 - **🔴 «Nə PRODMIX nə də ÇEK cədvəli tapılmadı» — tarix formatı** (`parse-sales-detail.ts`,
   `detail-upload.tsx`): yükləmə real fayllarla HEÇ İŞLƏMİRDİ.
   - **Səbəb:** parser-lər Python ilə çıxarılmış XAM serial-a (`46235`) qarşı yazılıb

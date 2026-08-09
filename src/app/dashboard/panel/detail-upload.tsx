@@ -26,7 +26,12 @@ import {
  * deyil, amma «bu gün hələ tam deyil» bilinməlidir.
  */
 
-const CHUNK = 4000   // server limiti 5000; ~1 MB body-də qalsın
+// Başlanğıc chunk. 09.08.2026-da 4000 sətir Neon HTTP-də sındı; endpoint artıq
+// `unnest` işlədir (sabit 10 parametr), amma yenə də ehtiyatlı başlayırıq və
+// sınarsa AVTOMATİK YARIYA ENİRİK (aşağı `post`). Limit sənədləşdirilmədiyi
+// üçün sabit rəqəmə güvənmirik — davranışa uyğunlaşırıq.
+const CHUNK = 2000
+const MIN_CHUNK = 250   // bundan aşağı düşmürük — səbəb ölçü deyil, xəta göstərilir
 
 const card: CSSProperties = { background: '#fff', border: '1px solid #e6e1d7', borderRadius: 14 }
 const money = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + '₼'
@@ -111,19 +116,46 @@ export default function DetailUpload() {
   }
 
   // ── 2) Fact cədvəllərinə yaz (chunk-lı, idempotent upsert) ─────────────────
-  async function post(kind: 'daily' | 'item', rows: unknown[], source: string, onChunk: () => void): Promise<SaveResult> {
+  /**
+   * Bir chunk göndərir. Uğurlu olsa nəticəni, olmasa xətanı qaytarır.
+   * Yazı İDEMPOTENT olduğu üçün (açar üzrə upsert) təkrar göndərmək zərərsizdir.
+   */
+  async function send(kind: 'daily' | 'item', slice: unknown[], source: string) {
+    const res = await fetch('/api/dashboard/analytics/fact-save', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind, rows: slice, source }),
+    })
+    const j = await res.json().catch(() => null)
+    if (!res.ok) {
+      // Xəta UDULMUR — serverin real `detail`-i və teşhis `meta`-sı göstərilir.
+      const bits = [j?.error ?? `HTTP ${res.status}`]
+      if (j?.detail) bits.push(j.detail)
+      if (j?.meta) bits.push(`[${slice.length} sətir · pgCode=${j.meta.pgCode ?? '—'} · cause=${j.meta.cause ?? '—'}]`)
+      throw new Error(`${kind}: ${bits.join(' — ')}`)
+    }
+    return j
+  }
+
+  async function post(kind: 'daily' | 'item', rows: unknown[], source: string, onChunk: (n: number) => void): Promise<SaveResult> {
     const acc: SaveResult = { ok: true, written: 0, merged: 0, rejected: 0, rejectedSample: [], days: [], unmatchedBranches: [] }
     const allDays = new Set<string>(), allUnmatched = new Set<string>()
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const slice = rows.slice(i, i + CHUNK)
-      const r = await fetch('/api/dashboard/analytics/fact-save', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind, rows: slice, source }),
-      })
-      const j = await r.json().catch(() => null)
-      if (!r.ok) {
-        // Xəta UDULMUR — serverin real `detail`-i göstərilir.
-        throw new Error(`${kind}: ${j?.error ?? r.status}${j?.detail ? ` — ${j.detail}` : ''}`)
+    let size = CHUNK
+    let i = 0
+    while (i < rows.length) {
+      const slice = rows.slice(i, i + size)
+      let j: Record<string, unknown> & { written?: number; merged?: number; rejected?: number; rejectedSample?: string[]; days?: string[]; unmatchedBranches?: string[] }
+      try {
+        j = await send(kind, slice, source)
+      } catch (e) {
+        // UYĞUNLAŞAN CHUNK: ölçü səbəbli sınmalarda yarıya en və TƏKRAR CƏHD ET.
+        // Yazı idempotentdir → təkrar göndərmək data pozmur. MIN_CHUNK-dan
+        // aşağıda dayanırıq: səbəb ölçü deyil, xətanı istifadəçiyə göstəririk.
+        if (size > MIN_CHUNK) {
+          size = Math.max(MIN_CHUNK, Math.floor(size / 2))
+          setPhase(`Böyük paket qəbul edilmədi — ${size} sətirlik paketlə təkrar cəhd…`)
+          continue
+        }
+        throw e
       }
       acc.written += j.written ?? 0
       acc.merged += j.merged ?? 0
@@ -131,7 +163,8 @@ export default function DetailUpload() {
       if (acc.rejectedSample.length < 5 && j.rejectedSample?.length) acc.rejectedSample.push(...j.rejectedSample.slice(0, 5 - acc.rejectedSample.length))
       for (const d of j.days ?? []) allDays.add(d)
       for (const b of j.unmatchedBranches ?? []) allUnmatched.add(b)
-      onChunk()
+      i += slice.length
+      onChunk(slice.length)
     }
     acc.days = [...allDays].sort()
     acc.unmatchedBranches = [...allUnmatched]
@@ -162,10 +195,11 @@ export default function DetailUpload() {
       qty: l.qty, amount: l.amount, line_kind: l.kind,
     })) : []
 
-    const total = Math.ceil(dailyRows.length / CHUNK) + Math.ceil(itemRows.length / CHUNK)
+    // Progress SƏTİR sayır, paket sayı deyil — paket ölçüsü sınmada dəyişir.
+    const total = dailyRows.length + itemRows.length
     setBusy(true); setErr(null); setProgress({ done: 0, total })
     let done = 0
-    const tick = () => { done++; setProgress({ done, total }) }
+    const tick = (n: number) => { done += n; setProgress({ done, total }) }
 
     try {
       let daily: SaveResult | null = null, item: SaveResult | null = null
@@ -255,6 +289,18 @@ export default function DetailUpload() {
             </>}
           </div>
 
+          {/* Birləşdirmə SƏSSİZ OLMASIN: faylda eyni filial+gün+məhsul kodu
+              təkrarlanır (bir kanonik filial altında iki fiziki nöqtə ola bilər).
+              Toplanmasa chunk-lı yükləmə datanı itirir. */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {p && p.mergedKeys > 0 && (
+              <div style={{ fontSize: 11.5, color: '#8b8378' }}>
+                ℹ️ {int(p.mergedKeys)} təkrar açar (eyni filial + gün + məhsul kodu) toplandı —
+                ciro qorunur: {money(p.totals.amount)}.
+              </div>
+            )}
+          </div>
+
           {/* Yalnız biri gəldiyində tutuşdurma mümkün deyil — sükutla keçmirik */}
           {(!p || !r) && (
             <Note tone="amber">
@@ -314,7 +360,7 @@ export default function DetailUpload() {
 
           {progress && (
             <div>
-              <div style={{ fontSize: 12, color: '#8b8378', marginBottom: 4 }}>{phase} {progress.done}/{progress.total}</div>
+              <div style={{ fontSize: 12, color: '#8b8378', marginBottom: 4 }}>{phase} {int(progress.done)}/{int(progress.total)} sətir</div>
               <div style={{ height: 6, background: '#efeae0', borderRadius: 99, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${(progress.done / Math.max(progress.total, 1)) * 100}%`, background: '#C8102E', transition: 'width .2s' }} />
               </div>

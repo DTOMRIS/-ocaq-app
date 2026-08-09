@@ -211,12 +211,19 @@ export type ProdmixLine = {
 }
 
 export type ProdmixResult = {
-  lines: ProdmixLine[]              // filial × gün × məhsul (upsert qranulu)
+  /**
+   * filial × gün × məhsul kodu — HƏR AÇAR BİR DƏFƏ (DB unique açarı ilə eyni).
+   * Faylda təkrarlanan açarlar burada TOPLANIR, yoxsa chunk-lı yükləmə səssiz
+   * data itirir (bax funksiya içindəki 09.08.2026 şərhi).
+   */
+  lines: ProdmixLine[]
   dates: string[]
   branches: string[]
   totals: { qty: number; amount: number; productAmount: number }
   /** Gəlir gətirməyən sətirlər — silinmir, ayrıca sayılır. */
   nonRevenue: Record<Exclude<LineKind, 'product'>, number>
+  /** Faylda təkrarlanıb burada birləşdirilən açar sayı (şəffaflıq üçün). */
+  mergedKeys: number
   warnings: string[]
 }
 
@@ -231,15 +238,27 @@ export function parseProdmix(rows: unknown[][]): ProdmixResult {
       lines: [], dates: [], branches: [],
       totals: { qty: 0, amount: 0, productAmount: 0 },
       nonRevenue: { service: 0, packaging: 0, modifier: 0, included: 0 },
+      mergedKeys: 0,
       warnings: ['Prodmix başlıqları tapılmadı (Uçot günü / Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ gözlənilir)'],
     }
   }
   const [cDate, cBranch, cCode, cName, cQty, cAmt] = h.idx
 
-  const lines: ProdmixLine[] = []
+  // 🔴 09.08.2026 — NİYƏ AQREQASİYA (əvvəl hər xam sətir ayrıca push olunurdu):
+  // Bu funksiyanın qranulu «filial × gün × məhsul» OLMALIDIR (DB unique açarı
+  // da budur), lakin faylda EYNİ açar TƏKRARLANIR: real datada 39 549 sətirdə
+  // 36 975 unikal açar var — 2 538 açar təkrarlanır (hamısının məhsul ADI EYNİ,
+  // yəni toplamaq doğrudur; yoxlandı). Səbəbi: bir kanonik filial altında iki
+  // fiziki nöqtə/bölmə ola bilər (məs. ALIASES 'Torgoviy Yuxarı' + 'Torgoviy
+  // Aşağı' → 'Torgoviy').
+  //
+  // Aqreqasiya olmadan yükləmə SƏSSİZ DATA İTİRİRDİ: chunk-lar təkrar açarı
+  // ayırır, ikinci chunk birincinin ÜZƏRİNƏ yazır (toplamır) → 2 574 sətir və
+  // 102 227,56 ₼ ciro yox olurdu (859 010,28 yerinə 961 237,84 olmalıydı).
+  // Aqreqasiyadan sonra ciro xam cəmə BƏRABƏRDİR (yoxlandı).
+  const agg = new Map<string, { filial: string; date: string; itemCode: string; itemName: string; qty: number; amount: number }>()
   const dates = new Set<string>(), branches = new Set<string>()
-  let qty = 0, amount = 0, productAmount = 0, skippedDate = 0, skippedBranch = 0
-  const nonRevenue = { service: 0, packaging: 0, modifier: 0, included: 0 }
+  let skippedDate = 0, skippedBranch = 0, mergedKeys = 0
 
   for (let r = h.row + 1; r < rows.length; r++) {
     const row = rows[r] ?? []
@@ -253,19 +272,32 @@ export function parseProdmix(rows: unknown[][]): ProdmixResult {
 
     const itemName = String(row[cName] ?? '').trim()
     if (!itemName) continue
+    const itemCode = String(row[cCode] ?? '').trim()
     const q = num(row[cQty]), a = num(row[cAmt])
-    const kind = classifyLine(itemName, a)
 
-    lines.push({
-      filial, date,
-      itemCode: String(row[cCode] ?? '').trim(),
-      itemName, qty: q, amount: a, kind,
-    })
+    const key = `${filial}|${date}|${itemCode}`
+    const prev = agg.get(key)
+    if (prev) {
+      mergedKeys++
+      prev.qty += q
+      prev.amount += a
+    } else {
+      agg.set(key, { filial, date, itemCode, itemName, qty: q, amount: a })
+    }
     dates.add(date); branches.add(filial)
-    qty += q; amount += a
-    if (kind === 'product') productAmount += a
-    else nonRevenue[kind] += q
   }
+
+  // `kind` TOPLANMIŞ məbləğə görə təyin olunur: eyni məhsulun bir sətri 0 ₼,
+  // digəri müsbət ola bilər — birləşdikdən sonra o, real gəlirli məhsuldur.
+  let qty = 0, amount = 0, productAmount = 0
+  const nonRevenue = { service: 0, packaging: 0, modifier: 0, included: 0 }
+  const lines: ProdmixLine[] = [...agg.values()].map(e => {
+    const kind = classifyLine(e.itemName, e.amount)
+    qty += e.qty; amount += e.amount
+    if (kind === 'product') productAmount += e.amount
+    else nonRevenue[kind] += e.qty
+    return { filial: e.filial, date: e.date, itemCode: e.itemCode, itemName: e.itemName, qty: e.qty, amount: e.amount, kind }
+  })
 
   if (skippedDate) warnings.push(`${skippedDate} sətrin tarixi oxunmadı`)
   if (skippedBranch) warnings.push(`${skippedBranch} sətir EXCLUDE filialına aiddir`)
@@ -280,7 +312,7 @@ export function parseProdmix(rows: unknown[][]): ProdmixResult {
     dates: [...dates].sort(),
     branches: [...branches].sort(),
     totals: { qty, amount, productAmount },
-    nonRevenue, warnings,
+    nonRevenue, warnings, mergedKeys,
   }
 }
 
