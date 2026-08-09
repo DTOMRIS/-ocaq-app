@@ -106,7 +106,22 @@ const raw = readFileSync(path, 'utf8')
 const statements = splitStatements(raw)
 
 // ── Destruktiv yoxlama ──────────────────────────────────────────────────────
-const DESTRUCTIVE = /\b(drop\s+(table|column|index|schema|type|constraint)|truncate|delete\s+from|alter\s+column|rename\s+to)\b/i
+// `update` də bura daxildir: mövcud sətirlərin üzərinə yazmaq geri alınmazdır və
+// snapshot tələb edir (0011 filial adı köçürməsi məhz belədir).
+//
+// ⚠️ `update` naxışında CƏDVƏL ALIASI da nəzərə alınmalıdır: `update "t" d set …`
+// — ilk yazılışda alias buraxılmışdı və 0011 destruktiv sayılmadı (yoxlanarkən
+// tutuldu). Ona görə cədvəl adından sonra istəyə bağlı bir identifikator var.
+const DESTRUCTIVE = new RegExp(
+  '\\b(' +
+  'drop\\s+(table|column|index|schema|type|constraint)' +
+  '|truncate' +
+  '|delete\\s+from' +
+  '|alter\\s+column' +
+  '|rename\\s+to' +
+  '|update\\s+"?[a-z_][a-z0-9_]*"?(\\s+(?!set\\b)"?[a-z_][a-z0-9_]*"?)?\\s+set\\b' +
+  ')', 'i',
+)
 const risky = statements.filter(s => DESTRUCTIVE.test(s))
 
 console.log(`\nMigration : ${file}`)

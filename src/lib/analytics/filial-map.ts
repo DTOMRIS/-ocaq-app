@@ -4,7 +4,10 @@
 // `EXCLUDE` rapora girməyən adlar (bağlanmış / bizim olmayan).
 
 export const BOLGELER: Record<string, string[]> = {
-  'İsmayıl': ['Bulvar', 'Bayıl', '5 Mərtəbə', 'Torgoviy', 'Corner', 'Badamdar', 'Bulvar Festival', 'Mytcha'],
+  // Kanonik ad OCAQ-daki `branches.name` ilə EYNİ olmalıdır — `branchIdOf`
+  // bağlantısı bu adla qurulur. F-31 OCAQ-da ünvana görə «Abdülkerim Alizadə»
+  // adlanır, iiko isə hələ «Mytcha» yazır → ALIASES onu bağlayır (aşağı).
+  'İsmayıl': ['Bulvar', 'Bayıl', '5 Mərtəbə', 'Torgoviy', 'Corner', 'Badamdar', 'Bulvar Festival', 'Abdülkerim Alizadə'],
   'Ceyhun':  ['Hüseyn Cavid', 'Əcəmi', 'İnşaatçılar', 'Masazır', 'Space', 'Sumqayıt'],
   'Elnur':   ['Neftçilər', 'Bakıxanov 1', 'Zığ', 'Bakıxanov 2', 'Həzi Aslanov', 'Əhmədli'],
   'Taleh':   ['Binəqədi', 'Duet', 'Ayna Sultanova', 'Nərimanov', 'Amay', 'Azadlıq'],
@@ -16,6 +19,14 @@ export const REGION_ORDER = Object.keys(BOLGELER)
 
 // iiko yazılışı → kanonik ad
 export const ALIASES: Record<string, string> = {
+  // F-31 (İsmayıl bölgəsi, Bakı) — OCAQ-da ünvana görə adlandırılıb, iiko hələ
+  // «Mytcha» göndərir. İstifadəçi qeydi (09.08.2026): «bu Mytcha ismi adrese
+  // göre yaptım, sonra iikoda düzelecek». iiko düzəldiləndən sonra bu alias
+  // zərərsiz qalır (artıq uyğun gəlməyəcək, sadəcə istifadə olunmayacaq).
+  'Mytcha': 'Abdülkerim Alizadə',
+  'Mycta': 'Abdülkerim Alizadə',
+  'Myctha': 'Abdülkerim Alizadə',
+  'Abdulkerim Alizade': 'Abdülkerim Alizadə',
   'Xırdalan': 'Masazır',
   'Shaurma Seabreez': 'Seabreeze',
   '5 Mərtəbə.': '5 Mərtəbə',

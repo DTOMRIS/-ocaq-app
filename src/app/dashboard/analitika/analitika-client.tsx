@@ -51,6 +51,7 @@ function Tile({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: 
 export default function AnalitikaClient({
   empty, period, periods = [], summary, pay = [], products = [], nonRevenue = [],
   branchRows = [], attach = [], topNames = [], daily = [], isNetwork = false,
+  drillFilial = null, drillBolge = null, baseline = null, regionRows = [], branchRegion = {},
 }: {
   empty?: string
   period?: string
@@ -64,6 +65,13 @@ export default function AnalitikaClient({
   topNames?: string[]
   daily?: Array<{ date: string; amount: number; receipts: number }>
   isNetwork?: boolean
+  /** Drill-down: seçilmiş filial / bölgə (yoxsa bütün əhatə). */
+  drillFilial?: string | null
+  drillBolge?: string | null
+  /** Müqayisə bazası — bütün RBAC əhatəsi (yalnız drill-down zamanı gəlir). */
+  baseline?: { amount: number; receipts: number } | null
+  regionRows?: Array<{ bolge: string; amount: number; receipts: number; branches: number }>
+  branchRegion?: Record<string, string | null>
 }) {
   const router = useRouter()
   const [sortK, setSortK] = useState<'amount' | 'qty' | 'name' | 'attach'>('amount')
@@ -166,6 +174,19 @@ export default function AnalitikaClient({
   const avgCheck = receipts ? (summary?.amount ?? 0) / receipts : null
   const maxDay = Math.max(...daily.map(d => d.amount), 1)
 
+  // ── Drill-down naviqasiyası ────────────────────────────────────────────────
+  const go = (q: Record<string, string | null>) => {
+    const p = new URLSearchParams()
+    if (period) p.set('period', period)
+    for (const [k, v] of Object.entries(q)) if (v) p.set(k, v)
+    router.push(`/dashboard/analitika?${p.toString()}`)
+  }
+  const scopeLabel = drillFilial ?? (drillBolge ? `${drillBolge} bölgəsi` : (isNetwork ? 'Bütün şəbəkə' : 'Sizin filiallarınız'))
+  // Müqayisə: seçilmiş əhatənin ortalama çeki vs bütün əhatənin ortalaması.
+  const baseAvg = baseline && baseline.receipts ? baseline.amount / baseline.receipts : null
+  const avgDelta = avgCheck != null && baseAvg ? avgCheck / baseAvg - 1 : null
+  const shareOfBase = baseline?.amount && summary?.amount ? summary.amount / baseline.amount : null
+
   return (
     <div style={{ padding: '8px 2px 56px', maxWidth: 1040, margin: '0 auto', fontFamily: 'system-ui, sans-serif', color: '#26221d' }}>
       <style>{`.atbl tbody tr:hover td { background:#f3efe6 } @media print { button,input,select { display:none !important } }`}</style>
@@ -174,8 +195,24 @@ export default function AnalitikaClient({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 800 }}>📊 Məhsul Analizi</h1>
-          <p style={{ color: '#8b8378', fontSize: 13, margin: '0 0 6px' }}>
-            PRODMIX + ÇEK datası · {isNetwork ? 'bütün şəbəkə' : 'sizin filiallarınız'} ·{' '}
+          {/* Kırılım yolu (breadcrumb) — hansı əhatəyə baxdığın hər zaman görünsün */}
+          <div style={{ fontSize: 13, color: '#8b8378', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+            <button onClick={() => go({})} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: drillFilial || drillBolge ? '#C8102E' : '#26221d', fontWeight: 700, fontSize: 13 }}>
+              {isNetwork ? 'Şəbəkə' : 'Mənim əhatəm'}
+            </button>
+            {drillBolge && <><span>›</span><b style={{ color: '#26221d' }}>{drillBolge} bölgəsi</b></>}
+            {drillFilial && <>
+              <span>›</span>
+              {branchRegion[drillFilial] && (
+                <><button onClick={() => go({ bolge: branchRegion[drillFilial]! })} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#C8102E', fontWeight: 600, fontSize: 13 }}>
+                  {branchRegion[drillFilial]} bölgəsi
+                </button><span>›</span></>
+              )}
+              <b style={{ color: '#26221d' }}>{drillFilial}</b>
+            </>}
+          </div>
+          <p style={{ color: '#8b8378', fontSize: 12.5, margin: 0 }}>
+            PRODMIX + ÇEK datası ·{' '}
             <Link href="/dashboard/panel" style={{ color: '#C8102E', fontWeight: 600 }}>Günlük Panel →</Link>
           </p>
         </div>
@@ -189,6 +226,41 @@ export default function AnalitikaClient({
           </label>
         )}
       </div>
+
+      {/* ── BÖLGƏLƏR — basılabilir ──────────────────────────────────────────── */}
+      {!drillFilial && regionRows.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+          {regionRows.map(r => {
+            const on = drillBolge === r.bolge
+            const ac = r.receipts ? r.amount / r.receipts : null
+            return (
+              <button key={r.bolge} onClick={() => go(on ? {} : { bolge: r.bolge })}
+                style={{ textAlign: 'left', cursor: 'pointer', ...card, borderColor: on ? '#C8102E' : '#e6e1d7', background: on ? '#fdf2f3' : '#fff', padding: '9px 13px', minWidth: 138, flex: '1 1 138px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: on ? '#C8102E' : '#26221d' }}>{r.bolge}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{money(r.amount)}</div>
+                <div style={{ fontSize: 10.5, color: '#8b8378', marginTop: 1 }}>
+                  {r.branches} filial · ort.çek {ac == null ? '—' : money2(ac)}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── MÜQAYİSƏ — tək rəqəm məna daşımır ───────────────────────────────── */}
+      {baseline && shareOfBase != null && (
+        <div style={{ ...card, background: '#faf8f4', padding: '10px 14px', marginTop: 14, fontSize: 12.5, lineHeight: 1.6 }}>
+          <b>{scopeLabel}</b> · {isNetwork ? 'şəbəkə' : 'əhatə'} cirosunun <b>{pct(shareOfBase)}</b>-i
+          {avgDelta != null && <>
+            {' · '}ortalama çek {avgCheck == null ? '—' : money2(avgCheck)}, {isNetwork ? 'şəbəkə' : 'əhatə'} ortalaması {money2(baseAvg!)}
+            {' → '}
+            <b style={{ color: avgDelta >= 0 ? '#1c7a4e' : '#c8102e' }}>
+              {avgDelta >= 0 ? '+' : ''}{(avgDelta * 100).toFixed(1)}%
+            </b>
+            {avgDelta < -0.05 && <span style={{ color: '#c8102e' }}> — upsell hədəfi</span>}
+          </>}
+        </div>
+      )}
 
       {/* ── ÖZET ────────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '14px 0 16px' }}>
@@ -354,8 +426,9 @@ export default function AnalitikaClient({
       {/* ── FİLİALLAR ───────────────────────────────────────────────────────── */}
       {branchRows.length > 1 && (
         <div style={{ ...card, overflow: 'hidden', marginBottom: 16 }}>
-          <div style={{ padding: '13px 16px', borderBottom: '1px solid #efeae0', fontSize: 15, fontWeight: 800 }}>
-            Filiallar ({branchRows.length})
+          <div style={{ padding: '13px 16px', borderBottom: '1px solid #efeae0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: 800 }}>Filiallar ({branchRows.length})</span>
+            <span style={{ fontSize: 11.5, color: '#8b8378' }}>Sətrə basın → həmin filialın öz analizi</span>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table className="atbl" style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 12.5 }}>
@@ -372,8 +445,11 @@ export default function AnalitikaClient({
                   // Ortalama çek şəbəkə ortalamasından aşağıdırsa vurğula — upsell hədəfi.
                   const low = ac != null && avgCheck != null && ac < avgCheck * 0.95
                   return (
-                    <tr key={b.filial}>
-                      <td style={{ ...td, textAlign: 'left', fontWeight: 600 }}>{b.filial}</td>
+                    <tr key={b.filial} onClick={() => go({ filial: b.filial })} style={{ cursor: 'pointer' }} title={`${b.filial} — öz analizini aç`}>
+                      <td style={{ ...td, textAlign: 'left', fontWeight: 600 }}>
+                        {b.filial}
+                        {branchRegion[b.filial] && <span style={{ color: '#8b8378', fontWeight: 400, fontSize: 11 }}> · {branchRegion[b.filial]}</span>}
+                      </td>
                       <td style={{ ...td, textAlign: 'right' }}>{money(b.amount)}</td>
                       <td style={{ ...td, textAlign: 'right', color: '#8b8378' }}>{int(b.receipts)}</td>
                       <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: low ? '#c8102e' : '#26221d' }}>

@@ -4,7 +4,7 @@ import { eq, and, inArray } from 'drizzle-orm'
 import { db, sqlClient } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { accessibleBranchIds } from '@/lib/branch-access'
-import { canonBranchKey } from '@/lib/analytics/filial-map'
+import { canonBranchKey, normalizeFilial, BRANCH_TO_REGION, REGION_ORDER } from '@/lib/analytics/filial-map'
 import AnalitikaClient from './analitika-client'
 
 export const metadata = { title: 'Məhsul Analizi — OCAQ' }
@@ -31,7 +31,9 @@ const rowsOf = (r: unknown): Row[] => (Array.isArray(r) ? r : (r as { rows?: Row
 const n = (v: unknown) => Number(v ?? 0)
 const s = (v: unknown) => String(v ?? '')
 
-export default async function AnalitikaPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+export default async function AnalitikaPage({ searchParams }: {
+  searchParams: Promise<{ period?: string; filial?: string; bolge?: string }>
+}) {
   const session = await auth()
   if (!session) redirect('/login')
   const role = session.user.role
@@ -40,6 +42,11 @@ export default async function AnalitikaPage({ searchParams }: { searchParams: Pr
   const tenantId = session.user.tenant_id
   const sp = await searchParams
   const wantPeriod = sp?.period && MONTH.test(sp.period) ? sp.period : null
+  // Drill-down: filial və ya bölgə seçimi. Bütün səhifə `scopeFilials` üzərində
+  // qurulduğu üçün bu massivi daraltmaq TAM raporu həmin əhatəyə salır —
+  // ayrı sorğu dəsti yazmağa ehtiyac yoxdur.
+  const wantFilial = sp?.filial?.trim() || null
+  const wantBolge = sp?.bolge?.trim() || null
 
   // ── RBAC ────────────────────────────────────────────────────────────────────
   // super_admin şəbəkəni görür. Digər rollar YALNIZ öz filiallarını; adı
@@ -68,19 +75,39 @@ export default async function AnalitikaPage({ searchParams }: { searchParams: Pr
   const allFilials = rowsOf(await sqlClient.query(
     `select distinct filial from analytics_daily_fact where tenant_id = $1`, [tenantId],
   )).map(r => s(r.filial))
-  const scopeFilials = canonAllowed
+  // RBAC əhatəsi (drill-down bundan DAHA GENİŞ ola bilməz)
+  const rbacFilials = canonAllowed
     ? allFilials.filter(f => canonAllowed.includes(canonBranchKey(f)))
     : allFilials
+
+  // Bölgə xəritəsi — kanonik ad üzrə (fakt cədvəlindəki ad artıq kanonikdir).
+  const regionOf = (f: string) => BRANCH_TO_REGION[normalizeFilial(f) ?? f] ?? null
+  const regionsAvailable = [...new Set(rbacFilials.map(regionOf).filter((x): x is string => !!x))]
+    .sort((a, b) => REGION_ORDER.indexOf(a) - REGION_ORDER.indexOf(b))
+
+  // Drill-down süzgəci. Seçim RBAC əhatəsindən kənardırsa NƏZƏRƏ ALINMIR
+  // (URL ilə başqa filialın cirosunu görmək mümkün olmasın).
+  let scopeFilials = rbacFilials
+  let drillFilial: string | null = null
+  let drillBolge: string | null = null
+  if (wantFilial) {
+    const hit = rbacFilials.find(f => canonBranchKey(f) === canonBranchKey(wantFilial))
+    if (hit) { scopeFilials = [hit]; drillFilial = hit }
+  } else if (wantBolge) {
+    const hit = regionsAvailable.find(r => canonBranchKey(r) === canonBranchKey(wantBolge))
+    if (hit) { scopeFilials = rbacFilials.filter(f => regionOf(f) === hit); drillBolge = hit }
+  }
 
   if (scopeFilials.length === 0) {
     return <AnalitikaClient empty="Hələ məhsul/çek datası yüklənməyib. Günlük Panel → «Günlük detay» bölməsindən PRODMIX və ÇEK faylını yükləyin." periods={[]} />
   }
 
   // ── Mövcud dövrlər ─────────────────────────────────────────────────────────
+  // Drill-down deyil, RBAC əhatəsi üzrə — dövr siyahısı filial seçəndə daralmasın.
   const periods = rowsOf(await sqlClient.query(
     `select distinct to_char(business_date, 'YYYY-MM') as p
      from analytics_daily_fact where tenant_id = $1 and filial = any($2::text[])
-     order by 1 desc`, [tenantId, scopeFilials],
+     order by 1 desc`, [tenantId, rbacFilials],
   )).map(r => s(r.p))
 
   const period = wantPeriod && periods.includes(wantPeriod) ? wantPeriod : periods[0] ?? null
@@ -174,10 +201,44 @@ export default async function AnalitikaPage({ searchParams }: { searchParams: Pr
      group by 1 order by 1`, [...args],
   )).map(r => ({ date: s(r.d), amount: n(r.amount), receipts: n(r.receipts) }))
 
+  // ── MÜQAYİSƏ BAZASI: RBAC əhatəsinin bütünü (drill-down zamanı «şəbəkəyə görə») ──
+  // Tək rəqəm heç nə demir: «22 ₼ ortalama çek» yaxşıdırmı? Yalnız müqayisə ilə
+  // məna qazanır. Ona görə filial/bölgə seçildikdə bütün əhatənin ortalaması da
+  // gətirilir. Drill-down yoxdursa təkrar sorğu atmırıq.
+  const drilled = !!(drillFilial || drillBolge)
+  const [baseSum] = drilled ? rowsOf(await sqlClient.query(
+    `select coalesce(sum(amount),0)::float8 amount, coalesce(sum(receipts),0)::int receipts
+     from analytics_daily_fact
+     where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
+       and payment_type='__day__'`, [tenantId, rbacFilials, from, to],
+  )) : [undefined]
+
+  // Bölgə sətirləri — bölgəyə basmaq üçün (RBAC əhatəsi üzrə, dövr daxilində).
+  const allBranchRows = drilled ? rowsOf(await sqlClient.query(
+    `select filial, sum(amount)::float8 amount, sum(receipts)::int receipts
+     from analytics_daily_fact
+     where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
+       and payment_type='__day__'
+     group by 1`, [tenantId, rbacFilials, from, to],
+  )).map(r => ({ filial: s(r.filial), amount: n(r.amount), receipts: n(r.receipts) }))
+    : branchRows.map(b => ({ filial: b.filial, amount: b.amount, receipts: b.receipts }))
+
+  const regionRows = regionsAvailable.map(rg => {
+    const list = allBranchRows.filter(b => regionOf(b.filial) === rg)
+    const amount = list.reduce((a, b) => a + b.amount, 0)
+    const receipts = list.reduce((a, b) => a + b.receipts, 0)
+    return { bolge: rg, amount, receipts, branches: list.length }
+  }).filter(r => r.branches > 0).sort((a, b) => b.amount - a.amount)
+
   return (
     <AnalitikaClient
       period={period}
       periods={periods}
+      drillFilial={drillFilial}
+      drillBolge={drillBolge}
+      baseline={baseSum ? { amount: n(baseSum.amount), receipts: n(baseSum.receipts) } : null}
+      regionRows={regionRows}
+      branchRegion={Object.fromEntries(allBranchRows.map(b => [b.filial, regionOf(b.filial)]))}
       summary={{ amount: n(sum?.amount), receipts: n(sum?.receipts), days: n(sum?.days) }}
       pay={pay}
       products={products}

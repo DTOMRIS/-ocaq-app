@@ -6,6 +6,46 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — Filial/bölgə kırılımı + iiko export müqaviləsi
+- **🔎 Drill-down: bölgə → filial** (`/dashboard/analitika`): bölgə kartına və ya
+  filial sətrinə basanda BÜTÜN rapor həmin əhatəyə düşür (menyu mühəndisliyi,
+  upsell, məhsul cədvəli, ödəniş qarışığı — hamısı). Kırılım yolu (breadcrumb)
+  ilə geri qayıdış. Texniki: səhifə `scopeFilials` massivi üzərində qurulduğu
+  üçün onu daraltmaq kifayət etdi — ayrı sorğu dəsti yazılmadı.
+  - **MÜQAYİSƏ SƏTRİ:** tək rəqəm məna daşımır. Filial/bölgə seçildikdə
+    «əhatə cirosunun %X-i · ortalama çek Y ₼, şəbəkə ortalaması Z ₼ → ±%W»
+    göstərilir; −%5-dən aşağı olanlar «upsell hədəfi» kimi işarələnir.
+  - **RBAC sızıntısı bağlı:** URL-dəki `?filial=`/`?bolge=` RBAC əhatəsindən
+    kənardırsa NƏZƏRƏ ALINMIR (yoxlandı: kənar filial sorğusu 0 qaytarır).
+  - Doğrulama (PGlite + real data): bölgə cəmləri şəbəkə cəminə **bərabər**
+    (920 585,71 ₼ / 43 212 çek), hər bölgənin drill-down nəticəsi kart rəqəmi
+    ilə **eyni**. Bölgə fərqi: Ramin 26,34 ₼ vs Elnur 17,76 ₼ ortalama çek.
+- **📄 `docs/IIKO-GUNLUK-EXPORT.md`** — analitika şöbəsinə verilən export
+  müqaviləsi: hansı iki vərəq, hansı sütun adları, nə dəyişsə problem olmur
+  (sıra, əlavə sütun, vərəq adı, tarix formatı), nə sındırır, hansı aralıq
+  (ayın 1-dən bugünə — upsert natamam günü özü düzəldir) və prioritetli əlavə
+  sütun siyahısı (`Maya dəyəri` → marja əsaslı Kasavana-Smith, `Kateqoriya`,
+  `Saat`, `Kassir`…). **Tək düz cədvəl tövsiyə EDİLMİR:** iki müstəqil mənbə
+  bizim yeganə səhv tutucumuzdur (07.08-dəki 40 652 ₼ boşluğu yalnız
+  tutuşdurma ilə göründü) və hissə-hissə ödənən qəbz tək cədvəldə məhsulları
+  ikiqat sayardı.
+- **F-31 filial bağlantısı** (`filial-map.ts`, `drizzle/migrations/0011`):
+  OCAQ-da ünvana görə **`Abdülkerim Alizadə`** adlandırıldı, iiko hələ
+  `Mytcha` yazır. Kanonik ad OCAQ adı oldu (`branches.name` ilə eyni olmalıdır,
+  yoxsa `branch_id` bağlanmır), iiko adı və yazılış variantları (`Mycta`,
+  `Myctha`, `Abdulkerim Alizade`) alias-a çevrildi.
+  - **Migration 0011:** əvvəl `Mytcha` kimi yazılmış sətirləri köçürür (əks halda
+    avqust datası İKİ ADA BÖLÜNƏRDİ) və `branch_id`-ni doldurur. Heç bir sətir
+    silinmir; unique açar toqquşması olarsa köhnə sətir olduğu kimi qalır.
+    PGlite ilə yoxlandı: 0 qalıq sətir, ciro qorundu, təkrar tətbiq no-op,
+    toqquşma halında köhnə sətir qorundu.
+
+### Fixed — migration guard
+- `scripts/apply-migration.mjs` destruktiv naxışı `update`-i də tutur, **cədvəl
+  aliası ilə birlikdə**: `update "t" d set …` ilk yazılışda tutulmurdu və 0011
+  destruktiv sayılmırdı (yoxlanarkən aşkarlandı). Artıq 0011 `--apply`-da
+  exit 2 ilə dayanır, 0010 (yalnız `create … if not exists`) təsirlənmir.
+
 ### Added — Məhsul Analizi
 - **📊 `/dashboard/analitika` — məhsul analizi ekranı**: yükləmə datanı bazaya
   yazırdı, lakin heç bir ekran onu OXUMURDU — dashboard-daki 3 kart faylın

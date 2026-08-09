@@ -10,14 +10,25 @@ import {
   normalizeFilial,
 } from '../src/lib/analytics/filial-map'
 
-// ── Mytcha (yeni filial, 08.2026) ───────────────────────────────────────────
-// İstifadəçi təsdiqi (08.08.2026): Mytcha AYRI filialdır, `Bulvar Festival`-ın
-// başqa yazılışı DEYİL. Bu test onların qarışdırılmasının qarşısını alır.
-test('Mytcha İsmayıl bölgəsinin ayrı filialıdır', () => {
-  assert.equal(BRANCH_TO_REGION['Mytcha'], 'İsmayıl')
-  assert.equal(normalizeFilial('Mytcha'), 'Mytcha')
+// ── F-31 «Abdülkerim Alizadə» (yeni filial, 08.2026) ────────────────────────
+// İstifadəçi təsdiqi (08.08.2026): AYRI filialdır, `Bulvar Festival`-ın başqa
+// yazılışı DEYİL. (09.08.2026): OCAQ-da ünvana görə «Abdülkerim Alizadə»
+// adlanır, iiko hələ «Mytcha» göndərir → kanonik ad OCAQ adı, iiko adı alias.
+// Kanonik ad OCAQ `branches.name` ilə eyni olmalıdır, yoxsa `branchIdOf`
+// bağlantı qurmur və bölgə/filial müdiri datanı görmür.
+test('F-31 İsmayıl bölgəsinin ayrı filialıdır və iiko adı bağlanıb', () => {
+  assert.equal(BRANCH_TO_REGION['Abdülkerim Alizadə'], 'İsmayıl')
+  assert.equal(normalizeFilial('Mytcha'), 'Abdülkerim Alizadə')
+  assert.equal(normalizeFilial('Abdülkerim Alizadə'), 'Abdülkerim Alizadə')
   assert.notEqual(normalizeFilial('Mytcha'), 'Bulvar Festival')
   assert.equal(isActiveBranch('Mytcha'), true)
+  assert.equal(isActiveBranch('Abdülkerim Alizadə'), true)
+  // Yazılış variantları da bağlanır (iiko/əl ilə giriş fərqləri).
+  for (const v of ['Mycta', 'Myctha', 'Abdulkerim Alizade']) {
+    assert.equal(normalizeFilial(v), 'Abdülkerim Alizadə', `${v} bağlanmalıdır`)
+  }
+  // OCAQ adı ilə iiko adı EYNİ açara düşür → branchIdOf bağlantı qurur.
+  assert.equal(canonBranchKey('Mytcha'), canonBranchKey('Abdülkerim Alizadə'))
 })
 
 // ── CLOSED vs EXCLUDE ───────────────────────────────────────────────────────
@@ -86,7 +97,7 @@ test('canonBranchKey ayrı filialları qarışdırmır', () => {
   assert.equal(new Set(keys).size, keys.length, 'iki filial eyni açara düşməməlidir')
   assert.notEqual(canonBranchKey('Bakıxanov 1'), canonBranchKey('Bakıxanov 2'))
   assert.notEqual(canonBranchKey('Bulvar'), canonBranchKey('Bulvar Festival'))
-  assert.notEqual(canonBranchKey('Mytcha'), canonBranchKey('Bulvar Festival'))
+  assert.notEqual(canonBranchKey('Abdülkerim Alizadə'), canonBranchKey('Bulvar Festival'))
 })
 
 // ── Bütövlük ────────────────────────────────────────────────────────────────
