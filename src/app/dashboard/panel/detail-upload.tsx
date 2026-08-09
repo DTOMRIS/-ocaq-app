@@ -393,9 +393,10 @@ export default function DetailUpload() {
               <>
                 {un.length > 0 && (
                   <Note tone="amber">
-                    Bu filial adları OCAQ-da tapılmadı: <b>{un.join(', ')}</b>. Data <b>itməyib</b> (yazıldı), amma
-                    filial bağlantısı boşdur → rol əsaslı filtr işləməz. <a href="/admin/filiallar" style={{ color: '#8a5a00' }}>/admin/filiallar</a>-da yaradın,
-                    növbəti yükləmə bağlantını özü dolduracaq.
+                    Bu filial adları OCAQ-da tapılmadı: <b>{un.join(', ')}</b>. Data <b>itməyib</b> (yazıldı) və
+                    Məhsul Analizində görünür, amma filial bağlantısı boşdur → <b>bölgə/filial müdiri onu görməz</b>
+                    (yalnız super admin). <a href="/dashboard/branches" style={{ color: '#8a5a00', fontWeight: 700 }}>Filiallar</a> səhifəsində
+                    ADI EYNİ yazılışla yaradın — növbəti yükləmə bağlantını özü dolduracaq.
                   </Note>
                 )}
                 {rej > 0 && <Note tone="amber">{rej} sətir validasiyadan keçmədi (tarix/ödəniş növü/say). Nümunə: {[...(result.daily?.rejectedSample ?? []), ...(result.item?.rejectedSample ?? [])].join(', ')}</Note>}

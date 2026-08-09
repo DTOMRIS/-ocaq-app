@@ -6,6 +6,42 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — Məhsul Analizi
+- **📊 `/dashboard/analitika` — məhsul analizi ekranı**: yükləmə datanı bazaya
+  yazırdı, lakin heç bir ekran onu OXUMURDU — dashboard-daki 3 kart faylın
+  içindəki məhsul-səviyyəli detayın kiçik bir hissəsi idi. Bu route əvvəl
+  `/dashboard/panel`-ə **ölü yönləndirmə** idi (sidebar-da «Analitika» və
+  «Günlük Panel» eyni yerə gedirdi); heç nə silinmədən real səhifəyə çevrildi,
+  Günlük Panel keçidi başda saxlanıldı.
+  - **Menyu mühəndisliyi (Kasavana-Smith):** Ulduz / At / Tapmaca / İt
+    kvadrantları, hər birində **say + ciro payı**. Real datada: ⭐41 çeşid =
+    cironun **%82,2**-si, 🐕221 çeşid = yalnız **%10,4** (menyu sadələşdirmə
+    adayı). Yalnız say göstərmək yanıldıcı olurdu.
+  - **DÜRÜSTLÜK:** matris **ciro payı** ilə qurulub, **marja** ilə deyil — maya
+    datası bazada saxlanmır (`/dashboard/menyu`-da fayldan oxunur). Bu, ekranda
+    açıq yazılıb. Klassik üsulun KATEQORİYA daxilində tətbiq olunduğu və
+    kateqoriya sütunu olmadığı da qeyd olunur.
+  - **💰 Upsell fırsatı:** çek başına ədəd (attach rate) filial vs şəbəkə.
+    Real datada «ÇAY DƏSTGAHI» üzrə şəbəkə fürsəti **19 447 ₼** (Torgoviy
+    0,046 vs şəbəkə 0,115 ədəd/çek → 1 947 ₼).
+  - Məhsul cədvəli (sıralanabilir): ədəd, ciro, ciro payı, orta qiymət,
+    ədəd/çek, filial sayı, çoxlu məhsul kodu göstəricisi.
+  - Filial cədvəli: ciro, çek, ortalama çek (şəbəkə ortalamasının %95-dən aşağı
+    olanlar qırmızı), delivery payı. Real datada **Seabreeze 32,76 ₼ vs
+    Əhmədli 15,21 ₼** — 2,15× fərq.
+  - Ödəniş qarışığı + **gəlir gətirməyən sətirlər ayrıca göstərilir** (silinmir):
+    servis sayğacı 159 124, kombo daxili 49 553, modifikator 16 351,
+    qablaşdırma 15 035.
+  - Aqreqasiya SQL-dədir (36 975 sətri brauzerə daşımırıq). RBAC: super_admin
+    şəbəkəni görür, digər rollar yalnız öz filiallarını; `branch_id` boş
+    sətirlər onlara görünmür.
+  - **Doğrulama (PGlite + real fayl):** ödəniş qarışığı cəmi gün cəminə
+    **kuruşu kuruşuna bərabər** (920 585,71 ₼), məhsul cirosu 961 237,84 ₼,
+    kvadrant payları cəmi %100, 286 çeşid · 29 filial.
+- Yükləmə ekranındaki «filial tapılmadı» xəbərdarlığı dəqiqləşdi: artıq
+  `/dashboard/branches`-ə birbaşa yönləndirir və nəticəni izah edir (data
+  görünür, lakin bölgə/filial müdiri onu görməz).
+
 ### Fixed
 - **🔴 `item: Database request failed` — 40 000 parametrli sorğu** (`fact-save/route.ts`):
   yazma sındı. Səbəb: hər sətir üçün ayrı placeholder qrupu qurulurdu → 4000
