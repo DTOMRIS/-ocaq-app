@@ -19,6 +19,34 @@
  * Pay və məxrəc HƏMİŞƏ eyni filial dəstində olmalıdır.
  */
 
+/**
+ * OCAQ `sales_targets` sətirlərini KANONİK açarlı xəritəyə çevirir.
+ *
+ * 🔴 NİYƏ (09.08.2026): hədəflər girilmişdi, lakin panel onları GÖRMÜRDÜ.
+ * Xəritə OCAQ-daki XAM `branches.name` ilə qurulurdu, oxuma isə KANONİK filial
+ * adı ilə olurdu. OCAQ-da filial «Əcəmi Shaurma» adlanırsa açar o olur, panel
+ * isə «Əcəmi» axtarır → hədəf «yoxdur» görünür. Fakt tərəfi `canonBranchKey`
+ * işlədirdi, hədəf tərəfi işlətmirdi — İKİ KOD YOLU FƏRQLİ AÇAR istifadə edirdi.
+ *
+ * TOPLAYIR, üzərinə yazmır: iki fiziki nöqtə bir kanonik filiala düşə bilər
+ * (ALIASES «Torgoviy Yuxarı» + «Torgoviy Aşağı» → «Torgoviy»). Üzərinə
+ * yazsaydıq həmin filialın hədəfi YARIYA ENƏRDİ.
+ */
+export function buildTargetIndex(
+  rows: Array<{ name: string; amount: number | string }>,
+  canon: (s: string) => string,
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const r of rows) {
+    const k = canon(r.name)
+    if (!k) continue
+    const v = Number(r.amount)
+    if (!Number.isFinite(v)) continue
+    out[k] = (out[k] ?? 0) + v
+  }
+  return out
+}
+
 export type BranchSales = {
   filial: string
   bolge: string | null

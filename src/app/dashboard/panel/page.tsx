@@ -3,11 +3,12 @@ import { redirect } from 'next/navigation'
 import { desc, eq, and, inArray } from 'drizzle-orm'
 import { db, sqlClient } from '@/db'
 import { factsToPanel, type FactRow } from '@/lib/analytics/facts-to-panel'
+import { buildTargetIndex } from '@/lib/analytics/target-attainment'
 import { analytics_ingest } from '@/db/schema/analytics'
 import { sales_targets } from '@/db/schema/sales'
 import { branches } from '@/db/schema/branches'
 import { accessibleBranchIds } from '@/lib/branch-access'
-import { normalizeFilial } from '@/lib/analytics/filial-map'
+import { canonBranchKey } from '@/lib/analytics/filial-map'
 import PanelClient from './panel-client'
 
 export const metadata = { title: 'Günlük Panel — OCAQ' }
@@ -128,7 +129,11 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
   // ── RBAC: super_admin xaric, yalnız istifadəçinin əlçatan filialları göstər ──
   // (maliyyət sızıntısı olmasın — branch/region müdiri bütün şəbəkənin cirosunu görməməli)
   const role = session.user.role
-  const canon = (s: string) => (normalizeFilial(s) ?? s).trim().toLowerCase()
+  // RBAC ad müqayisəsi də KANONİK açarla. Əvvəl `toLowerCase()` işlədirdi və
+  // İ/ı tələsinə düşürdü ('İnşaatçılar' ↔ 'inşaatçilar' uyğun gəlməyə bilər) —
+  // uyğunlaşmasa bölgə/filial müdiri HEÇ NƏ görməzdi. Hədəf və fakt yollarında
+  // artıq `canonBranchKey` işlədilir; bu yol da ona uyğunlaşdırıldı.
+  const canon = canonBranchKey
   let allowedIds: string[] | null = null
   if (role !== 'super_admin') {
     allowedIds = await accessibleBranchIds({ id: session.user.id, tenant_id: tenantId, role })
@@ -179,7 +184,21 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
         eq(sales_targets.month, `${period}-01`),
         ...(allowedIds ? [inArray(sales_targets.branch_id, allowedIds)] : []),
       ))
-    for (const r of rows) targets[r.name.trim()] = Number(r.amt)
+    // 🔴 09.08.2026 — HƏDƏFLƏR GİRİLİB, LAKİN PANEL ONLARI GÖRMÜRDÜ.
+    // Açar OCAQ-daki XAM `branches.name` idi, oxuma isə KANONİK filial adı ilə
+    // olurdu (`targets[b.filial]`). OCAQ-da filial «Əcəmi Shaurma» adlanırsa
+    // `targets['Əcəmi Shaurma']` yazılır, panel isə `targets['Əcəmi']` axtarır →
+    // hədəf «yoxdur» görünürdü. Fakt tərəfi `canonBranchKey` işlədirdi, hədəf
+    // tərəfi işlətmirdi — iki kod yolu FƏRQLİ açar istifadə edirdi.
+    //
+    // Artıq hər iki tərəf `canonBranchKey` ilə eyni açarı qurur.
+    // TOPLAYIRIQ, üzərinə yazmırıq: iki fiziki nöqtə bir kanonik filiala düşə
+    // bilər (ALIASES 'Torgoviy Yuxarı' + 'Torgoviy Aşağı' → 'Torgoviy') və
+    // üzərinə yazsaydıq həmin filialın hədəfi YARIYA ENƏRDİ.
+    Object.assign(targets, buildTargetIndex(
+      rows.map(r => ({ name: r.name, amount: r.amt })),
+      canonBranchKey,
+    ))
   }
 
   // Keçən il (2025) referansı qalıcı saxlanıbsa (PLAN.xlsx yüklənəndə) → YoY-u avtomatik qur.

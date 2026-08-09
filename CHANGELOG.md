@@ -6,6 +6,24 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — 🔴 HƏDƏFLƏR GİRİLİB, PANEL GÖRMÜRDÜ (kritik)
+- **Səbəb: iki kod yolu FƏRQLİ AÇAR işlədirdi.** Hədəflər OCAQ-daki **xam**
+  `branches.name` ilə xəritəyə yazılırdı (`panel/page.tsx:182`), oxuma isə
+  **kanonik** filial adı ilə olurdu (`targets[b.filial]`). OCAQ-da filial
+  «Əcəmi Shaurma» adlanırsa `targets['Əcəmi Shaurma']` yazılır, panel isə
+  `targets['Əcəmi']` axtarır → **hədəf «yoxdur» görünürdü**, halbuki girilmişdi.
+  Fakt tərəfi `canonBranchKey` işlədirdi (ona görə fakt bağlantısı tutdu),
+  hədəf tərəfi işlətmirdi.
+  - Artıq hər iki tərəf `canonBranchKey` ilə **eyni açarı** qurur
+    (`buildTargetIndex()` saf funksiyası, 4 regresiya testi).
+  - **TOPLAYIR, üzərinə yazmır:** iki fiziki nöqtə bir kanonik filiala düşə
+    bilər (ALIASES «Torgoviy Yuxarı» + «Torgoviy Aşağı» → «Torgoviy») — üzərinə
+    yazsaydıq həmin filialın hədəfi **yarıya enərdi**.
+- **Eyni hata sınıfı RBAC yolunda da vardı** (`panel/page.tsx`): filial ad
+  müqayisəsi `toLowerCase()` işlədirdi və İ/ı tələsinə düşürdü — uyğunlaşmasa
+  **bölgə/filial müdiri panelde HEÇ NƏ görməzdi**. O da `canonBranchKey`-ə
+  keçirildi; artıq hədəf, fakt və RBAC yolları eyni kanonikləşdirmədən keçir.
+
 ### Fixed — Panelde 53 186 ₼ satış səssiz itirdi + hədəf faizi şişik idi
 - **🔴 HƏDƏFİ OLMAYAN FİLİALIN SATIŞI «Plan vs Gerçək»dən TAMAMİLƏ ÇIXIRDI**
   (`panel-client.tsx`, artıq `src/lib/analytics/target-attainment.ts`):

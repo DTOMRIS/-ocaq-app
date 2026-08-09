@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
 import DetailUpload from './detail-upload'
 import { computeAttainment, attainmentByRegion } from '@/lib/analytics/target-attainment'
+import { canonBranchKey } from '@/lib/analytics/filial-map'
 
 const AY_ADI = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 const donemAdi = (p: string) => { const [y, m] = p.split('-'); return `${AY_ADI[+m] ?? m} ${y}` }
@@ -139,7 +140,9 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const branchTarget = (b: { filial: string; total: number }): { pct: number | null } => {
     const pb = plan?.branches[b.filial]
     if (pb && pb.plan) return { pct: pb.gedisat / pb.plan }
-    const t = targets[b.filial]
+    // Açar KANONİK: `page.tsx` hədəfləri `canonBranchKey` ilə yazır (OCAQ adı
+    // ilə iiko adı fərqli ola bilər — məs. «Əcəmi Shaurma» vs «Əcəmi»).
+    const t = targets[canonBranchKey(b.filial)]
     if (t && d) return { pct: (d.gun && d.days.length ? b.total / d.gun * daysInMonth : b.total) / t }
     return { pct: null }
   }
@@ -171,7 +174,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
       const pb = plan?.branches[b.filial]
       return {
         filial: b.filial, bolge: b.bolge, actual: b.total,
-        target: (pb && pb.plan) ? pb.plan : (targets[b.filial] ?? 0),
+        target: (pb && pb.plan) ? pb.plan : (targets[canonBranchKey(b.filial)] ?? 0),
       }
     }),
     { days: d?.gun ?? 0, daysInMonth },

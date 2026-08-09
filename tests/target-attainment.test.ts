@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { computeAttainment, attainmentByRegion, type BranchSales } from '../src/lib/analytics/target-attainment'
+import { computeAttainment, attainmentByRegion, buildTargetIndex, type BranchSales } from '../src/lib/analytics/target-attainment'
+import { canonBranchKey } from '../src/lib/analytics/filial-map'
 
 // ── REAL HADİSƏ (avqust 2026) ───────────────────────────────────────────────
 // Panel şəbəkə satışını 920 586 ₼ göstərirdi, «Gerçək» cəmi isə 867 401 ₼ idi.
@@ -100,4 +101,48 @@ test('bütün filiallar hədəfliysə hədəfsiz siyahı boş, cəmlər bərabə
   assert.equal(a.untargeted.length, 0)
   assert.equal(a.untargetedSales, 0)
   assert.equal(a.net.actual, a.networkSales)
+})
+
+// ── 🔴 09.08.2026 — «HƏDƏFLƏR GİRİLDİ, PANEL GÖRMÜR» ────────────────────────
+// İki kod yolu fərqli açar işlədirdi: hədəflər OCAQ-daki XAM `branches.name`
+// ilə yazılır, oxuma isə KANONİK filial adı ilə olurdu. OCAQ-da filial
+// «Əcəmi Shaurma» adlanırsa hədəf tapılmır və filial «hədəfsiz» görünür.
+test('buildTargetIndex OCAQ adı ilə iiko adını EYNİ açara bağlayır', () => {
+  const idx = buildTargetIndex(
+    [{ name: 'Əcəmi Shaurma', amount: 160000 }],
+    canonBranchKey,
+  )
+  // Panel kanonik adla axtarır — TAPILMALIDIR.
+  assert.equal(idx[canonBranchKey('Əcəmi')], 160000)
+  assert.equal(idx[canonBranchKey('Shaurma №1 Memar Əcəmi')], 160000)
+  // SƏHV DAVRANIŞIN REPRODUKSİYASI: xam adla qurulsaydı tapılmazdı.
+  const wrong: Record<string, number> = { 'Əcəmi Shaurma': 160000 }
+  assert.equal(wrong['Əcəmi'], undefined, 'köhnə kod məhz burada boş qaytarırdı')
+})
+
+test('buildTargetIndex eyni kanonik filiala düşən hədəfləri TOPLAYIR', () => {
+  // ALIASES: «Torgoviy Yuxarı» + «Torgoviy Aşağı» → «Torgoviy».
+  // Üzərinə yazsaydıq hədəf yarıya enərdi.
+  const idx = buildTargetIndex([
+    { name: 'Torgoviy Yuxarı', amount: 300000 },
+    { name: 'Torgoviy Aşağı', amount: 200000 },
+  ], canonBranchKey)
+  assert.equal(idx[canonBranchKey('Torgoviy')], 500000)
+})
+
+test('buildTargetIndex yeni filialı da bağlayır (F-31)', () => {
+  const idx = buildTargetIndex([{ name: 'Abdülkerim Alizadə', amount: 100000 }], canonBranchKey)
+  assert.equal(idx[canonBranchKey('Abdülkerim Alizadə')], 100000)
+  // iiko hələ «Mytcha» göndərir — o da eyni hədəfə düşməlidir.
+  assert.equal(idx[canonBranchKey('Mytcha')], 100000)
+})
+
+test('buildTargetIndex zibil dəyəri atır, hədəfi pozmur', () => {
+  const idx = buildTargetIndex([
+    { name: 'Bayıl', amount: '500000' },      // mətn rəqəm — oxunur
+    { name: '   ', amount: 999 },             // boş ad — atılır
+    { name: 'Zığ', amount: 'abc' },           // rəqəm deyil — atılır
+  ], canonBranchKey)
+  assert.equal(idx[canonBranchKey('Bayıl')], 500000)
+  assert.equal(Object.keys(idx).length, 1)
 })
