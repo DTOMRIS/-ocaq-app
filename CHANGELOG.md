@@ -6,6 +6,37 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — Maya/kateqoriya hazırlığı (sütun gələn gün işləyəcək)
+- **`Maya dəyəri` + `Kateqoriya` sütunları əvvəlcədən dəstəkləndi**
+  (`parse-sales-detail.ts`, `fact-save/route.ts`, `detail-upload.tsx`,
+  `analytics_item_fact.cost` / `.category`, `drizzle/migrations/0012`).
+  Analitika şöbəsindən istənildi; **fayl gələn gün ikinci deploy gözlənilməsin**
+  deyə boru xəttinin hamısı hazırlandı. Sütun yoxdursa heç nə pozulmur
+  (`optional: {cost, category}` ilə vəziyyət yükləmə ekranında göstərilir);
+  gəldikdə **food cost dərhal görünür** və menyu matrisi ciro payından
+  **marja** əsasına keçə bilər.
+  - `Maya dəyəri` = **1 ədəd**, `Maya məbləği` = **sətir cəmi** — ikisi ayrı
+    oxunur, qarışmır. Birləşən açarlarda maya **toplanır**.
+  - **Səhv şərh səssiz keçmir:** sətir cəmi «1 ədəd» sütununda gəlsə food cost
+    qeyri-real çıxır (%300) və xəbərdarlıq verilir — nəticə səssizcə istifadə
+    edilmir.
+  - Təkrar yükləmədə maya/kateqoriya gəlmirsə **köhnə dəyər silinmir**
+    (`coalesce` qoruyur) — PGlite ilə yoxlandı.
+  - Migration 0012 **add-only** (`add column if not exists`), destruktiv
+    sayılmır, təkrar tətbiq no-op.
+- **`docs/IIKO-GUNLUK-EXPORT.md` §6.1, §6.2, §8 genişləndi:**
+  - **«Wolt/Bolt/kart satışını da əlavə edək» — LAZIM DEYİL.** Kanal satışı
+    artıq B vərəqindəki `Ödəniş növü`-ndən tam çıxır; fayldan xam çıxarış
+    cədvəl halında sənədə əlavə olundu (9 ödəniş növü, cəmi 920 585,71 ₼ =
+    gün cəmi). Üçüncü vərəq artıqdır.
+  - **«Saatlik satış varmı?» — YOX.** Yoxlanıldı: PRODMIX `Uçot günü` və ÇEK
+    `Tarix` hücrələrinin **0-ında** kəsr hissə (saat) var — 39 549 + 43 812
+    hücrə, hamısı tam gün. Saat üçün iiko-dan yeni sütun tələb olunur.
+    (`HƏFTƏ GÜNÜ` isə mövcuddur və tarixdən də çıxarılır.)
+  - **§8 artıq kopyala-göndər mətnidir** — analitika şöbəsinə olduğu kimi
+    yazılacaq tam sifariş (iki vərəq, sütun adları, `Maya dəyəri`-nin 1 ədəd
+    olduğu, kumulyativ aralıq, dəyişsə problem olmayanlar, növbəti mərhələ).
+
 ### Added — Filial/bölgə kırılımı + iiko export müqaviləsi
 - **🔎 Drill-down: bölgə → filial** (`/dashboard/analitika`): bölgə kartına və ya
   filial sətrinə basanda BÜTÜN rapor həmin əhatəyə düşür (menyu mühəndisliyi,

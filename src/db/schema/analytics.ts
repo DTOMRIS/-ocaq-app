@@ -87,6 +87,15 @@ export const analytics_item_fact = pgTable('analytics_item_fact', {
   // Menyu mühəndisliyi YALNIZ 'product' sətirlərini işlədir. Qalanları silinmir —
   // «service» vs «packaging» zalda/götür-apar qarışığını verir.
   line_kind:     text('line_kind').notNull(),
+  // ── İSTƏYƏ BAĞLI (iiko export-una əlavə olunanda dolur) ───────────────────
+  // `cost` = SƏTİR CƏMİ maya (ədəd × 1 ədədin mayası). Marja = amount − cost.
+  // Bu gəldikdə menyu mühəndisliyi CİRO payından MARJA payına keçir — «çox
+  // satılır, amma pul qazandırmır» məhsulu yalnız bununla görmək olar.
+  // Nullable: köhnə sətirlər boş qalır, hesablama `null`-ı dürüst göstərir.
+  cost:          numeric('cost', { precision: 14, scale: 2 }),
+  // Klassik Kasavana-Smith KATEQORİYA daxilində tətbiq olunur (əsas yemək,
+  // içki, desert ayrı-ayrı) — bu sütun onu mümkün edir.
+  category:      text('category'),
   source:        text('source'),
   updated_at:    timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [

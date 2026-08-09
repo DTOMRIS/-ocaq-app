@@ -197,6 +197,23 @@ function headerIndex(rows: unknown[][], required: RegExp[]): { row: number; idx:
   return null
 }
 
+/**
+ * İSTƏYƏ BAĞLI sütunu tapır — yoxsa `-1`.
+ *
+ * NİYƏ: analitika şöbəsindən `Maya dəyəri`, `Kateqoriya`, `Saat` sütunları
+ * istənilib (bax docs/IIKO-GUNLUK-EXPORT.md §7). Onlar gələndə sistem
+ * DƏYİŞİKLİK OLMADAN oxumalıdır — yeni deploy gözlənilməsin. Sütun yoxdursa
+ * heç nə pozulmur, sadəcə həmin analiz açılmır.
+ */
+function optionalIndex(rows: unknown[][], headerRow: number, patterns: RegExp[]): number {
+  const cells = (rows[headerRow] ?? []).map(c => azFold(c))
+  for (const re of patterns) {
+    const i = cells.findIndex(c => re.test(c))
+    if (i >= 0) return i
+  }
+  return -1
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PRODMIX
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,6 +225,10 @@ export type ProdmixLine = {
   qty: number
   amount: number
   kind: LineKind
+  /** İSTƏYƏ BAĞLI — `Maya dəyəri` sütunu gələndə dolur (sətir cəmi maya, ₼). */
+  cost?: number
+  /** İSTƏYƏ BAĞLI — `Kateqoriya` sütunu gələndə dolur. */
+  category?: string
 }
 
 export type ProdmixResult = {
@@ -219,11 +240,19 @@ export type ProdmixResult = {
   lines: ProdmixLine[]
   dates: string[]
   branches: string[]
-  totals: { qty: number; amount: number; productAmount: number }
+  totals: {
+    qty: number; amount: number; productAmount: number
+    /** `Maya dəyəri` sütunu gəldiyi hallarda məhsul sətirlərinin maya cəmi. */
+    productCost: number
+    /** Çəkili food cost = maya cəmi / məhsul cirosu. Maya yoxsa `null`. */
+    foodCostPct: number | null
+  }
   /** Gəlir gətirməyən sətirlər — silinmir, ayrıca sayılır. */
   nonRevenue: Record<Exclude<LineKind, 'product'>, number>
   /** Faylda təkrarlanıb burada birləşdirilən açar sayı (şəffaflıq üçün). */
   mergedKeys: number
+  /** İstəyə bağlı sütunlardan hansı gəldi — UI bunu göstərir. */
+  optional: { cost: boolean; category: boolean }
   warnings: string[]
 }
 
@@ -236,13 +265,21 @@ export function parseProdmix(rows: unknown[][]): ProdmixResult {
   if (!h) {
     return {
       lines: [], dates: [], branches: [],
-      totals: { qty: 0, amount: 0, productAmount: 0 },
+      totals: { qty: 0, amount: 0, productAmount: 0, productCost: 0, foodCostPct: null },
       nonRevenue: { service: 0, packaging: 0, modifier: 0, included: 0 },
       mergedKeys: 0,
+      optional: { cost: false, category: false },
       warnings: ['Prodmix başlıqları tapılmadı (Uçot günü / Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ gözlənilir)'],
     }
   }
   const [cDate, cBranch, cCode, cName, cQty, cAmt] = h.idx
+
+  // ── İSTƏYƏ BAĞLI sütunlar (gələndə avtomatik oxunur, yoxsa keçilir) ─────────
+  // `Maya dəyəri` — 1 ƏDƏD üçün maya gözlənilir (sənəddə belə istənilib).
+  // «Maya məbləği/cəmi» kimi adlar sətir CƏMİ ola bilər → aşağıda yoxlanılır.
+  const cCost = optionalIndex(rows, h.row, [/maya dəyəri/, /^maya$/, /maya \(/, /self ?cost/, /cost price/])
+  const cCostTotal = optionalIndex(rows, h.row, [/maya məbləği/, /maya cəmi/, /cost amount/])
+  const cCat = optionalIndex(rows, h.row, [/kateqoriya/, /kategoriya/, /^qrup$/, /category/, /menyu qrupu/])
 
   // 🔴 09.08.2026 — NİYƏ AQREQASİYA (əvvəl hər xam sətir ayrıca push olunurdu):
   // Bu funksiyanın qranulu «filial × gün × məhsul» OLMALIDIR (DB unique açarı
@@ -256,9 +293,14 @@ export function parseProdmix(rows: unknown[][]): ProdmixResult {
   // ayırır, ikinci chunk birincinin ÜZƏRİNƏ yazır (toplamır) → 2 574 sətir və
   // 102 227,56 ₼ ciro yox olurdu (859 010,28 yerinə 961 237,84 olmalıydı).
   // Aqreqasiyadan sonra ciro xam cəmə BƏRABƏRDİR (yoxlandı).
-  const agg = new Map<string, { filial: string; date: string; itemCode: string; itemName: string; qty: number; amount: number }>()
+  const agg = new Map<string, {
+    filial: string; date: string; itemCode: string; itemName: string
+    qty: number; amount: number; cost: number; category: string
+  }>()
   const dates = new Set<string>(), branches = new Set<string>()
   let skippedDate = 0, skippedBranch = 0, mergedKeys = 0
+  const hasCost = cCost >= 0 || cCostTotal >= 0
+  const hasCat = cCat >= 0
 
   for (let r = h.row + 1; r < rows.length; r++) {
     const row = rows[r] ?? []
@@ -275,28 +317,42 @@ export function parseProdmix(rows: unknown[][]): ProdmixResult {
     const itemCode = String(row[cCode] ?? '').trim()
     const q = num(row[cQty]), a = num(row[cAmt])
 
+    // Maya: SƏTİR CƏMİ kimi saxlanılır (aqreqasiyada toplanabilsin).
+    // `Maya dəyəri` 1 ədəd üçündür → ədədə vurulur. `Maya məbləği` artıq cəmdir.
+    const cost = cCostTotal >= 0 ? num(row[cCostTotal])
+      : cCost >= 0 ? num(row[cCost]) * q
+      : 0
+    const category = hasCat ? String(row[cCat] ?? '').trim() : ''
+
     const key = `${filial}|${date}|${itemCode}`
     const prev = agg.get(key)
     if (prev) {
       mergedKeys++
       prev.qty += q
       prev.amount += a
+      prev.cost += cost
+      if (!prev.category && category) prev.category = category
     } else {
-      agg.set(key, { filial, date, itemCode, itemName, qty: q, amount: a })
+      agg.set(key, { filial, date, itemCode, itemName, qty: q, amount: a, cost, category })
     }
     dates.add(date); branches.add(filial)
   }
 
   // `kind` TOPLANMIŞ məbləğə görə təyin olunur: eyni məhsulun bir sətri 0 ₼,
   // digəri müsbət ola bilər — birləşdikdən sonra o, real gəlirli məhsuldur.
-  let qty = 0, amount = 0, productAmount = 0
+  let qty = 0, amount = 0, productAmount = 0, productCost = 0
   const nonRevenue = { service: 0, packaging: 0, modifier: 0, included: 0 }
   const lines: ProdmixLine[] = [...agg.values()].map(e => {
     const kind = classifyLine(e.itemName, e.amount)
     qty += e.qty; amount += e.amount
-    if (kind === 'product') productAmount += e.amount
+    if (kind === 'product') { productAmount += e.amount; productCost += e.cost }
     else nonRevenue[kind] += e.qty
-    return { filial: e.filial, date: e.date, itemCode: e.itemCode, itemName: e.itemName, qty: e.qty, amount: e.amount, kind }
+    return {
+      filial: e.filial, date: e.date, itemCode: e.itemCode, itemName: e.itemName,
+      qty: e.qty, amount: e.amount, kind,
+      ...(hasCost ? { cost: e.cost } : {}),
+      ...(hasCat && e.category ? { category: e.category } : {}),
+    }
   })
 
   if (skippedDate) warnings.push(`${skippedDate} sətrin tarixi oxunmadı`)
@@ -307,12 +363,27 @@ export function parseProdmix(rows: unknown[][]): ProdmixResult {
     warnings.push(`Gəlir uyğunsuzluğu: cəmi ${amount.toFixed(2)} ≠ məhsul ${productAmount.toFixed(2)}`)
   }
 
+  const foodCostPct = hasCost && productAmount > 0 ? productCost / productAmount : null
+  // MAYA SÜTUNU SƏHV ŞƏRH EDİLİBSƏ SƏSSİZ KEÇMƏSİN.
+  // `Maya dəyəri` 1 ədəd üçün gözlənilir. Əgər faylda əslində SƏTİR CƏMİ
+  // verilibsə, ədədə vurmaqla nəticə ədəd qatı qədər şişər və food cost
+  // qeyri-real olar. Restoranda çəkili food cost tipik olaraq %20–45-dir.
+  if (foodCostPct != null && (foodCostPct > 0.9 || foodCostPct < 0.05)) {
+    warnings.push(
+      `Food cost qeyri-real çıxdı (%${(foodCostPct * 100).toFixed(1)}). ` +
+      `«${cCostTotal >= 0 ? 'Maya məbləği' : 'Maya dəyəri'}» sütunu ` +
+      `${cCostTotal >= 0 ? 'sətir cəmi' : '1 ədəd'} kimi oxundu — ` +
+      'faylda əksi ola bilər. Maya nəticələri istifadə edilməməlidir, sütun adı dəqiqləşdirilməlidir.',
+    )
+  }
+
   return {
     lines,
     dates: [...dates].sort(),
     branches: [...branches].sort(),
-    totals: { qty, amount, productAmount },
+    totals: { qty, amount, productAmount, productCost, foodCostPct },
     nonRevenue, warnings, mergedKeys,
+    optional: { cost: hasCost, category: hasCat },
   }
 }
 

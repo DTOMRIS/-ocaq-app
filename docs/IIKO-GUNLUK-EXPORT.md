@@ -128,6 +128,53 @@ yeni ay sıfırdan başlayır.
 
 ---
 
+## 6.1 «Wolt / Bolt / kart satışını da əlavə edək» — LAZIM DEYİL, artıq gəlir
+
+Bu sual verildi (09.08.2026). Cavab: **üçüncü vərəq istəmək lazım deyil** —
+kanal satışı **B vərəqindəki `Ödəniş növü` sütunundan tam çıxır**. 01–07 avqust
+faylından xam çıxarış (cəmi kuruşu kuruşuna uyğundur):
+
+| Ödəniş növü (fayldaki xam ad) | Məbləğ | OCAQ kateqoriyası |
+|---|---|---|
+| Nağd | 319 668,28 ₼ | `nagd` |
+| Uni Bank | 239 999,84 ₼ | `kart` |
+| Kapital Bank | 152 379,13 ₼ | `kart` |
+| WOLT SATIŞ | 112 177,60 ₼ | `wolt` |
+| BOLT SATIŞ | 36 309,60 ₼ | `bolt` |
+| UNIBANK PAX A35 | 36 252,14 ₼ | `kart` |
+| ATB bank | 21 867,92 ₼ | `kart` |
+| Delivery SeaBreeze | 1 657,40 ₼ | `own_delivery` |
+| Wolt Storefront | 273,80 ₼ | `wolt` |
+| **CƏMİ** | **920 585,71 ₼** | = gün cəmi |
+
+OCAQ bunu **filial × gün × kanal** qranulunda saxlayır və Məhsul Analizində
+göstərir: kart %48,9 · nağd %34,7 · Wolt %12,2 · Bolt %3,9 · öz çatdırılma %0,2.
+
+> ⚠️ Yeni ödəniş növü əlavə olunarsa (yeni bank terminalı, yeni platforma)
+> xəbər verilməlidir — xəritəyə salınmasa «tanınmayan ödəniş növü» kimi
+> yükləmə ekranında göstərilir (səssiz keçmir), lakin kateqoriyaya düşmür.
+
+**Ayrıca hesabat NƏ VAXT lazım olur:** iiko-nun yazdığı Wolt/Bolt məbləği ilə
+platformanın **ödədiyi** məbləğ fərqlidir (komissiya, ləğvlər). Bu üzləşdirmə
+üçün Wolt/Bolt **portalının öz hesabatı** və bank çıxarışı lazımdır — onlar
+analitika şöbəsindən deyil, ayrı mənbədən gəlir və ayrı işdir.
+
+## 6.2 «Saatlik satış varmı?» — YOX, bu sütun istənilməlidir
+
+Faylda **saat məlumatı yoxdur**. Yoxlanma (01–07 avqust, xam hücrələr):
+
+| Sütun | Nəticə |
+|---|---|
+| PRODMIX `Uçot günü` | 39 549 rəqəm hücrənin **0-ında** kəsr hissə (saat) var |
+| ÇEK `Tarix` | 43 812 rəqəm hücrənin **0-ında** kəsr hissə var |
+
+Yəni hər ikisi **tam gün** dəyəridir (`46235` = 01.08.2026, saat 00:00).
+Saat-saat analiz (pik saatlar, növbə planlaması, saat bazlı upsell) üçün
+**yeni sütun tələb olunur** — aşağı §7-də 3-cü sıradadır.
+
+Faylda **`HƏFTƏ GÜNÜ`** sütunu var (`6_şənbə` formatında) — həftənin günü üzrə
+analiz üçün əlavə sütun lazım deyil, tarixdən özü çıxarılır.
+
 ## 7. Əlavə sütunlar — nə açır (prioritet sırası)
 
 Bunlar **məcburi deyil**, lakin gələrsə OCAQ-da yeni analiz açılır. Sıra
@@ -149,15 +196,69 @@ sonraki fazalarda.
 
 ---
 
-## 8. Bir cümləlik xülasə (analitika şöbəsinə)
+## 8. ANALİTİKA ŞÖBƏSİNƏ GÖNDƏRİLƏCƏK MƏTN (olduğu kimi kopyalayın)
 
-> Hər gün səhər **bir `.xlsx` fayl**: içində **iki vərəq** —
-> (A) `Uçot günü · Ticarət müəssisəsi · Məhsulun kodu · Məhsul · Məhsulların
-> sayı · Endirimli məbləğ`, (B) `Ticarət müəssisəsi · Tarix · Ödəniş növü ·
-> **Qəbzin nömrəsi** · Endirimli məbləğ`.
-> Aralıq: **ayın 1-dən bugünə**. Sütun sırası və əlavə sütunlar sərbəstdir,
-> **bu adlar dəyişməsin**. Mümkünsə vərəq A-ya `Maya dəyəri` və `Kateqoriya`
-> sütunları da əlavə edilsin.
+> **Mövzu: OCAQ portalı üçün günlük satış export-u — sabit format**
+>
+> Salam. Bundan sonra OCAQ portalına **hər gün səhər bir `.xlsx` fayl** kifayət
+> edir. Faylın içində **iki vərəq** olmalıdır. Vərəq adları sərbəstdir, sistem
+> hansının hansı olduğunu sütun adlarına görə özü tapır.
+>
+> **VƏRƏQ A — məhsul detayı** (bu sütun adları dəyişməsin):
+> `Uçot günü` · `Ticarət müəssisəsi` · `Məhsulun kodu` · `Məhsul` ·
+> `Məhsulların sayı` · `Endirimli məbləğ`
+>
+> **VƏRƏQ A-ya ƏLAVƏ OLARAQ İSTƏYİRİK** (ən vacib iki sütun):
+> - **`Maya dəyəri`** — **1 ƏDƏD üçün maya, ₼** (məsələn 300 qr shaurma üçün
+>   2,10 ₼). Sətir cəmi verirsinizsə sütun adı **`Maya məbləği`** olsun ki
+>   qarışmasın — sistem ikisini ayrı oxuyur.
+> - **`Kateqoriya`** — menyu qrupu (Əsas yemək / İçki / Desert / Əlavə / Sos…)
+>
+> **VƏRƏQ B — çek/ödəniş** (bu sütun adları dəyişməsin):
+> `Ticarət müəssisəsi` · `Tarix` · `Ödəniş növü` · **`Qəbzin nömrəsi`** ·
+> `Endirimli məbləğ`
+>
+> **ARALIQ: ayın 1-dən bugünə qədər** (kumulyativ, yalnız dünən deyil).
+> Sistem gün açarı ilə üzərinə yazır, ona görə təkrar günlər problem deyil —
+> əksinə, dünən yarımçıq alınmışsa bugün özü düzəlir.
+>
+> **DƏYİŞSƏ PROBLEM OLMAYAN şeylər:** sütun sırası, əlavə sütunlar, vərəq adı,
+> başlıq sətrinin faylın neçənci sətrində olması, tarix formatı
+> (`46235` / `01.08.2026` / `2026-08-01`), sətir sayı, `BAZA 2025` vərəqinin
+> faylda qalması.
+>
+> **DƏYİŞMƏMƏLİ:** yuxarıdaki **sütun adları**. Ad dəyişməsi lazım gələrsə
+> əvvəlcədən xəbər verin.
+>
+> **XÜSUSİLƏ ÖNƏMLİ:** `Qəbzin nömrəsi` sütunu mütləqdir — müştəri sayı və
+> ortalama çek yalnız bununla hesablanır. Həmçinin cədvəlin içinə **cəm
+> (CƏMİ/Total) sətirləri qarışdırılmasın**.
+>
+> **Növbəti mərhələdə istəyəcəyimiz** (indi lazım deyil, planlaşdırma üçün):
+> qəbz **saatı** (pik saat və növbə planlaması üçün), **kassir/ofisiant** adı,
+> ayrıca **endirim məbləği**, ləğv edilmiş qəbz işarəsi.
+>
+> Təşəkkür edirik.
+
+### Niyə «hər şeyi tək düz cədvəldə verin» demirik
+
+Cazibədar görünür, lakin iki müstəqil vərəq bizim **yeganə səhv tutucumuzdur**:
+07.08.2026-da çek datası 40 652 ₼ əskik gəldi və bu **öz içindən görünmürdü** —
+yalnız məhsul vərəqi ilə tutuşdurulanda çıxdı. Üstəlik hissə-hissə ödənən qəbz
+(yarısı nağd, yarısı kart) tək cədvəldə həmin qəbzin məhsullarını **iki dəfə**
+saydırardı. Bir **fayl** — iki **vərəq**.
+
+### Sistem tərəfi artıq hazırdır
+
+`Maya dəyəri` və `Kateqoriya` sütunları **gəldiyi gün işləyəcək** — parser,
+API və cədvəl (`analytics_item_fact.cost` / `.category`, migration 0012) əvvəlcədən
+hazırlandı, yeni deploy gözlənilmir. Sütun yoxdursa heç nə pozulmur; gəldikdə
+yükləmə ekranında **food cost dərhal görünür** və menyu matrisi ciro payından
+**marja** əsasına keçir.
+
+Qoruma: `Maya dəyəri` səhv şərh edilsə (sətir cəmi «1 ədəd» kimi oxunsa) food
+cost qeyri-real çıxır və sistem **səssiz keçmir** — «food cost %300, sütun adı
+dəqiqləşdirilməlidir» xəbərdarlığı verir.
 
 ---
 

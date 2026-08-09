@@ -371,3 +371,64 @@ test('reconcile: uyğun günlər təmiz, natamam gün tutulur', () => {
   assert.equal(rec.warnings.length, 1)
   assert.ok(rec.warnings[0].includes('çek faylı natamam'))
 })
+
+// ── İSTƏYƏ BAĞLI SÜTUNLAR: Maya dəyəri + Kateqoriya ─────────────────────────
+// Sütunlar iiko export-una əlavə olunanda YENİ DEPLOY GÖZLƏNMƏSİN deyə
+// əvvəlcədən dəstəklənir (docs/IIKO-GUNLUK-EXPORT.md §7-8).
+const H_OPT = ['Uçot günü', 'Ticarət müəssisəsi', 'Məhsulun kodu', 'Məhsul', 'Məhsulların sayı', 'Endirimli məbləğ, m.', 'Maya dəyəri', 'Kateqoriya']
+
+test('parseProdmix maya/kateqoriya sütunu gələndə oxuyur', () => {
+  const r = parseProdmix([H_OPT,
+    [46235, 'Bayıl', '1000051', 'SHAURMA LAVAŞDA BÖYÜK', '10', '70.00', '2.10', 'Əsas yemək'],
+    [46235, 'Bayıl', '1000060', 'ÇAY DƏSTGAHI', '5', '53.85', '1.20', 'İçki'],
+  ])
+  assert.deepEqual(r.optional, { cost: true, category: true })
+  // `Maya dəyəri` 1 ƏDƏD üçündür → sətir cəmi = ədəd × maya
+  assert.equal(r.lines.find(l => l.itemCode === '1000051')!.cost, 21)
+  assert.equal(r.lines.find(l => l.itemCode === '1000060')!.cost, 6)
+  assert.equal(r.lines[0].category, 'Əsas yemək')
+  assert.equal(r.totals.productCost.toFixed(2), '27.00')
+  assert.equal((r.totals.foodCostPct! * 100).toFixed(1), '21.8')
+  assert.deepEqual(r.warnings, [])
+})
+
+test('parseProdmix maya sütunu YOXDURSA heç nə pozulmur', () => {
+  const r = parseProdmix([H_OPT.slice(0, 6),
+    [46235, 'Bayıl', '1000051', 'SHAURMA', '10', '70.00'],
+  ])
+  assert.deepEqual(r.optional, { cost: false, category: false })
+  assert.equal(r.totals.foodCostPct, null)
+  assert.equal(r.lines[0].cost, undefined)
+  assert.equal(r.lines[0].category, undefined)
+  assert.equal(r.totals.productAmount, 70)
+  assert.deepEqual(r.warnings, [])
+})
+
+test('parseProdmix «Maya məbləği» (sətir cəmi) formasını da tanıyır', () => {
+  const H = [...H_OPT.slice(0, 6), 'Maya məbləği']
+  const r = parseProdmix([H, [46235, 'Bayıl', '1000051', 'SHAURMA', '10', '70.00', '21.00']])
+  // Bu forma artıq cəmdir → ədədə VURULMAMALIDIR
+  assert.equal(r.lines[0].cost, 21)
+  assert.equal((r.totals.foodCostPct! * 100).toFixed(1), '30.0')
+})
+
+test('parseProdmix qeyri-real food cost-da SƏSSİZ KEÇMİR', () => {
+  // Sətir cəmi səhvən «1 ədəd» sütununda verilsə: 21 × 10 = 210 ₼ maya, 70 ₼ ciro
+  const r = parseProdmix([H_OPT, [46235, 'Bayıl', '1000051', 'SHAURMA', '10', '70.00', '21.00', 'Əsas']])
+  assert.equal((r.totals.foodCostPct! * 100).toFixed(1), '300.0')
+  assert.equal(r.warnings.length, 1)
+  assert.match(r.warnings[0], /Food cost qeyri-real/)
+  assert.match(r.warnings[0], /Maya dəyəri/)
+})
+
+test('parseProdmix birləşən açarda mayanı TOPLAYIR', () => {
+  const r = parseProdmix([H_OPT,
+    [46235, 'Bayıl', '1000051', 'SHAURMA', '10', '70.00', '2.10', 'Əsas'],
+    [46235, 'Bayıl', '1000051', 'SHAURMA', '5', '35.00', '2.10', 'Əsas'],
+  ])
+  assert.equal(r.lines.length, 1)
+  assert.equal(r.mergedKeys, 1)
+  assert.equal(r.lines[0].qty, 15)
+  assert.equal(r.lines[0].cost!.toFixed(2), '31.50')   // 21.00 + 10.50
+  assert.equal((r.totals.foodCostPct! * 100).toFixed(1), '30.0')
+})

@@ -57,7 +57,13 @@ const DAY_TOTAL = '__day__'
 const VALID_PAYMENT = new Set<string>([...PAYMENT_KINDS, DAY_TOTAL])
 
 type DailyRow = { filial: string; date: string; payment_type: string; amount: number; receipts?: number | null }
-type ItemRow = { filial: string; date: string; item_code: string; item_name: string; qty: number; amount: number; line_kind: string }
+// `cost` / `category` İSTƏYƏ BAĞLIDIR — iiko export-una əlavə olunanda gəlir
+// (bax docs/IIKO-GUNLUK-EXPORT.md §7). Gəlmədikdə null yazılır, heç nə pozulmur.
+type ItemRow = {
+  filial: string; date: string; item_code: string; item_name: string
+  qty: number; amount: number; line_kind: string
+  cost?: number | null; category?: string | null
+}
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/
 
@@ -169,20 +175,30 @@ export async function POST(req: NextRequest) {
         return ok
       })
 
-      const acc = new Map<string, { filial: string; date: string; item_code: string; item_name: string; qty: number; amount: number; line_kind: string }>()
+      const acc = new Map<string, {
+        filial: string; date: string; item_code: string; item_name: string
+        qty: number; amount: number; line_kind: string
+        cost: number | null; category: string | null
+      }>()
       for (const r of valid) {
         const filial = canonName(r.filial)
         const item_code = r.item_code.trim()
         const key = `${canonBranchKey(filial)}|${r.date}|${item_code}`
+        const cost = r.cost == null || !Number.isFinite(Number(r.cost)) ? null : Number(r.cost)
+        const category = typeof r.category === 'string' && r.category.trim() ? r.category.trim().slice(0, 120) : null
         const prev = acc.get(key)
         if (prev) {
           merged++
           prev.qty += Number(r.qty)
           prev.amount += Number(r.amount)
+          // Maya sətir cəmidir → toplanır. Biri null olsa digəri itməsin.
+          if (cost != null) prev.cost = (prev.cost ?? 0) + cost
+          if (!prev.category && category) prev.category = category
         } else {
           acc.set(key, {
             filial, date: r.date, item_code, item_name: r.item_name.trim(),
             qty: Number(r.qty), amount: Number(r.amount), line_kind: r.line_kind,
+            cost, category,
           })
         }
       }
@@ -196,15 +212,19 @@ export async function POST(req: NextRequest) {
       if (rows.length) {
         await sqlClient.query(`
           insert into analytics_item_fact
-            (tenant_id, branch_id, filial, business_date, item_code, item_name, qty, amount, line_kind, source)
-          select $1::uuid, t.branch_id, t.filial, t.business_date, t.item_code, t.item_name, t.qty, t.amount, t.line_kind, $2::text
-          from unnest($3::uuid[], $4::text[], $5::date[], $6::text[], $7::text[], $8::numeric[], $9::numeric[], $10::text[])
-            as t(branch_id, filial, business_date, item_code, item_name, qty, amount, line_kind)
+            (tenant_id, branch_id, filial, business_date, item_code, item_name, qty, amount, line_kind, cost, category, source)
+          select $1::uuid, t.branch_id, t.filial, t.business_date, t.item_code, t.item_name, t.qty, t.amount, t.line_kind, t.cost, t.category, $2::text
+          from unnest($3::uuid[], $4::text[], $5::date[], $6::text[], $7::text[], $8::numeric[], $9::numeric[], $10::text[], $11::numeric[], $12::text[])
+            as t(branch_id, filial, business_date, item_code, item_name, qty, amount, line_kind, cost, category)
           on conflict (tenant_id, filial, business_date, item_code) do update set
             item_name  = excluded.item_name,
             qty        = excluded.qty,
             amount     = excluded.amount,
             line_kind  = excluded.line_kind,
+            -- Maya/kateqoriya İSTƏYƏ BAĞLIDIR: yeni yükləmədə gəlmirsə (null)
+            -- köhnə dəyər SİLİNMİR — coalesce onu qoruyur.
+            cost       = coalesce(excluded.cost, analytics_item_fact.cost),
+            category   = coalesce(excluded.category, analytics_item_fact.category),
             branch_id  = coalesce(excluded.branch_id, analytics_item_fact.branch_id),
             source     = coalesce(excluded.source, analytics_item_fact.source),
             updated_at = now()
@@ -218,6 +238,8 @@ export async function POST(req: NextRequest) {
           rows.map(r => r.qty.toFixed(3)),
           rows.map(r => r.amount.toFixed(2)),
           rows.map(r => r.line_kind),
+          rows.map(r => r.cost == null ? null : r.cost.toFixed(2)),
+          rows.map(r => r.category),
         ])
         written = rows.length
       }

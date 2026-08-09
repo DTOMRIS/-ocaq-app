@@ -190,9 +190,13 @@ export default function DetailUpload() {
       return out
     }) : []
 
+    // `cost`/`category` yalnız iiko export-unda həmin sütunlar olduqda gəlir —
+    // yoxdursa göndərilmir və serverdə köhnə dəyər `coalesce` ilə qorunur.
     const itemRows = prodmix ? prodmix.lines.map(l => ({
       filial: l.filial, date: l.date, item_code: l.itemCode, item_name: l.itemName,
       qty: l.qty, amount: l.amount, line_kind: l.kind,
+      ...(l.cost != null ? { cost: l.cost } : {}),
+      ...(l.category ? { category: l.category } : {}),
     })) : []
 
     // Progress SƏTİR sayır, paket sayı deyil — paket ölçüsü sınmada dəyişir.
@@ -286,6 +290,10 @@ export default function DetailUpload() {
             {p && <>
               <Mini k="Məhsul cirosu" v={money(p.totals.productAmount)} sub={`${int(p.lines.length)} sətir`} />
               <Mini k="Məhsul sayı" v={int(p.totals.qty)} />
+              {/* Maya sütunu gələndə food cost DƏRHAL görünür — yoxdursa kart çıxmır. */}
+              {p.totals.foodCostPct != null && (
+                <Mini k="Food cost (çəkili)" v={(p.totals.foodCostPct * 100).toFixed(1) + '%'} sub={`maya ${money(p.totals.productCost)}`} />
+              )}
             </>}
           </div>
 
@@ -297,6 +305,14 @@ export default function DetailUpload() {
               <div style={{ fontSize: 11.5, color: '#8b8378' }}>
                 ℹ️ {int(p.mergedKeys)} təkrar açar (eyni filial + gün + məhsul kodu) toplandı —
                 ciro qorunur: {money(p.totals.amount)}.
+              </div>
+            )}
+            {/* İstəyə bağlı sütunların vəziyyəti — gələnə qədər nə əskikdir görünsün */}
+            {p && (
+              <div style={{ fontSize: 11.5, color: '#8b8378' }}>
+                {p.optional.cost ? '✓ Maya dəyəri sütunu tapıldı' : '○ Maya dəyəri sütunu YOX → menyu matrisi ciro payı ilə qurulur, marja ilə deyil'}
+                {' · '}
+                {p.optional.category ? '✓ Kateqoriya sütunu tapıldı' : '○ Kateqoriya sütunu YOX → matris bütün çeşid üzərində'}
               </div>
             )}
           </div>
