@@ -27,6 +27,72 @@ test('excelSerialToISO zibil dəyəri rədd edir', () => {
   }
 })
 
+// ── 🔴 09.08.2026 REGRESİYASI — formatlanmış tarix sətri ────────────────────
+// Brauzerdə `sheet_to_json(..., { raw: false })` tarix formatlı hücrəni
+// FORMATLAYIR. Fayllarımızın numFmt kodu `dd\.mm\.yyyy`-dir (fayldan yoxlandı),
+// yəni serial yerinə '01.08.2026' gəlir. Əvvəl bu HƏR SƏTRİ atırdı və
+// «nə PRODMIX nə ÇEK tapılmadı» xətası verirdi. 22 test tutmadı, çünki
+// hamısı serial verirdi. Bu testlər həmin boşluğu bağlayır.
+test('excelSerialToISO formatlanmış nöqtəli tarixi oxuyur (dd.mm.yyyy)', () => {
+  assert.equal(excelSerialToISO('01.08.2026'), '2026-08-01')
+  assert.equal(excelSerialToISO('07.08.2026'), '2026-08-07')
+  assert.equal(excelSerialToISO('1.8.2026'), '2026-08-01')      // sıfırsız
+  assert.equal(excelSerialToISO('01.08.26'), '2026-08-01')      // 2 rəqəmli il
+  assert.equal(excelSerialToISO(' 01.08.2026 '), '2026-08-01')  // boşluqlu
+  // Serial yolu da işləməyə davam edir — iki format bir funksiyada.
+  assert.equal(excelSerialToISO('46235'), '2026-08-01')
+  assert.equal(excelSerialToISO(46235), '2026-08-01')
+})
+
+test('excelSerialToISO ISO formatı oxuyur', () => {
+  assert.equal(excelSerialToISO('2026-08-01'), '2026-08-01')
+  assert.equal(excelSerialToISO('2026-08-01T00:00:00.000Z'), '2026-08-01')
+})
+
+test('excelSerialToISO BELİRSİZ formatı TƏXMİN ETMİR', () => {
+  // 03/04/2026 həm 3 aprel həm 4 mart ola bilər. Təxmin bir aylıq datanı
+  // səssizcə yerindən oynadar → null qaytarılır, sətir atılır, xəbərdarlıq çıxır.
+  assert.equal(excelSerialToISO('03/04/2026'), null)
+  assert.equal(excelSerialToISO('1/8/2026'), null)
+  // Birmənalı olduqda oxunur:
+  assert.equal(excelSerialToISO('25/12/2026'), '2026-12-25')   // 25 > 12 → gün əvvəl
+  assert.equal(excelSerialToISO('12/25/2026'), '2026-12-25')   // 25 > 12 → ay əvvəl
+})
+
+test('excelSerialToISO təqvimdə olmayan tarixi rədd edir', () => {
+  assert.equal(excelSerialToISO('31.02.2026'), null)   // fevralın 31-i yoxdur
+  assert.equal(excelSerialToISO('00.08.2026'), null)
+  assert.equal(excelSerialToISO('01.13.2026'), null)
+  assert.equal(excelSerialToISO('01.08.1899'), null)   // aralıqdan kənar
+})
+
+test('parseProdmix formatlanmış tarixlə də işləyir (raw:false yolu)', () => {
+  const head = ['Uçot günü', 'Ticarət müəssisəsi', 'Məhsulun kodu', 'Məhsul', 'Məhsulların sayı', 'Endirimli məbləğ, m.']
+  const body = [['01.08.2026', 'Bayıl', '1000051', 'SHAURMA LAVAŞDA BÖYÜK', '10', '70.00']]
+  const withText = parseProdmix([head, ...body])
+  const withSerial = parseProdmix([head, [[46235], ...body[0].slice(1)].flat()])
+  assert.equal(withText.lines.length, 1)
+  assert.equal(withText.lines[0].date, '2026-08-01')
+  assert.deepEqual(withText.warnings, [])
+  // İki yol EYNİ nəticəni verməlidir.
+  assert.deepEqual(withText.lines, withSerial.lines)
+})
+
+test('parseReceipts formatlanmış tarixlə də işləyir (raw:false yolu)', () => {
+  const head = ['Ticarət müəssisəsi', 'Tarix', 'Ödəniş növü', 'Qəbzin nömrəsi', 'Endirimli məbləğ, m. Total']
+  const rows = [
+    [head, ['Bayıl', '01.08.2026', 'NAĞD PUL', '44131', '12.00'], ['Bayıl', '01.08.2026', 'BOLT SATIŞ', '44132', '28.00']],
+    [head, ['Bayıl', 46235, 'NAĞD PUL', '44131', '12.00'], ['Bayıl', 46235, 'BOLT SATIŞ', '44132', '28.00']],
+  ]
+  const [withText, withSerial] = rows.map(r => parseReceipts(r))
+  assert.equal(withText.days.length, 1)
+  assert.equal(withText.days[0].date, '2026-08-01')
+  assert.equal(withText.days[0].receipts, 2)
+  assert.equal(withText.totals.amount, 40)
+  assert.deepEqual(withText.warnings, [])
+  assert.deepEqual(withText.days, withSerial.days)
+})
+
 // ── Ödəniş növü normalizasiyası ────────────────────────────────────────────
 
 test('4 acquirer «kart» səbətinə düşür (ATB və Pasha ÖDƏNİŞ SİSTEMİDİR)', () => {

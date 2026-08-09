@@ -6,6 +6,29 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed
+- **🔴 «Nə PRODMIX nə də ÇEK cədvəli tapılmadı» — tarix formatı** (`parse-sales-detail.ts`,
+  `detail-upload.tsx`): yükləmə real fayllarla HEÇ İŞLƏMİRDİ.
+  - **Səbəb:** parser-lər Python ilə çıxarılmış XAM serial-a (`46235`) qarşı yazılıb
+    və test edilib. Brauzerdə isə `sheet_to_json(..., { raw: false })` işlədilir və
+    SheetJS tarix formatlı hücrəni **formatlayıb qaytarır**: `'01.08.2026'`.
+    Faylların tarix sütunlarının numFmt kodu məhz `dd\.mm\.yyyy`-dir (`BAZA 2026!A`,
+    `Baza 2026!B` — fayldan yoxlandı). `Number('01.08.2026')` = NaN → **hər sətir
+    atılırdı** → «tapılmadı». Mövcud 22 test bunu tutmadı: hamısı serial verirdi.
+  - **Düzəliş (ikiqat):** `excelSerialToISO` artıq serial DA, formatlanmış sətir DƏ
+    qəbul edir (`dd.mm.yyyy`, `d.m.yy`, ISO); yükləmə isə `raw: true` işlədir —
+    xam dəyər locale-dən asılı deyil.
+  - **Belirsiz format TƏXMİN EDİLMİR:** `03/04/2026` həm 3 aprel həm 4 mart ola
+    bilər → `null` qaytarılır, sətir atılır və xəbərdarlıq görünür. Təxmin bir
+    aylıq datanı səssizcə yerindən oynadardı. Birmənalı hallar (`25/12/2026`)
+    oxunur. Təqvimdə olmayan tarix (`31.02.2026`) round-trip yoxlaması ilə rədd edilir.
+  - **Doğrulama — REAL FAYLLARLA:** hər iki yol (xam serial + formatlanmış sətir)
+    eyni nəticəni verir və sənədlənmiş rəqəmlərlə birebir uyğundur:
+    prodmix 39 549 sətir · 7 gün · 29 filial · 431 456 ədəd · **961 237,84 ₼**;
+    çek **43 212** · ort. çek **21,30 ₼** · 920 585,71 ₼; 7 avqust fərqi
+    **40 652,13 ₼** tutulur. Parser xəbərdarlığı və naməlum ödəniş növü: yoxdur.
+  - Regresiya testləri əlavə olundu (38/38 keçir).
+
 ### Added
 - **📦 Günlük detay yükləməsi — PRODMIX + ÇEK** (`src/app/dashboard/panel/detail-upload.tsx`):
   `/dashboard/panel`-də super_admin üçün ayrıca bölmə (aylıq panel yükləməsinə

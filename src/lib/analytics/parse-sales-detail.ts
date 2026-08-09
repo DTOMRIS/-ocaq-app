@@ -113,13 +113,71 @@ export function classifyLine(name: string, amount: number): LineKind {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Excel serial → ISO tarix
+// Excel tarix → ISO
+//
+// 🔴 09.08.2026 HADİSƏSİ — niyə burada iki yol var:
+// Bu parser-lər Python ilə çıxarılmış XAM serial-lara (46235) qarşı yazılıb və
+// test edilib. Brauzerdə isə `sheet_to_json(..., { raw: false })` işlədilir və
+// SheetJS tarix formatlı hücrəni FORMATLAYIB QAYTARIR: '01.08.2026'.
+// Faylların tarix sütunlarının numFmt kodu məhz `dd\.mm\.yyyy`-dir
+// (BAZA 2026!A · Baza 2026!B — fayldan yoxlandı). Nəticədə `Number('01.08.2026')`
+// = NaN → HƏR SƏTİR atılırdı → «nə PRODMIX nə ÇEK tapılmadı».
+// 22 test bunu tutmadı, çünki hamısı serial verirdi.
+//
+// Ona görə: serial DA, formatlanmış sətir DƏ qəbul edilir.
+//
+// ⚠️ BELİRSİZ FORMAT TƏXMİN EDİLMİR: `03/04/2026` həm 3 aprel həm 4 mart ola
+// bilər. Təxmin etsək bir aylıq data SƏSSİZCƏ yerini dəyişər. Ona görə belə
+// hallarda `null` qaytarılır → sətir atılır və «tarixi oxunmadı» xəbərdarlığı
+// görünür. Səssiz səhvdən uca səs yaxşıdır (CLAUDE.md §2.7).
 // ─────────────────────────────────────────────────────────────────────────────
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30)
+
+/** y-m-d-dən ISO qurur; təqvimdə olmayan tarixi (31.02) rədd edir. */
+function ymdToISO(y: number, m: number, d: number): string | null {
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  // Round-trip: 31.02 → 03.03 olardı, bunu tutur.
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null
+  return dt.toISOString().slice(0, 10)
+}
+
 export function excelSerialToISO(serial: unknown): string | null {
-  const n = typeof serial === 'number' ? serial : Number(String(serial ?? '').trim())
-  if (!Number.isFinite(n) || n <= 0 || n > 100000) return null
-  return new Date(EXCEL_EPOCH_UTC + Math.floor(n) * 86400000).toISOString().slice(0, 10)
+  if (serial == null) return null
+
+  // 1) Xam serial (number, və ya tam rəqəmdən ibarət sətir)
+  if (typeof serial === 'number' || /^\d+(\.\d+)?$/.test(String(serial).trim())) {
+    const n = typeof serial === 'number' ? serial : Number(String(serial).trim())
+    if (!Number.isFinite(n) || n <= 0 || n > 100000) return null
+    return new Date(EXCEL_EPOCH_UTC + Math.floor(n) * 86400000).toISOString().slice(0, 10)
+  }
+
+  const s = String(serial).trim()
+  if (!s) return null
+
+  // 2) ISO: 2026-08-01 (bəzən saatla birlikdə)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/)
+  if (iso) return ymdToISO(+iso[1], +iso[2], +iso[3])
+
+  // 3) Nöqtəli — fayllarımızın formatı, GÜN ƏVVƏL (dd.mm.yyyy / d.m.yy)
+  const dot = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/)
+  if (dot) {
+    const y = +dot[3] < 100 ? 2000 + +dot[3] : +dot[3]
+    return ymdToISO(y, +dot[2], +dot[1])
+  }
+
+  // 4) Slash/tire — YALNIZ birmənalı olduqda. Hər iki hissə ≤ 12-dirsə
+  //    gün/ay ayırd edilə bilmir → null (təxmin etmirik).
+  const sl = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2}|\d{4})$/)
+  if (sl) {
+    const a = +sl[1], b = +sl[2]
+    const y = +sl[3] < 100 ? 2000 + +sl[3] : +sl[3]
+    if (a > 12 && b <= 12) return ymdToISO(y, b, a)   // gün/ay/il
+    if (b > 12 && a <= 12) return ymdToISO(y, a, b)   // ay/gün/il
+    return null                                       // BELİRSİZ → uca səs
+  }
+
+  return null
 }
 
 function num(v: unknown): number {

@@ -79,7 +79,14 @@ export default function DetailUpload() {
       for (const f of files) {
         const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
         for (const sn of wb.SheetNames) {
-          const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: false, defval: null }) as unknown[][]
+          // `raw: true` — MÜHÜM. `raw: false` tarix formatlı hücrəni FORMATLAYIR
+          // ('01.08.2026'), halbuki parser-lər xam serial-a (46235) qarşı yazılıb.
+          // Bu, 09.08.2026-da «nə PRODMIX nə ÇEK tapılmadı» xətasının səbəbi idi:
+          // faylların tarix numFmt kodu `dd\.mm\.yyyy`-dir, hər sətir atılırdı.
+          // `excelSerialToISO` artıq hər iki formatı qəbul edir (ikiqat qoruma),
+          // amma xam dəyər həm daha sürətli, həm də dil/locale-dən asılı deyil.
+          // Digər sütunlar təsirlənmir: adlar sətirdir, rəqəmlər `num()`-dən keçir.
+          const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: true, defval: null }) as unknown[][]
           // Parser-lər başlıq tapmasa boş + warning qaytarır → «tapdı/tapmadı»
           // testi nəticənin özüdür, ad/heuristika ilə təxmin etmirik.
           if (!prodmix) { const p = parseProdmix(rows); if (p.lines.length) prodmix = p }
