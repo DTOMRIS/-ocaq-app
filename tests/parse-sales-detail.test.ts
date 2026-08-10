@@ -369,7 +369,15 @@ test('reconcile: uyğun günlər təmiz, natamam gün tutulur', () => {
   assert.equal(rec.days[1].ok, false, '7 avqust uyğunsuz olmalı')
   assert.equal(Math.round(rec.days[1].diff), 40652)
   assert.equal(rec.warnings.length, 1)
-  assert.ok(rec.warnings[0].includes('çek faylı natamam'))
+  // ⚠️ 10.08.2026 — mesaj artıq SƏBƏB İDDİA ETMİR. «total satış» export-u
+  // (10.08-də alınmış) 07.08-i eyni məbləğlə göstərdi və o gün 24 saatın hamısı
+  // vardı → «çek faylı natamamdır» iddiası TƏSDİQLƏNMƏDİ. Test də ona uyğun:
+  // fərq bildirilməlidir, səbəb iddia edilməməlidir.
+  assert.ok(rec.warnings[0].includes('40652.00'), 'fərq məbləği yazılmalıdır')
+  assert.ok(rec.warnings[0].includes('prodmix yüksəkdir'), 'hansı tərəf yüksəkdir göstərilməlidir')
+  assert.ok(rec.warnings[0].includes('araşdırılmalıdır'), 'səbəb araşdırma kimi verilməlidir')
+  assert.equal(rec.warnings[0].includes('natamam export, açıq'), true, 'ehtimallar sadalanmalıdır')
+  assert.equal(/faylı natamamdır/.test(rec.warnings[0]), false, 'təsdiqlənməmiş səbəb iddia edilməməlidir')
 })
 
 // ── İSTƏYƏ BAĞLI SÜTUNLAR: Maya dəyəri + Kateqoriya ─────────────────────────

@@ -5,7 +5,8 @@
 > qalsın, qalan hər şey azad olsun.
 >
 > Yükləmə yeri: **OCAQ → Günlük Panel → 📦 Günlük detay**
-> Son yoxlanma: 09.08.2026 (01–07 avqust datası ilə uçdan-uca doğrulandı)
+> Son yoxlanma: 10.08.2026 (01–07 avqust datası + `total satış` faylı ilə
+> uçdan-uca doğrulandı — bax §7.5)
 
 ---
 
@@ -25,11 +26,13 @@ bütün vərəqlərini avtomatik tarayır və hansının hansı olduğunu **öz�
 Bunu birləşdirmək cazibədar görünür, lakin **iki müstəqil mənbə bizim yeganə
 səhv tutucumuzdur**:
 
-- 08.08.2026-da çek faylının 7 avqustu **40 652 ₼ əskik** gəldi (export səhər
-  saatında alınmışdı).
-- Bu natamamlıq **çek faylının öz içindən GÖRÜNMÜRDÜ** — həmin günün cəmi öz
-  ortalamasına yaxın idi, yəni normal görünürdü.
-- Yalnız **məhsul vərəqi ilə tutuşdurulanda** çıxdı: 169 845 ₼ vs 129 193 ₼.
+- 07.08.2026-da məhsul hesabatı ilə ödəniş hesabatı arasında **40 652 ₼ fərq**
+  var (169 845 ₼ vs 129 193 ₼), 01–06 avqust isə kuruşu kuruşuna uyğundur.
+- Bu fərq **heç bir faylın öz içindən GÖRÜNMÜR** — hər ikisi öz daxilində
+  normal görünür. Yalnız **iki hesabat tutuşdurulanda** çıxır.
+- ⚠️ Bu fərqin səbəbi **natamam export DEYİL** (10.08-də alınmış `total satış`
+  faylı ilə yoxlandı — bax §7.5). Səbəb hələ araşdırılır; önəmli olan budur ki
+  **tutuşdurma olmasa fərq heç vaxt görünməzdi**.
 
 İki vərəq gəldikdə OCAQ hər günü **gün-gün tutuşdurur** və fərq varsa yazmadan
 əvvəl ekranda göstərir. Tək cədvələ keçsək bu qoruma yox olur.
@@ -195,6 +198,67 @@ dəyər/zəhmət nisbətinə görədir.
 sonraki fazalarda.
 
 ---
+
+## 7.5 «total satış» faylının qiymətləndirilməsi (10.08.2026)
+
+Rafael bəy tək fayl göndərdi: `total satış_10.08.2026_14.42.11.xlsx` —
+1 vərəq, **188 935 sətir**, dövr 01–07.08.2026. Fayl uçdan-uca yoxlandı.
+
+### ✅ NƏ YAXŞIDIR
+
+| Yoxlama | Nəticə |
+|---|---|
+| Ciro (yarpaq sətirlər) | **920 585,71 ₼** — köhnə ÇEK faylı ilə **birebir** |
+| Gün-gün | 7 günün **hamısı kuruşu kuruşuna** uyğun |
+| Ödəniş qarışığı | 9 növ, hamısı birebir (Nağd 319 668,29 · Uni Bank 239 999,83 …) |
+| Filial / gün | 29 · 7 — doğru |
+| **`Bağlama saatı`** | **24 saatın hamısı var** → Rafael bəyin 6-cı istəyi (saatlıq satış) **MÜMKÜNDÜR** |
+| `Qonaqların sayı` | gün səviyyəsində **43 421** (real çek 43 212 — %0,5 fərq) |
+
+Bu fayl **ÇEK vərəqini tam əvəz edir** və üstünə **saatlıq** gətirir.
+
+### ❌ NƏ DÜZƏLDİLMƏLİDİR
+
+1. **Ara cəm (subtotal) sətirləri var — 29 976 ədəd, 4 səviyyədə:**
+   filial Total (30) · gün Total (200) · ödəniş Total (1 150) · məhsul Total (28 596).
+   Süzülmədən oxunsa **5 357 213 ₼** çıxır — **5,8× ikiqat sayım**.
+   (OCAQ bunu `Bağlama saatı` dolu olan sətirləri seçərək ayırd edə bilir, lakin
+   ara cəmlərin olmaması daha təhlükəsizdir.)
+2. **Qrup hücrələri boş buraxılıb (pivot deseni):** filial/gün/ödəniş yalnız
+   qrupun İLK sətrində yazılıb, qalan sətirlərdə boşdur → forward-fill lazımdır.
+   **Hər sətirdə təkrarlanması istənilir.**
+3. **`Qəbzin nömrəsi` YOXDUR** → **unikal çek sayı və ortalama çek hesablanmır**.
+   `Qonaqların sayı` qonaq sayır, çek deyil (43 421 vs 43 212).
+4. **`Məhsulların sayı` (ədəd) YOXDUR** → menyu mühəndisliyi İŞLƏMİR.
+   Populyarlıq oxu ədədə dayanır; bu fayl yalnız məbləğ verir.
+   **Bu fayl PRODMIX vərəqini əvəz ETMİR.**
+5. **`Məhsulun kodu` YOXDUR** → məhsul yalnız adla saxlanır; ad dəyişəndə tarix qırılır.
+6. `Maya dəyəri` və `Kateqoriya` yenə yoxdur (§7).
+
+### ⚠️ ÖNƏMLİ TAPINTI — 07.08 fərqi natamamlıqdan DEYİL
+
+Əvvəl belə qeyd olunmuşdu: «07.08.2026 çek faylı natamamdır, tam fayl gələndə
+düzələcək». **Bu doğru deyil, düzəldilir:**
+
+- Bu fayl **10.08.2026 14:42**-də alınıb — 07.08 mütləq bağlanmışdı;
+- yenə də **129 192,78 ₼** göstərir (köhnə fayl ilə eyni, qəpik fərqi yox);
+- **saat-saat baxıldıqda 07.08-də 24 saatın HAMISI var**, profil normaldır
+  (zirvə 21:00–22:00, digər günlərlə eyni) → **kəsilmə yoxdur**;
+- fərq (40 652,13 ₼) **29 filialın 28-inə yayılıb** — yalnız Hüseyn Cavid
+  üst-üstə düşür.
+
+Yəni PRODMIX-in 07.08 rəqəmi (169 844,91 ₼) ödəniş bazlı rəqəmdən **40 652,13 ₼
+YUXARIDIR** və səbəb hələ məlum deyil. Ehtimallar: açıq/ödənilməmiş sifarişlər,
+ləğv edilmiş qəbzlər, ya da iki hesabatın fərqli bazası (məhsul məbləği vs
+ödənilmiş məbləğ). **Analitika şöbəsinə soruşulmalı sual budur:**
+
+> 01–06 avqustda məhsul hesabatı ilə ödəniş hesabatı kuruşu kuruşuna uyğundur,
+> lakin 07 avqustda məhsul hesabatı 40 652,13 ₼ daha yüksəkdir (29 filialın
+> 28-ində). Səbəb nədir — açıq sifarişlər, ləğv edilmiş qəbzlər, yoxsa iki
+> hesabatın bazası fərqlidir?
+
+Kod tərəfi: tutuşdurma xəbərdarlığı artıq **səbəb iddia etmir** — fərqi bildirir
+və araşdırma istəyir (`reconcileProdmixReceipts`).
 
 ## 8. ANALİTİKA ŞÖBƏSİNƏ GÖNDƏRİLƏCƏK MƏTN (olduğu kimi kopyalayın)
 

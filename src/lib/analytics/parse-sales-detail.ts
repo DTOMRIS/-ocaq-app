@@ -561,10 +561,23 @@ export function reconcileProdmixReceipts(
   const warnings: string[] = []
   const bad = days.filter(d => !d.ok)
   for (const d of bad) {
-    const who = d.diff > 0 ? 'çek' : 'prodmix'
+    // ⚠️ 10.08.2026 — MESAJ DÜZƏLDİLDİ. Əvvəl bu, «filan fayl NATAMAMDIR»
+    // deyirdi və səbəbi TƏSDİQLƏNMƏMİŞ halda iddia edirdi. Yoxlama göstərdi ki
+    // 07.08.2026 fərqi (40 652,13 ₼) natamamlıqdan DEYİL:
+    //   • 10.08.2026-da alınmış «total satış» export-u həmin günü eyni məbləğlə
+    //     (129 192,78 ₼) göstərir — yəni 3 gün sonra da dəyişməyib;
+    //   • saat-saat baxıldıqda 07.08-də 24 saatın HAMISI var və profil normaldır
+    //     (zirvə 21:00–22:00, digər günlərlə eyni) → kəsilmə YOXDUR;
+    //   • fərq 29 filialın 28-inə yayılıb (yalnız Hüseyn Cavid üst-üstə düşür).
+    // Səbəb hələ məlum deyil (ehtimal: açıq/ödənilməmiş sifarişlər, ləğv edilmiş
+    // qəbzlər və ya iki hesabatın fərqli bazası). Ona görə burada SƏBƏB İDDİA
+    // EDİLMİR — yalnız fərq bildirilir və araşdırma istənilir.
+    const higher = d.diff > 0 ? 'prodmix' : 'çek'
     warnings.push(
       `${d.date}: prodmix ${d.prodmixAmount.toFixed(2)} ₼ ≠ çek ${d.receiptsAmount.toFixed(2)} ₼ ` +
-      `(fərq ${Math.abs(d.diff).toFixed(2)} ₼ · %${Math.abs(d.diffPct * 100).toFixed(1)}) — ${who} faylı natamam ola bilər`,
+      `(fərq ${Math.abs(d.diff).toFixed(2)} ₼ · %${Math.abs(d.diffPct * 100).toFixed(1)}, ${higher} yüksəkdir) — ` +
+      'səbəb araşdırılmalıdır: natamam export, açıq/ləğv edilmiş qəbz, ya da iki hesabatın fərqli bazası. ' +
+      'Yazmaq təhlükəsizdir (upsert), lakin rəqəm bu fərqlə oxunmalıdır.',
     )
   }
   return { days, warnings }

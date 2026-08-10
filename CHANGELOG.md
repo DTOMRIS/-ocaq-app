@@ -6,6 +6,38 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — 🔴 SƏHV TEŞHİS DÜZƏLDİLDİ: 07.08 fərqi natamamlıqdan DEYİL
+- Əvvəl həm kodda, həm sənəddə, həm də istifadəçiyə belə deyilmişdi:
+  «07.08.2026 çek faylı natamamdır, tam fayl gələndə düzələcək». **Bu doğru
+  deyildi.** Rafael bəyin 10.08.2026 14:42-də aldığı `total satış` faylı ilə
+  yoxlandı:
+  - həmin fayl 07.08-i **eyni məbləğlə** göstərir (129 192,78 ₼) — 3 gün sonra
+    da dəyişməyib, yəni gün bağlanmışdı;
+  - **saat-saat baxıldıqda 07.08-də 24 saatın HAMISI var** və profil normaldır
+    (zirvə 21:00–22:00, digər günlərlə eyni) → **kəsilmə yoxdur**;
+  - fərq (40 652,13 ₼) **29 filialın 28-inə yayılıb** (yalnız Hüseyn Cavid
+    üst-üstə düşür).
+- `reconcileProdmixReceipts` xəbərdarlığı artıq **səbəb iddia etmir** — fərqi,
+  hansı tərəfin yüksək olduğunu və ehtimalları (natamam export / açıq-ləğv
+  edilmiş qəbz / iki hesabatın fərqli bazası) bildirib **araşdırma istəyir**.
+  Regresiya testi təsdiqlənməmiş səbəb iddiasının geri qayıtmamasını yoxlayır.
+- `docs/IIKO-GUNLUK-EXPORT.md` §1 və §7.5 buna uyğun düzəldildi.
+
+### Added — `total satış` faylının qiymətləndirilməsi (docs §7.5)
+- Rafael bəyin tək-fayl təklifi (1 vərəq, 188 935 sətir) uçdan-uca yoxlandı:
+  - ✅ ciro **920 585,71 ₼** — köhnə ÇEK faylı ilə birebir, 7 günün hamısı;
+    ödəniş qarışığı 9 növ, hamısı uyğun; 29 filial · 7 gün doğru
+  - ✅ **`Bağlama saatı` — 24 saatın hamısı var** → saatlıq satış/çek/orta çek
+    (Rafael bəyin 6-cı istəyi) **mümkündür**
+  - ❌ **29 976 ara cəm sətri** (4 səviyyədə) — süzülmədən oxunsa **5 357 213 ₼**
+    çıxır, yəni **5,8× ikiqat sayım**
+  - ❌ qrup hücrələri boş (pivot deseni) → forward-fill tələb edir
+  - ❌ **`Qəbzin nömrəsi` yox** → unikal çek sayı və ortalama çek hesablanmır
+    (`Qonaqların sayı` qonaq sayır: gün səviyyəsində 43 421 vs real çek 43 212)
+  - ❌ **`Məhsulların sayı` (ədəd) yox** → menyu mühəndisliyi işləmir;
+    bu fayl PRODMIX vərəqini **əvəz etmir**
+  - ❌ `Məhsulun kodu`, `Maya dəyəri`, `Kateqoriya` yox
+
 ### Fixed — 🔴 HƏDƏFLƏR GİRİLİB, PANEL GÖRMÜRDÜ (kritik)
 - **Səbəb: iki kod yolu FƏRQLİ AÇAR işlədirdi.** Hədəflər OCAQ-daki **xam**
   `branches.name` ilə xəritəyə yazılırdı (`panel/page.tsx:182`), oxuma isə
