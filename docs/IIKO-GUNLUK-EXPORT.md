@@ -113,21 +113,33 @@ ilə qarışmasın deyə dəqiq uyğunluq axtarılır).
 
 ## 6. Nə vaxt və hansı aralıq
 
-**Hər gün, səhər — AYIN 1-dən BUGÜNƏ QƏDƏR (kumulyativ).**
+**Hər gün, səhər — SON 7 GÜN (rolling pəncərə).**
 
-Yalnız «dünən»i deyil, **ayın başından etibarən** göndərilməsi vacibdir. Səbəb:
-OCAQ yazını `(filial, gün, məhsul)` açarı ilə **üzərinə yazır** (upsert). Yəni:
+> ⓘ Əvvəl «ayın 1-dən bugünə» yazılmışdı. Saat sütunu əlavə olunduqda qranul
+> incələşir və bütün ay **~33 MB** olur (bax §7.6) — brauzerdə riskli. Son 7 gün
+> ~7,4 MB-dır və düzəlişlərin baş verdiyi aralığı əhatə edir. Köhnə günlər
+> bazada qalır, silinmir.
+
+Yalnız «dünən»i deyil, **bir pəncərə** göndərilməsi vacibdir. Səbəb: OCAQ yazını
+`(filial, gün, məhsul)` açarı ilə **üzərinə yazır** (upsert). Yəni:
 
 - dünən natamam gəlmişsə (export erkən saatda alınıb) → bugün tam gələndə
   **özü düzəlir**;
 - gün **iki dəfə sayılmır** — təkrar yükləmə zərərsizdir;
-- bir gün atlanılsa → növbəti yükləmə boşluğu **özü doldurur**.
+- bir gün atlanılsa → növbəti yükləmə boşluğu **özü doldurur**;
+- pəncərədən kənarda qalan köhnə günlər bazada **silinmir**, olduğu kimi qalır.
 
-Bir ay ~170 000 sətirdir; fayl ~12 MB olur və brauzerdə oxunur. Ay dəyişəndə
-yeni ay sıfırdan başlayır.
+Pəncərə ölçüsü fayl həcminə görə seçilir (bax §7.6):
+
+| Aralıq | Sətir | Fayl | Qeyd |
+|---|---|---|---|
+| 1 gün | ~22 700 | ~1,1 MB | düzəliş pəncərəsi yoxdur |
+| **son 7 gün** | ~159 000 | **~7,4 MB** | **tövsiyə** |
+| bütün ay | ~704 000 | ~32,7 MB | brauzerdə riskli |
 
 > Yalnız «dünən»i göndərmək də işləyir, lakin o zaman natamam gün natamam qalır
-> və heç kim bunu görmür. Kumulyativ göndəriş bu riski aradan qaldırır.
+> və heç kim bunu görmür. 7 günlük pəncərə bu riski aradan qaldırır və faylı
+> idarə oluna bilən saxlayır.
 
 ---
 
@@ -162,9 +174,14 @@ platformanın **ödədiyi** məbləğ fərqlidir (komissiya, ləğvlər). Bu üz
 üçün Wolt/Bolt **portalının öz hesabatı** və bank çıxarışı lazımdır — onlar
 analitika şöbəsindən deyil, ayrı mənbədən gəlir və ayrı işdir.
 
-## 6.2 «Saatlik satış varmı?» — YOX, bu sütun istənilməlidir
+## 6.2 «Saatlik satış varmı?» — ilk iki fayldа YOX idi, `total satış`-da VAR
 
-Faylda **saat məlumatı yoxdur**. Yoxlanma (01–07 avqust, xam hücrələr):
+> ✅ **10.08.2026 GÜNCƏLLƏMƏSİ:** Rafael bəyin `total satış` faylında
+> **`Bağlama saatı`** sütunu var və **24 saatın hamısı doludur** (bax §7.5).
+> Yəni saatlıq satış/çek/orta çek **mümkündür**. Aşağıdaki bölmə ilk iki faylın
+> vəziyyətini (saat YOXDUR) sənədləşdirir — həmin fayllarda hələ də yoxdur.
+
+İlk iki faylda **saat məlumatı yoxdur**. Yoxlanma (01–07 avqust, xam hücrələr):
 
 | Sütun | Nəticə |
 |---|---|
@@ -172,8 +189,12 @@ Faylda **saat məlumatı yoxdur**. Yoxlanma (01–07 avqust, xam hücrələr):
 | ÇEK `Tarix` | 43 812 rəqəm hücrənin **0-ında** kəsr hissə var |
 
 Yəni hər ikisi **tam gün** dəyəridir (`46235` = 01.08.2026, saat 00:00).
-Saat-saat analiz (pik saatlar, növbə planlaması, saat bazlı upsell) üçün
-**yeni sütun tələb olunur** — aşağı §7-də 3-cü sıradadır.
+Saat-saat analiz üçün `Bağlama saatı` sütunu tələb olunur — `total satış`
+faylında artıq var, əsas fayla da əlavə edilməlidir.
+
+Real datadan saatlıq profil (01–07 avqust, şəbəkə): zirvə **21:00 (14 440 ₼)**
+və **22:00 (14 056 ₼)**; ən sakit **07:00–09:00** (~200 ₼/saat). Gecə 00:00–02:00
+hələ ciddi satış var (8 200 + 6 800 + 5 100 ₼) — növbə planlaması üçün önəmli.
 
 Faylda **`HƏFTƏ GÜNÜ`** sütunu var (`6_şənbə` formatında) — həftənin günü üzrə
 analiz üçün əlavə sütun lazım deyil, tarixdən özü çıxarılır.
@@ -260,6 +281,62 @@ ləğv edilmiş qəbzlər, ya da iki hesabatın fərqli bazası (məhsul məblə
 Kod tərəfi: tutuşdurma xəbərdarlığı artıq **səbəb iddia etmir** — fərqi bildirir
 və araşdırma istəyir (`reconcileProdmixReceipts`).
 
+## 7.6 «iiko bunu verə bilərmi?» — BƏLİ, 9 sahənin 9-u ARTIQ verilmişdi
+
+Sual haqlıdır və cavabı təxminə söykənmir: **istədiyimiz sahələrin hamısı
+(ikisindən başqa) Rafael bəyin göndərdiyi üç faylın BİRİNDƏ artıq var** — sadəcə
+hamısı BİR yerdə deyil.
+
+| Sahə | Hansı faylda sübut olundu |
+|---|---|
+| `Ticarət müəssisəsi` · `Uçot günü` · `Endirimli məbləğ` | üçündə də |
+| **`Bağlama saatı`** | `total satış` ✓ |
+| **`Ödəniş növü`** | `ödəniş şərtləri` + `total satış` ✓ |
+| **`Qəbzin nömrəsi`** | `ödəniş şərtləri` ✓ |
+| **`Məhsulun kodu`** · **`Məhsulların sayı`** | `avqust plan` ✓ |
+| `Maya dəyəri` · `Kateqoriya` | **heç birində yox** — yeganə bilinməyən |
+
+**Nəticə:** iiko-da data VAR. Sual «verə bilərmi» deyil, «hamısını bir hesabatda
+verə bilərmi»dir. iiko OLAP satış hesabatının qranulu **qəbz sətri**dir, yəni bu
+sahələrin hamısı həmin hesabatın ölçüləridir — texniki maneə görünmür.
+
+**Ara cəmlər və boş qrup hücrələri DATA MƏHDUDİYYƏTİ DEYİL** — qruplaşdırılmış
+görünüşün Excel-ə çıxarılmasının nəticəsidir. Qruplaşdırma söndürülüb «düz»
+export edildikdə həm cəm sətirləri, həm boş hücrələr yox olur. Ən asan düzəliş budur.
+
+`Maya dəyəri` / `Kateqoriya` üçün dürüst cavab: iiko-da maya (self-cost) və
+nomenklatura qrupu anlayışı var, lakin bu iki sahənin **həmin hesabatda ölçü
+kimi mövcudluğu bizim üçün sübut olunmayıb**. Ona görə onlar «mümkünsə» kimi
+istənilir, məcburi kimi deyil.
+
+### ⚠️ ƏSL RİSK iiko deyil — FAYL ÖLÇÜSÜ
+
+Mövcud fayl: **8,8 MB · 188 935 sətir · 7 gün** (48,8 bayt/sətir sıxılmış).
+Ara cəmlər çıxarılsa 158 954 sətir → 7,4 MB.
+
+| Aralıq | Sətir | Təxmini fayl |
+|---|---|---|
+| 1 gün | 22 708 | **1,1 MB** |
+| **son 7 gün (rolling)** | 158 954 | **7,4 MB** ← tövsiyə |
+| son 14 gün | 317 908 | 14,8 MB |
+| bütün ay (31 gün) | 703 939 | **32,7 MB** ⚠️ |
+
+Panel hazırda 12 MB faylı oxuyur; **30+ MB brauzerdə riskli**. Ona görə §6-daki
+«ayın 1-dən bugünə» tələbi bu qranulda **SON 7 GÜNƏ** dəyişdirilir:
+
+- upsert `(filial, gün, məhsul)` açarı ilə işlədiyi üçün köhnə günlər DB-də
+  qalır — silinmir;
+- son 7 gün pəncərəsi **düzəlişlərin baş verdiyi aralığı** əhatə edir (natamam
+  gün, sonradan bağlanan qəbz);
+- ay əvvəli lazım olsa bir dəfə tam ay göndərilə bilər (birdəfəlik, 33 MB).
+
+### Daha yüngül alternativ (əgər qəbz sətri çox böyükdürsə)
+
+`Qəbzin nömrəsi`-ni hər sətirdə istəmək əvəzinə **çek sayını ÖLÇÜ kimi** almaq:
+kiçik ikinci vərəq — `Ticarət müəssisəsi · Uçot günü · Çek sayı` (həftədə ~200
+sətir). Bu halda əsas vərəqdə qəbz nömrəsi lazım deyil və fayl kiçilir.
+Çatışmazlığı: qəbz səviyyəsində analiz (səbət tərkibi) mümkün olmur.
+
 ## 8. ANALİTİKA ŞÖBƏSİNƏ GÖNDƏRİLƏCƏK MƏTN (olduğu kimi kopyalayın)
 
 > **Mövzu: OCAQ portalı üçün günlük satış export-u — sabit format**
@@ -282,9 +359,10 @@ və araşdırma istəyir (`reconcileProdmixReceipts`).
 > `Ticarət müəssisəsi` · `Tarix` · `Ödəniş növü` · **`Qəbzin nömrəsi`** ·
 > `Endirimli məbləğ`
 >
-> **ARALIQ: ayın 1-dən bugünə qədər** (kumulyativ, yalnız dünən deyil).
+> **ARALIQ: son 7 gün** (yalnız dünən deyil — rolling pəncərə).
 > Sistem gün açarı ilə üzərinə yazır, ona görə təkrar günlər problem deyil —
-> əksinə, dünən yarımçıq alınmışsa bugün özü düzəlir.
+> əksinə, dünən yarımçıq alınmışsa bugün özü düzəlir. Bütün ayı göndərmək də
+> mümkündür, lakin bu qranulda fayl ~33 MB olur; 7 gün ~7,4 MB-dır.
 >
 > **DƏYİŞSƏ PROBLEM OLMAYAN şeylər:** sütun sırası, əlavə sütunlar, vərəq adı,
 > başlıq sətrinin faylın neçənci sətrində olması, tarix formatı
