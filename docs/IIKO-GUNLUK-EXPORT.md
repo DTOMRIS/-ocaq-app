@@ -337,7 +337,44 @@ kiçik ikinci vərəq — `Ticarət müəssisəsi · Uçot günü · Çek sayı`
 sətir). Bu halda əsas vərəqdə qəbz nömrəsi lazım deyil və fayl kiçilir.
 Çatışmazlığı: qəbz səviyyəsində analiz (səbət tərkibi) mümkün olmur.
 
-## 8. ANALİTİKA ŞÖBƏSİNƏ GÖNDƏRİLƏCƏK MƏTN (olduğu kimi kopyalayın)
+## 8.0 ⭐ ƏSAS VARİANT — 3 FAYL, YALNIZ 1 DÜZƏLİŞ (tövsiyə olunan)
+
+> İstifadəçi təsdiqi (10.08.2026): «olmazsa 2-3 dosya olsun ama tüm sistemi
+> beslesin». Bu icazə işi kökündən sadələşdirir — **birləşik hesabat qurmağa
+> ehtiyac yoxdur.**
+
+Rafael bəyin ARTIQ hazırladığı üç hesabatdan **ikisi olduğu kimi mükəmməldir**.
+Yalnız üçüncüsündə bir export ayarı dəyişir:
+
+| Fayl | Vəziyyət | Nə lazımdır |
+|---|---|---|
+| **1. Məhsul** (`avqust plan` → BAZA 2026) | ✅ **İŞLƏYİR** — kod, ad, ədəd, məbləğ var | **Heç nə. Olduğu kimi davam.** (mümkünsə `Maya dəyəri` + `Kateqoriya`) |
+| **2. Ödəniş/çek** (`ödəniş şərtləri` → Baza 2026) | ✅ **İŞLƏYİR** — qəbz nömrəsi, ödəniş növü var | **Heç nə. Olduğu kimi davam.** |
+| **3. Saatlıq** (`total satış`) | ⚠️ data düzgün, FORMAT problemli | **Qruplaşdırma söndürülsün** (ara cəm sətirləri olmasın, qrup sütunları hər sətirdə təkrarlansın) |
+
+**Yəni tək iş: 3-cü faylda qruplaşdırmanı söndürmək.** Bu, iiko-da bir export
+ayarıdır — yeni hesabat qurmaq deyil.
+
+### Niyə bu variant daha yaxşıdır (birləşik fayldan)
+
+- **1 və 2 heç dəyişmir** → hazırda işləyən axın sınmır (ən böyük risk budur);
+- iki müstəqil mənbə **tutuşdurma qorumasını saxlayır** (07.08-dəki 40 652 ₼
+  fərq yalnız bu sayədə göründü);
+- fayllar kiçik qalır — birləşik ay faylı ~33 MB olurdu (§7.6);
+- 3-cü fayl yalnız **saatlıq** üçündür; sınsa 1 və 2 işləməyə davam edir.
+
+### Bu variantda nə açılır
+
+| İstək (Rafael bəyin siyahısı) | Mənbə | Vəziyyət |
+|---|---|---|
+| Günləri seçmə | fayl 1+2 | ✅ hazır (fakt cədvəli gün qranulunda) |
+| Həftəlik orta çek | fayl 2 | ✅ hazır |
+| Top 5 ən çox / ən az satılan məhsul | fayl 1 | ✅ hazır |
+| Satış və çekin bölgə üzrə faiz payı | fayl 1+2 | ✅ hazır |
+| Top 5 filial (satış və çek) | fayl 1+2 | ✅ hazır |
+| **Saatlıq satış, çek sayı, orta çek** | **fayl 3** | ⏳ format düzəlişindən sonra |
+
+## 8. ALTERNATİV — TƏK BİRLƏŞİK FAYL (yalnız §8.0 mümkün olmazsa)
 
 > **Mövzu: OCAQ portalı üçün günlük satış export-u — sabit format**
 >
