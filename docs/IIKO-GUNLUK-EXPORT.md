@@ -113,33 +113,36 @@ ilə qarışmasın deyə dəqiq uyğunluq axtarılır).
 
 ## 6. Nə vaxt və hansı aralıq
 
-**Hər gün, səhər — SON 7 GÜN (rolling pəncərə).**
+**Hər gün, səhər — YALNIZ O GÜN (bir günlük fayl).**
 
-> ⓘ Əvvəl «ayın 1-dən bugünə» yazılmışdı. Saat sütunu əlavə olunduqda qranul
-> incələşir və bütün ay **~33 MB** olur (bax §7.6) — brauzerdə riskli. Son 7 gün
-> ~7,4 MB-dır və düzəlişlərin baş verdiyi aralığı əhatə edir. Köhnə günlər
-> bazada qalır, silinmir.
+> ⓘ İstifadəçi qərarı (10.08.2026): «hər gün alıp atacağım». Doğru qərardır —
+> bir gün ~22 700 sətir, **~1,1 MB**, sürətli. Əvvəl burada «son 7 gün»
+> yazılmışdı; səbəbim «natamam gün pəncərə ilə özü düzəlsin» idi, lakin fayl hər
+> gün atıldığı üçün buna ehtiyac yoxdur — şübhəli gün varsa həmin günü təkrar
+> istəyib atmaq kifayətdir, üzərinə yazılır (upsert).
+>
+> Geriyə doldurma (backfill) lazım olsa **bir neçə günlük faylı birlikdə** atmaq
+> olar — yükləmə ekranı çoxlu fayl qəbul edir və hamısını birləşdirir.
 
-Yalnız «dünən»i deyil, **bir pəncərə** göndərilməsi vacibdir. Səbəb: OCAQ yazını
-`(filial, gün, məhsul)` açarı ilə **üzərinə yazır** (upsert). Yəni:
+OCAQ yazını `(filial, gün, məhsul)` açarı ilə **üzərinə yazır** (upsert). Yəni:
 
-- dünən natamam gəlmişsə (export erkən saatda alınıb) → bugün tam gələndə
-  **özü düzəlir**;
 - gün **iki dəfə sayılmır** — təkrar yükləmə zərərsizdir;
-- bir gün atlanılsa → növbəti yükləmə boşluğu **özü doldurur**;
-- pəncərədən kənarda qalan köhnə günlər bazada **silinmir**, olduğu kimi qalır.
+- bir gün natamam gəlmişsə həmin günü **təkrar göndərmək** kifayətdir, düzəlir;
+- bir gün atlanılsa sonradan atıla bilər, sıra önəmli deyil;
+- köhnə günlər bazada **silinmir**, olduğu kimi qalır.
 
-Pəncərə ölçüsü fayl həcminə görə seçilir (bax §7.6):
+Fayl həcmi (bax §7.6):
 
 | Aralıq | Sətir | Fayl | Qeyd |
 |---|---|---|---|
-| 1 gün | ~22 700 | ~1,1 MB | düzəliş pəncərəsi yoxdur |
-| **son 7 gün** | ~159 000 | **~7,4 MB** | **tövsiyə** |
+| **1 gün** | ~22 700 | **~1,1 MB** | **tövsiyə — hər gün** |
+| son 7 gün | ~159 000 | ~7,4 MB | backfill üçün işləyir |
 | bütün ay | ~704 000 | ~32,7 MB | brauzerdə riskli |
 
-> Yalnız «dünən»i göndərmək də işləyir, lakin o zaman natamam gün natamam qalır
-> və heç kim bunu görmür. 7 günlük pəncərə bu riski aradan qaldırır və faylı
-> idarə oluna bilən saxlayır.
+> **Çoxlu fayl birlikdə atıla bilər.** Yükləmə ekranı hər faylı ayrı parse edir
+> və nəticələri birləşdirir: eyni açar bir neçə fayldadırsa **SONUNCU qalır**
+> (toplanmır) və xəbərdarlıq verilir — yəni eyni günü iki dəfə atmaq gün
+> cəmini İKİQAT ETMİR.
 
 ---
 
@@ -396,10 +399,10 @@ ayarıdır — yeni hesabat qurmaq deyil.
 > `Ticarət müəssisəsi` · `Tarix` · `Ödəniş növü` · **`Qəbzin nömrəsi`** ·
 > `Endirimli məbləğ`
 >
-> **ARALIQ: son 7 gün** (yalnız dünən deyil — rolling pəncərə).
-> Sistem gün açarı ilə üzərinə yazır, ona görə təkrar günlər problem deyil —
-> əksinə, dünən yarımçıq alınmışsa bugün özü düzəlir. Bütün ayı göndərmək də
-> mümkündür, lakin bu qranulda fayl ~33 MB olur; 7 gün ~7,4 MB-dır.
+> **ARALIQ: hər gün o günün faylı** (1 günlük, ~1,1 MB).
+> Sistem `(filial, gün, məhsul)` açarı ilə üzərinə yazır, ona görə təkrar
+> göndəriş problem deyil — bir gün şübhəlidirsə həmin günü təkrar göndərmək
+> kifayətdir.
 >
 > **DƏYİŞSƏ PROBLEM OLMAYAN şeylər:** sütun sırası, əlavə sütunlar, vərəq adı,
 > başlıq sətrinin faylın neçənci sətrində olması, tarix formatı

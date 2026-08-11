@@ -582,3 +582,124 @@ export function reconcileProdmixReceipts(
   }
   return { days, warnings }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ÇOX FAYLIN BİRLƏŞDİRİLMƏSİ
+//
+// 🔴 10.08.2026 — NİYƏ LAZIM OLDU: yükləmə ekranı bir dəfədə bir neçə fayl
+// qəbul edir, lakin `read()` içində `if (!prodmix) …` şərti vardı — İLK uyğun
+// vərəq tapıldıqdan sonra qalan fayllar SƏSSİZ ATLANIRDI. İstifadəçi «hər gün
+// tək günlük fayl atacağam» dedi; 10 günü 10 fayl kimi atsa yalnız 1 gün
+// yazılar, 9-u yoxa çıxardı.
+//
+// BİRLƏŞDİRMƏ SEMANTİKASI — SON QALİB (last-wins), TOPLAMA DEYİL:
+// Fayl DAXİLİNDƏ təkrar açar TOPLANIR (real təkrar sətirlərdir, bax `parseProdmix`).
+// Fayllar ARASINDA isə eyni açar «həmin data iki dəfə göndərildi» deməkdir —
+// toplasaydıq gün İKİQAT sayılardı. Ona görə sonuncu fayl üzərinə yazır (DB-dəki
+// upsert davranışı ilə eyni) və üst-üstə düşmə SƏSSİZ KEÇMİR: xəbərdarlıq verilir.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Bir neçə faylın PRODMIX nəticəsini birləşdirir (son qalib). */
+export function mergeProdmix(parts: ProdmixResult[]): ProdmixResult | null {
+  const real = parts.filter(p => p.lines.length)
+  if (!real.length) return null
+  if (real.length === 1) return real[0]
+
+  const byKey = new Map<string, ProdmixLine>()
+  let overlaps = 0
+  for (const p of real) {
+    for (const l of p.lines) {
+      const k = `${l.filial}|${l.date}|${l.itemCode}`
+      if (byKey.has(k)) overlaps++
+      byKey.set(k, l)          // son fayl üzərinə yazır
+    }
+  }
+  const lines = [...byKey.values()]
+
+  let qty = 0, amount = 0, productAmount = 0, productCost = 0
+  const nonRevenue = { service: 0, packaging: 0, modifier: 0, included: 0 }
+  const dates = new Set<string>(), branches = new Set<string>()
+  let hasCost = false, hasCat = false
+  for (const l of lines) {
+    qty += l.qty; amount += l.amount
+    if (l.kind === 'product') { productAmount += l.amount; productCost += l.cost ?? 0 }
+    else nonRevenue[l.kind] += l.qty
+    dates.add(l.date); branches.add(l.filial)
+    if (l.cost != null) hasCost = true
+    if (l.category) hasCat = true
+  }
+
+  const warnings = [...new Set(real.flatMap(p => p.warnings))]
+  if (overlaps) {
+    warnings.push(
+      `${overlaps} məhsul sətri bir neçə faylda təkrarlanır (eyni filial+gün+məhsul) — ` +
+      'sonuncu fayl üzərinə yazıldı, toplanmadı. Fayllar üst-üstə düşən gün əhatə edir.',
+    )
+  }
+  return {
+    lines,
+    dates: [...dates].sort(),
+    branches: [...branches].sort(),
+    totals: {
+      qty, amount, productAmount, productCost,
+      foodCostPct: hasCost && productAmount > 0 ? productCost / productAmount : null,
+    },
+    nonRevenue,
+    mergedKeys: real.reduce((s, p) => s + p.mergedKeys, 0),
+    optional: { cost: hasCost, category: hasCat },
+    warnings,
+  }
+}
+
+/** Bir neçə faylın ÇEK nəticəsini birləşdirir (son qalib). */
+export function mergeReceipts(parts: ReceiptsResult[]): ReceiptsResult | null {
+  const real = parts.filter(r => r.days.length)
+  if (!real.length) return null
+  if (real.length === 1) return real[0]
+
+  const byKey = new Map<string, ReceiptDay>()
+  let overlaps = 0
+  for (const r of real) {
+    for (const d of r.days) {
+      const k = `${d.filial}|${d.date}`
+      if (byKey.has(k)) overlaps++
+      byKey.set(k, d)
+    }
+  }
+  const days = [...byKey.values()]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.filial.localeCompare(b.filial))
+
+  const byPayment = emptyPay()
+  let receipts = 0, amount = 0
+  const dates = new Set<string>()
+  for (const d of days) {
+    receipts += d.receipts; amount += d.amount
+    dates.add(d.date)
+    for (const k of PAYMENT_KINDS) byPayment[k] += d.byPayment[k]
+  }
+  // Naməlum ödəniş növləri bütün fayllardan yığılır — heç biri itməsin.
+  const unknownPayments: Record<string, number> = {}
+  for (const r of real) {
+    for (const [k, v] of Object.entries(r.totals.unknownPayments)) {
+      unknownPayments[k] = (unknownPayments[k] ?? 0) + v
+    }
+  }
+
+  const warnings = [...new Set(real.flatMap(r => r.warnings))]
+  if (overlaps) {
+    warnings.push(
+      `${overlaps} gün-filial sətri bir neçə faylda təkrarlanır — sonuncu fayl ` +
+      'üzərinə yazıldı, toplanmadı.',
+    )
+  }
+  return {
+    days,
+    dates: [...dates].sort(),
+    totals: {
+      receipts, amount,
+      avgCheck: receipts > 0 ? amount / receipts : null,
+      byPayment, unknownPayments,
+    },
+    warnings,
+  }
+}

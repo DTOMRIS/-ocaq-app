@@ -10,6 +10,8 @@ import {
   parseReceipts,
   DELIVERY_KINDS,
   reconcileProdmixReceipts,
+  mergeProdmix,
+  mergeReceipts,
 } from '../src/lib/analytics/parse-sales-detail'
 
 // ── Excel tarix ────────────────────────────────────────────────────────────
@@ -439,4 +441,78 @@ test('parseProdmix birləşən açarda mayanı TOPLAYIR', () => {
   assert.equal(r.lines[0].qty, 15)
   assert.equal(r.lines[0].cost!.toFixed(2), '31.50')   // 21.00 + 10.50
   assert.equal((r.totals.foodCostPct! * 100).toFixed(1), '30.0')
+})
+
+// ── 🔴 10.08.2026 — ÇOX FAYL: «hər gün tək günlük fayl atacağam» ────────────
+// `read()` içində `if (!prodmix)` şərti vardı → İLK uyğun vərəq tapıldıqdan sonra
+// qalan fayllar SƏSSİZ ATLANIRDI. 10 günü 10 fayl kimi atsa 1 gün yazılar, 9-u
+// yoxa çıxardı. Birləşdirmə SON QALİB (last-wins), toplama DEYİL — fayllar
+// üst-üstə düşsə gün ikiqat sayılmamalıdır.
+const PH = ['Uçot günü', 'Ticarət müəssisəsi', 'Məhsulun kodu', 'Məhsul', 'Məhsulların sayı', 'Endirimli məbləğ, m.']
+const RH = ['Ticarət müəssisəsi', 'Tarix', 'Ödəniş növü', 'Qəbzin nömrəsi', 'Endirimli məbləğ, m.']
+
+test('mergeProdmix ayrı günlük faylları birləşdirir — heç nə itmir', () => {
+  const d1 = parseProdmix([PH, [46235, 'Bayıl', '1', 'A', '10', '70.00']])
+  const d2 = parseProdmix([PH, [46236, 'Bayıl', '1', 'A', '5', '35.00']])
+  const d3 = parseProdmix([PH, [46237, 'Corner', '2', 'B', '3', '21.00']])
+  const m = mergeProdmix([d1, d2, d3])!
+  assert.equal(m.lines.length, 3, 'hər üç günün sətri qalmalıdır')
+  assert.equal(m.totals.amount.toFixed(2), '126.00')
+  assert.equal(m.totals.qty, 18)
+  assert.deepEqual(m.dates, ['2026-08-01', '2026-08-02', '2026-08-03'])
+  assert.deepEqual(m.branches, ['Bayıl', 'Corner'])
+  assert.deepEqual(m.warnings, [])
+})
+
+test('mergeProdmix eyni günü iki dəfə İKİQAT SAYMIR (son qalib)', () => {
+  const d1 = parseProdmix([PH, [46235, 'Bayıl', '1', 'A', '10', '70.00']])
+  const m = mergeProdmix([d1, d1])!
+  assert.equal(m.lines.length, 1)
+  assert.equal(m.totals.amount.toFixed(2), '70.00', 'toplanmamalı — üzərinə yazılmalı')
+  assert.equal(m.warnings.some(w => w.includes('təkrarlanır')), true, 'səssiz keçməməli')
+})
+
+test('mergeProdmix yenilənmiş faylı qəbul edir (sonuncu qalib)', () => {
+  // Səhər natamam, axşam tam fayl gəlsə → SONUNCU dəyər qalmalıdır
+  const morning = parseProdmix([PH, [46235, 'Bayıl', '1', 'A', '4', '28.00']])
+  const evening = parseProdmix([PH, [46235, 'Bayıl', '1', 'A', '10', '70.00']])
+  const m = mergeProdmix([morning, evening])!
+  assert.equal(m.lines[0].qty, 10)
+  assert.equal(m.totals.amount.toFixed(2), '70.00')
+})
+
+test('mergeReceipts ayrı günlük faylları birləşdirir', () => {
+  const d1 = parseReceipts([RH, ['Bayıl', 46235, 'NAĞD PUL', '1', '12.00'], ['Bayıl', 46235, 'Kapital Bank', '2', '8.00']])
+  const d2 = parseReceipts([RH, ['Bayıl', 46236, 'NAĞD PUL', '3', '20.00']])
+  const m = mergeReceipts([d1, d2])!
+  assert.equal(m.days.length, 2)
+  assert.equal(m.totals.receipts, 3)
+  assert.equal(m.totals.amount.toFixed(2), '40.00')
+  assert.equal(m.totals.byPayment.nagd.toFixed(2), '32.00')
+  assert.equal(m.totals.byPayment.kart.toFixed(2), '8.00')
+  assert.equal(m.totals.avgCheck!.toFixed(2), '13.33')
+})
+
+test('mergeReceipts eyni gün-filialı İKİQAT SAYMIR', () => {
+  const d1 = parseReceipts([RH, ['Bayıl', 46235, 'NAĞD PUL', '1', '12.00']])
+  const m = mergeReceipts([d1, d1])!
+  assert.equal(m.days.length, 1)
+  assert.equal(m.totals.receipts, 1)
+  assert.equal(m.totals.amount.toFixed(2), '12.00')
+  assert.equal(m.warnings.some(w => w.includes('təkrarlanır')), true)
+})
+
+test('merge tək fayl və ya boş girişdə düzgün davranır', () => {
+  const d1 = parseProdmix([PH, [46235, 'Bayıl', '1', 'A', '10', '70.00']])
+  assert.equal(mergeProdmix([d1]), d1, 'tək fayl olduğu kimi qaytarılır')
+  assert.equal(mergeProdmix([]), null)
+  assert.equal(mergeProdmix([parseProdmix([PH])]), null, 'boş nəticə null olmalı')
+  assert.equal(mergeReceipts([]), null)
+})
+
+test('mergeReceipts naməlum ödəniş növlərini bütün fayllardan yığır', () => {
+  const d1 = parseReceipts([RH, ['Bayıl', 46235, 'YENİ TERMİNAL', '1', '10.00']])
+  const d2 = parseReceipts([RH, ['Bayıl', 46236, 'YENİ TERMİNAL', '2', '15.00']])
+  const m = mergeReceipts([d1, d2])!
+  assert.equal(m.totals.unknownPayments['YENİ TERMİNAL'].toFixed(2), '25.00')
 })

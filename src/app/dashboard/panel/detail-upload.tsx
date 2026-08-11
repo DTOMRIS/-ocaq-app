@@ -4,6 +4,7 @@ import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   parseProdmix, parseReceipts, reconcileProdmixReceipts,
+  mergeProdmix, mergeReceipts,
   PARTIAL_LAST_DAY_NOTE,
   type ProdmixResult, type ReceiptsResult, type DayReconcile,
 } from '@/lib/analytics/parse-sales-detail'
@@ -78,8 +79,9 @@ export default function DetailUpload() {
     setBusy(true); setErr(null); setResult(null); setPhase('Fayllar oxunur…')
     try {
       const XLSX = await import('xlsx')
-      let prodmix: ProdmixResult | null = null
-      let receipts: ReceiptsResult | null = null
+      // Bütün fayl/vərəqlərin nəticəsi toplanır, sonra birləşdirilir (son qalib).
+      const prodmixParts: ProdmixResult[] = []
+      const receiptsParts: ReceiptsResult[] = []
 
       for (const f of files) {
         const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
@@ -94,10 +96,17 @@ export default function DetailUpload() {
           const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: true, defval: null }) as unknown[][]
           // Parser-lər başlıq tapmasa boş + warning qaytarır → «tapdı/tapmadı»
           // testi nəticənin özüdür, ad/heuristika ilə təxmin etmirik.
-          if (!prodmix) { const p = parseProdmix(rows); if (p.lines.length) prodmix = p }
-          if (!receipts) { const r = parseReceipts(rows); if (r.days.length) receipts = r }
+          //
+          // 🔴 10.08.2026 — ƏVVƏL BURADA `if (!prodmix)` VARDI və İLK uyğun vərəq
+          // tapıldıqdan sonra qalan fayllar SƏSSİZ ATLANIRDI. «Hər gün tək günlük
+          // fayl» axınında 10 günü 10 fayl kimi atsan yalnız 1 gün yazılardı,
+          // 9-u yoxa çıxardı. Artıq HAMISI toplanır və sonra birləşdirilir.
+          const p = parseProdmix(rows); if (p.lines.length) prodmixParts.push(p)
+          const r = parseReceipts(rows); if (r.days.length) receiptsParts.push(r)
         }
       }
+      const prodmix = mergeProdmix(prodmixParts)
+      const receipts = mergeReceipts(receiptsParts)
 
       if (!prodmix && !receipts) {
         throw new Error(
