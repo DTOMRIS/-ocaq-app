@@ -121,13 +121,16 @@ export default function HourlyUpload() {
 
   if (!open) {
     return (
-      <div style={{ ...card, padding: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ fontWeight: 800, fontSize: 14 }}>🕐 Saatlıq satış</div>
-        <div style={{ fontSize: 12, color: '#6b655c', flex: 1, minWidth: 200 }}>
-          iiko «Doğan Tomris Rapor» — hər gün yenisini at, toplamdan davam edir
+      <div style={{ ...card, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 20 }}>🕐</span>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Saatlıq satış yüklə — «Doğan Tomris Rapor»</div>
+          <div style={{ color: '#8b8378', fontSize: 12, marginTop: 2 }}>
+            Saat-saat ciro, ödəniş növü, qonaq. Fayl KUMULYATİVDİR — hər gün yenisini at, toplamdan davam edir.
+          </div>
         </div>
         <button onClick={() => setOpen(true)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #d8d2c6', background: '#faf8f4', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-          yüklə
+          Aç →
         </button>
       </div>
     )

@@ -8,6 +8,7 @@ import {
   PARTIAL_LAST_DAY_NOTE,
   type ProdmixResult, type ReceiptsResult, type DayReconcile,
 } from '@/lib/analytics/parse-sales-detail'
+import { parseHourlySales } from '@/lib/analytics/parse-iiko-reports'
 
 /**
  * PRODMIX (məhsul detayı) + ÇEK (ödəniş şərtləri) fayllarını yükləyir.
@@ -80,6 +81,7 @@ export default function DetailUpload() {
     try {
       const XLSX = await import('xlsx')
       // Bütün fayl/vərəqlərin nəticəsi toplanır, sonra birləşdirilir (son qalib).
+      let hourlyDetected = false
       const prodmixParts: ProdmixResult[] = []
       const receiptsParts: ReceiptsResult[] = []
 
@@ -103,10 +105,22 @@ export default function DetailUpload() {
           // 9-u yoxa çıxardı. Artıq HAMISI toplanır və sonra birləşdirilir.
           const p = parseProdmix(rows); if (p.lines.length) prodmixParts.push(p)
           const r = parseReceipts(rows); if (r.days.length) receiptsParts.push(r)
+          // Yanlış qutu tələsi: səhifədə İKİ yükləmə qutusu var. Saatlıq pivot
+          // buraya atılsa parser onu tanımır və istifadəçi «başlıqlar səhvdir»
+          // sanır. Ona görə tanıyırıq və DOĞRU QUTUNU göstəririk.
+          if (!p.lines.length && !r.days.length && parseHourlySales(rows).rows.length) hourlyDetected = true
         }
       }
       const prodmix = mergeProdmix(prodmixParts)
       const receipts = mergeReceipts(receiptsParts)
+
+      if (!prodmix && !receipts && hourlyDetected) {
+        throw new Error(
+          'Bu, SAATLIQ satış hesabatıdır («Bağlama saatı» sütunu var) — bu qutu deyil. ' +
+          'Aşağıdakı «🕐 Saatlıq satış» qutusuna atın. Bu qutu PRODMIX (məhsul detayı) ' +
+          'və ÇEK (ödəniş şərtləri) faylları üçündür.',
+        )
+      }
 
       if (!prodmix && !receipts) {
         throw new Error(
