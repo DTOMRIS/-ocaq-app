@@ -49,6 +49,22 @@ const isSubtotal = (v: unknown): boolean => {
   return s.length > 6 && /\stotal$/i.test(s)
 }
 
+/**
+ * Qrup sütunundakı ARA CƏM hücrəsi — `isSubtotal`-dan DAHA GENİŞ.
+ *
+ * `isSubtotal` başlıq sətrini qorumaq üçün `length > 6` şərti qoyur, ona görə
+ * çılpaq « Total» (baş boşluqla, uzunluq 6) ONUN üçün ara cəm SAYILMIR.
+ * Saatlıq pivotda isə məhz belə sətir var (`| | | Total | | 41.6 |`) və o,
+ * yuxarıdakı sətirlərin cəmidir — süzülməsə ciro İKİQAT sayılır.
+ *
+ * Bu funksiya YALNIZ başlıqdan sonrakı qrup sütunlarına tətbiq olunur, ona görə
+ * başlıq adı ilə qarışma riski yoxdur.
+ */
+const isGroupTotalCell = (v: unknown): boolean => {
+  const s = String(v ?? '').trim()
+  return s.length > 0 && /^total$|\stotal$/i.test(s)
+}
+
 /** Başlıq sətrini tapır: bütün tələb olunan naxışlar eyni sətirdə olmalıdır. */
 function findHeader(rows: unknown[][], required: RegExp[], limit = 30): { row: number; idx: number[] } | null {
   for (let r = 0; r < Math.min(rows.length, limit); r++) {
@@ -391,6 +407,289 @@ export function parseDeletions(rows: unknown[][], outlierMin = DELETION_OUTLIER_
     byReason: [...rm.entries()].map(([reason, v]) => ({ reason, ...v })).sort((a, b) => b.amount - a.amount),
     outliers: out.filter(x => x.amount >= outlierMin).sort((a, b) => b.amount - a.amount),
     noCommentPct: out.length ? 1 - withComment / out.length : 0,
+    warnings,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. SAATLIQ PİVOT — «Doğan Tomris Rapor» (filial × ödəniş növü × SAAT)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * iiko-da bizim üçün qurulan xüsusi OLAP hesabatı. Başlıqlar AZƏRBAYCANCA,
+ * quruluş 4 səviyyəli pivotdur:
+ *
+ *   Ticarət müəssisəsi → Ödəniş növü → Bağlama saatı → Məhsul ilə satılıb
+ *
+ * NƏ VERİR (başqa heç bir faylda yoxdur): **SAATLIQ ciro**, filial və ödəniş
+ * növü kəsiyində. 24 saatın hamısı var.
+ *
+ * ÜÇ TƏLƏ — hər biri real faylda yoxlanıb (203 293 sətir, 01–21.08.2026):
+ *
+ * a) ÇILPAQ « Total» SƏTRİ. Məhsul sütununda adı olmayan, sadəcə « Total»
+ *    yazan sətir var və o, yuxarıdakı sətirlərin CƏMİDİR. `isSubtotal`
+ *    onu tutmur (uzunluq 6) → `isGroupTotalCell` yazıldı. Süzülməsə ciro
+ *    təxminən iki dəfə şişir.
+ *
+ * b) MƏBLƏĞ ƏSASƏN MƏHSULSUZ SƏTİRDƏDİR, LAKİN HAMISI YOX. Adi məhsul
+ *    sətirlərində `Endirimli məbləğ` = 0, çünki o səviyyə səbət (basket)
+ *    ölçüsüdür. AMMA kombo məhsullarda («BOLT Special Combo 3» kimi) məbləğ
+ *    məhsul sətrindədir — real faylda 286 sətir, 8 759,70 ₼. Ona görə ciro
+ *    BÜTÜN yarpaq sətirlərinin cəmidir; «məhsulsuz sətirləri götür» yanaşması
+ *    8 759,70 ₼ itirərdi.
+ *
+ * c) MƏHSUL ƏDƏDİ ETİBARSIZDIR. `Məhsulların sayı` burada ölçü (dimension)
+ *    kimi işlənib — «qəbzdə neçə ədəd vardı» — say (measure) deyil. Cəmlənsə
+ *    yanlış nəticə verir (şəbəkənin ən çox satılan məhsulu 21 gündə guya
+ *    3 188 ədəd = filial başına günə 5 ədəd). Ona görə bu parser ƏDƏD
+ *    QAYTARMIR. Ədəd üçün «Satiş Hesabati Mehsullar Uzre» faylı istifadə
+ *    olunur (`parseProductSales`).
+ *
+ * ⚠️ GÜN MƏSƏLƏSİ (ƏSAS MƏHDUDİYYƏT): faylda `Uçot günü` sütunu YOXDUR.
+ * 21 günün hamısı tək rəqəmə yığılıb. Günlük fakt cədvəlinə yazmaq üçün ya
+ * hesabata `Uçot günü` səviyyəsi əlavə olunmalı, ya da fayl TƏK GÜNLÜK
+ * endirilməlidir (`Dövrün: əvvəli 21.08.2026 sonu 21.08.2026`). Hər ikisi
+ * dəstəklənir; heç biri yoxdursa `canWriteDaily = false` qaytarılır və gün
+ * UYDURULMUR.
+ */
+
+export type HourlySalesRow = {
+  /** `Uçot günü` sütunundan, yoxdursa tək günlük dövrdən. Bilinmirsə null. */
+  date: string | null
+  filial: string
+  payType: string
+  /** 0–23. */
+  hour: number
+  net: number
+  guests: number
+}
+
+export type HourlySalesReport = {
+  period: ReportPeriod
+  rows: HourlySalesRow[]
+  totals: { net: number; guests: number; branches: number; hours: number; days: number }
+  byBranch: Array<{ filial: string; net: number; guests: number; avgPerGuest: number | null }>
+  byPayType: Array<{ payType: string; net: number; guests: number; share: number }>
+  /** 24 element, saat 0-dan 23-ə — boş saatlar da 0 ilə. */
+  byHour: Array<{ hour: number; net: number; guests: number; share: number }>
+  /** Faylda `Uçot günü` sütunu vardımı? */
+  hasDayColumn: boolean
+  /** Günlük fakt cədvəlinə yazıla bilərmi (gün UYDURULMADAN)? */
+  canWriteDaily: boolean
+  /** Pivotun öz «Grand Total» sətri — nəzarət üçün (tapılmasa null). */
+  grandTotal: number | null
+  skippedSubtotals: number
+  warnings: string[]
+}
+
+const EMPTY_HOURLY: Omit<HourlySalesReport, 'period' | 'warnings'> = {
+  rows: [], totals: { net: 0, guests: 0, branches: 0, hours: 0, days: 0 },
+  byBranch: [], byPayType: [], byHour: [],
+  hasDayColumn: false, canWriteDaily: false, grandTotal: null, skippedSubtotals: 0,
+}
+
+/** '00' / '7' / 7 / '07:00' → 0–23, tanınmasa null. */
+function parseHour(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isInteger(v) && v >= 0 && v <= 23 ? v : null
+  const s = String(v ?? '').trim()
+  if (!s) return null
+  const m = s.match(/^(\d{1,2})(?::\d{2})?$/)
+  if (!m) return null
+  const h = Number(m[1])
+  return h >= 0 && h <= 23 ? h : null
+}
+
+export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
+  const period = parsePeriodHeader(rows)
+  const warnings: string[] = []
+
+  // Başlıqlar Azərbaycanca; İngilis variantı da qəbul olunur ki hesabat dili
+  // dəyişsə parser sınmasın. `azFold` ı→i çevirdiyi üçün `saatı`→`saati`.
+  const h = findHeader(rows, [
+    /^(ticarət müəssisəsi|store)$/,
+    /(ödəniş növü|payment type)/,
+    /(bağlama saat|closing (hour|time))/,
+    /(endirimli məbləğ|gross sales)/,
+  ])
+  if (!h) {
+    return {
+      period, ...EMPTY_HOURLY,
+      warnings: ['Saatlıq hesabatın başlıqları tapılmadı (Ticarət müəssisəsi / Ödəniş növü / Bağlama saatı / Endirimli məbləğ gözlənilir)'],
+    }
+  }
+  const [cStore, cPay, cHour, cNet] = h.idx
+  // DİQQƏT: naxışlar `azFold`-dan SONRAKI mətnə uyğun yazılmalıdır — `azFold`
+  // ı/İ/I hərflərini «i»-yə çevirir, ona görə `satılıb` → `satilib`,
+  // `sayı` → `sayi`. Bunu unutmaq sütunu «tapılmadı» edir (bir dəfə oldu:
+  // məhsul sütunu tapılmayınca « Total» sətirləri süzülmədi və ciro İKİQAT
+  // çıxdı — «Grand Total» nəzarəti tutdu).
+  const cGuests = optIndex(rows, h.row, [/qonaqlar/, /^guests$/])
+  const cDay = optIndex(rows, h.row, [/uçot günü/, /accounting day/])
+  const cItem = optIndex(rows, h.row, [/məhsul ilə satilib/, /sold with/])
+
+  // Ölçü (qrup) sütunları — ölçmə sütunundan SOLDA olanların hamısı.
+  // Ara cəm yoxlaması hamısına tətbiq olunur ki, başlığı tanınmayan bir qrup
+  // səviyyəsi əlavə olunsa belə cəm sətirləri yenə süzülsün.
+  const groupCols: number[] = []
+  for (let c = 0; c < cNet; c++) groupCols.push(c)
+  for (const c of [cStore, cPay, cHour, cItem]) if (c > cNet) groupCols.push(c)
+
+  const hasDayColumn = cDay >= 0
+  if (cGuests < 0) warnings.push('«Qonaqların sayı» sütunu yoxdur — orta çek hesablanmır')
+
+  // Gün: sütun varsa oradan, yoxsa dövr tək günlükdürsə ondan. Başqa halda YOX.
+  if (!hasDayColumn && !period.singleDay) {
+    warnings.push(
+      period.days && period.days > 1
+        ? `Faylda «Uçot günü» sütunu yoxdur və dövr ${period.days} gündür — sətirlər hansı günə aid olduğu bilinmir, GÜNLÜK cədvələ YAZILMIR. Həll: hesabata «Uçot günü» səviyyəsi əlavə et, ya da faylı tək günlük endir.`
+        : 'Faylda «Uçot günü» sütunu yoxdur və başlıqdan dövr oxunmadı — gün bilinmir, GÜNLÜK cədvələ YAZILMIR.',
+    )
+  }
+
+  let fDay = '', fStore = '', fPay = ''
+  // Saat da pivot qrupudur — yalnız qrupun ilk sətrində yazılır. Yuxarı
+  // səviyyə (gün/filial/ödəniş növü) dəyişəndə SIFIRLANIR ki köhnə saat
+  // yeni qrupa sızmasın.
+  let lastHour: number | null = null
+  const leaf = new Map<string, HourlySalesRow>()      // yarpaq sətirlərdən yığılan
+  const sub = new Map<string, HourlySalesRow>()       // pivotun «NN Total» sətirləri
+  let skipped = 0, excluded = 0, badHour = 0, grandTotal: number | null = null
+
+  const put = (m: Map<string, HourlySalesRow>, x: HourlySalesRow) => {
+    const k = `${x.date ?? ''}|${x.filial}|${x.payType}|${x.hour}`
+    const e = m.get(k)
+    if (e) { e.net += x.net; e.guests += x.guests }
+    else m.set(k, { ...x })
+  }
+
+  for (let r = h.row + 1; r < rows.length; r++) {
+    const row = rows[r] ?? []
+
+    // «Grand Total» sətri — nəzarət rəqəmi kimi saxlanılır, cəmə əlavə edilmir.
+    if (/^grand total$/i.test(String(row[cStore] ?? '').trim())) {
+      grandTotal = num(row[cNet])
+      skipped++
+      continue
+    }
+
+    const totalCols = groupCols.filter(c => isGroupTotalCell(row[c]))
+
+    // SAAT ARA CƏMİ («00 Total») — atılmır, AYRICA yığılır.
+    // Səbəb: `Qonaqların sayı` yarpaq səviyyəsində TƏKRARLANIR (eyni qonaq
+    // hər məhsul sətrində yenidən sayılır) — real faylda cəm 557 515 çıxır,
+    // faylın öz «Grand Total»-ı isə 129 130. Pivotun öz ara cəmi düzgün
+    // (unikal) sayır, ona görə ölçü rəqəmləri oradan götürülür.
+    if (totalCols.length === 1 && totalCols[0] === cHour) {
+      const hv = parseHour(String(row[cHour]).trim().replace(/\s*total$/i, ''))
+      if (hv !== null && fStore && fPay) {
+        const filial = normalizeFilial(fStore) ?? fStore
+        if (!EXCLUDE.has(filial)) {
+          put(sub, {
+            date: hasDayColumn ? excelSerialToISO(fDay) : period.singleDay,
+            filial, payType: fPay, hour: hv,
+            net: num(row[cNet]), guests: cGuests >= 0 ? num(row[cGuests]) : 0,
+          })
+        }
+      }
+      skipped++
+      continue
+    }
+
+    // Digər ara cəmlər (filial / ödəniş növü / məhsul / çılpaq « Total») atılır.
+    if (totalCols.length) { skipped++; continue }
+
+    if (hasDayColumn && row[cDay]) { fDay = String(row[cDay]).trim(); lastHour = null }
+    if (row[cStore]) { fStore = String(row[cStore]).trim(); lastHour = null }
+    if (row[cPay]) { fPay = String(row[cPay]).trim(); lastHour = null }
+
+    const hv = parseHour(row[cHour])
+    if (hv !== null) lastHour = hv
+    else if (row[cHour] != null && String(row[cHour]).trim()) badHour++
+
+    if (lastHour === null || !fStore || !fPay) continue
+
+    const filial = normalizeFilial(fStore) ?? fStore
+    if (EXCLUDE.has(filial)) { excluded++; continue }
+
+    const net = num(row[cNet])
+    const guests = cGuests >= 0 ? num(row[cGuests]) : 0
+    if (net === 0 && guests === 0) continue   // boş məhsul sətri — məlumat daşımır
+
+    // Yarpaq sətirləri: məbləğ ƏSASƏN məhsulsuz sətirdədir, kombolarda isə
+    // məhsul sətrindədir — hər ikisi yığılır (tələ «b»).
+    put(leaf, {
+      date: hasDayColumn ? excelSerialToISO(fDay) : period.singleDay,
+      filial, payType: fPay, hour: lastHour, net, guests,
+    })
+  }
+
+  // Pivotun ara cəmləri varsa ONLAR əsasdır (qonaq sayı yalnız orada düzgündür).
+  const usedSubtotals = sub.size > 0
+  const merged = usedSubtotals ? [...sub.values()] : [...leaf.values()]
+  if (!usedSubtotals && cGuests >= 0 && leaf.size) {
+    warnings.push('Pivotun saat ara cəm sətirləri («00 Total») tapılmadı — qonaq sayı yarpaq sətirlərdən yığılır və TƏKRAR SAYIM səbəbindən ŞİŞİKDİR. Ciro düzgündür. Hesabatı ara cəmlərlə birlikdə endir.')
+  }
+
+  const net = merged.reduce((s, x) => s + x.net, 0)
+  const guests = merged.reduce((s, x) => s + x.guests, 0)
+
+  const bm = new Map<string, { net: number; guests: number }>()
+  const pm = new Map<string, { net: number; guests: number }>()
+  const hm = new Map<number, { net: number; guests: number }>()
+  for (const x of merged) {
+    const b = bm.get(x.filial) ?? { net: 0, guests: 0 }
+    b.net += x.net; b.guests += x.guests; bm.set(x.filial, b)
+    const p = pm.get(x.payType) ?? { net: 0, guests: 0 }
+    p.net += x.net; p.guests += x.guests; pm.set(x.payType, p)
+    const hh = hm.get(x.hour) ?? { net: 0, guests: 0 }
+    hh.net += x.net; hh.guests += x.guests; hm.set(x.hour, hh)
+  }
+
+  if (!merged.length) warnings.push('Heç bir sətir oxunmadı')
+  if (excluded) warnings.push(`${excluded} sətir EXCLUDE filialına aiddir`)
+  if (badHour) warnings.push(`${badHour} sətrin «Bağlama saatı» dəyəri oxunmadı`)
+  if (cItem >= 0) {
+    warnings.push('Bu hesabatdakı «Məhsulların sayı» ölçü (dimension) kimi qurulub, say kimi deyil — məhsul ƏDƏDİ buradan OXUNMUR, «Satiş Hesabati Mehsullar Uzre» faylından götürülür.')
+  }
+  if (cGuests >= 0) {
+    warnings.push('«Qonaqların sayı» saat və ödəniş növü səviyyəsində sayılır — bir qəbz iki saata/iki ödəniş növünə düşübsə iki dəfə sayıla bilər (real faylda şəbəkə üzrə ~%1,4 yuxarı). Çek sayı DEYİL — çek sayı «Satış-filiallar üzrə» faylının `Bills` sütunundadır.')
+  }
+  // İKİ MÜSTƏQİL YOL BİR-BİRİNİ YOXLAYIR: ara cəmlərdən gələn ciro ilə
+  // yarpaq sətirlərdən gələn ciro üst-üstə düşməlidir.
+  if (usedSubtotals && leaf.size) {
+    const leafNet = [...leaf.values()].reduce((s, x) => s + x.net, 0)
+    const d = Math.abs(net - leafNet) / Math.max(Math.abs(net), 1)
+    if (d > 0.005) {
+      warnings.push(`⚠ Ara cəmlərdən gələn ciro (${net.toFixed(2)} ₼) ilə sətirlərdən yığılan ciro (${leafNet.toFixed(2)} ₼) %${(d * 100).toFixed(2)} fərqlidir — fayl quruluşu gözlənildiyi kimi deyil.`)
+    }
+  }
+  if (grandTotal !== null && grandTotal !== 0) {
+    const diff = Math.abs(net - grandTotal) / Math.abs(grandTotal)
+    if (diff > 0.005) {
+      warnings.push(`⚠ Oxunan cəm (${net.toFixed(2)} ₼) faylın öz «Grand Total» sətrindən (${grandTotal.toFixed(2)} ₼) %${(diff * 100).toFixed(2)} fərqlidir — ara cəm süzgəci və ya sütun uyğunluğu yoxlanmalıdır.`)
+    }
+  }
+
+  const dates = new Set(merged.map(x => x.date).filter(Boolean) as string[])
+
+  return {
+    period,
+    rows: merged,
+    totals: { net, guests, branches: bm.size, hours: hm.size, days: dates.size },
+    byBranch: [...bm.entries()]
+      .map(([filial, v]) => ({ filial, ...v, avgPerGuest: v.guests > 0 ? v.net / v.guests : null }))
+      .sort((a, b) => b.net - a.net),
+    byPayType: [...pm.entries()]
+      .map(([payType, v]) => ({ payType, ...v, share: net > 0 ? v.net / net : 0 }))
+      .sort((a, b) => b.net - a.net),
+    byHour: Array.from({ length: 24 }, (_, hour) => {
+      const v = hm.get(hour) ?? { net: 0, guests: 0 }
+      return { hour, ...v, share: net > 0 ? v.net / net : 0 }
+    }),
+    hasDayColumn,
+    canWriteDaily: merged.length > 0 && merged.every(x => x.date !== null),
+    grandTotal,
+    skippedSubtotals: skipped,
     warnings,
   }
 }

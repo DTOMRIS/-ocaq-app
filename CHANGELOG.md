@@ -6,6 +6,38 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — Saatlıq satış pivotu oxunur (`parseHourlySales`)
+- iiko-da bizim üçün qurulan «Doğan Tomris Rapor» hesabatı (`Ticarət
+  müəssisəsi → Ödəniş növü → Bağlama saatı → Məhsul ilə satılıb`) artıq
+  oxunur: **saat × filial × ödəniş növü** kəsiyində ciro və qonaq sayı.
+  Bu, indiyə qədər heç bir fayldan çıxmayan **saatlıq satış** məlumatıdır.
+- Real fayl üzərində doğrulandı (203 293 sətir, 01–21.08.2026):
+  oxunan cəm **2 691 752,86 ₼** ↔ faylın öz «Grand Total» sətri
+  **2 691 753,06 ₼** (fərq 0,20 ₼ = pivot yuvarlaması). 30 filial, 24 saat,
+  13 ödəniş növü. Şəbəkə piki 21:00 (%10,14), ən sakit saat 08:00 (%0,13).
+- Üç tələ koda yazıldı və testlə bağlandı:
+  - **çılpaq « Total» sətri** (uzunluq 6) — `isSubtotal` onu tutmurdu; süzülməsə
+    ciro **iki dəfə** sayılırdı. `isGroupTotalCell` əlavə olundu və ara cəm
+    yoxlaması ölçmə sütunundan soldakı BÜTÜN sütunlara tətbiq edilir.
+  - **kombo sətirlərindəki məbləğ** (real faylda 286 sətir / 8 759,70 ₼) —
+    «pul yalnız məhsulsuz sətirdədir» yanaşması bunu itirirdi.
+  - **`Qonaqların sayı` yarpaq sətirlərdə təkrarlanır** (557 515 ↔ düzgünü
+    129 130) — ölçü rəqəmləri pivotun öz saat ara cəmlərindən götürülür.
+- İki müstəqil yol (ara cəmlər ↔ yarpaq sətirlər) bir-birini yoxlayır və
+  faylın «Grand Total» sətri ilə tutuşdurulur; fərq %0,5-i keçsə xəbərdarlıq.
+
+### Changed — «qruplaşdırma söndürülsün» tövsiyəsi LƏĞV OLUNDU
+- `docs/IIKO-GUNLUK-EXPORT.md` §8.0-da saatlıq fayl üçün «ara cəmlər olmasın»
+  yazılmışdı. Artıq **əksi doğrudur**: ara cəmlər qonaq sayının düzgün olması
+  üçün lazımdır. Yeni tələb tək sətirdir: **`Uçot günü`** qruplaşdırma
+  səviyyəsi əlavə olunsun (ya da hesabat tək günlük endirilsin).
+
+### Fixed — açıq sual bağlandı: itən 173 170 ₼-ın böyük hissəsi Nərimanov idi
+- Özüm endirdiyim «Satış-filiallar üzrə» və «Məhsullar üzrə» hesabatlarında
+  **Nərimanov filialı ümumiyyətlə yoxdur** (01–21.08 üçün 73 014,76 ₼).
+  Şablon faylda var. Yəni fərqin böyük hissəsi natamam data deyil, həmin iki
+  hesabatdakı **filial süzgəci / icazə problemidir**.
+
 ### Fixed — 🔴 SƏHV TEŞHİS DÜZƏLDİLDİ: 07.08 fərqi natamamlıqdan DEYİL
 - Əvvəl həm kodda, həm sənəddə, həm də istifadəçiyə belə deyilmişdi:
   «07.08.2026 çek faylı natamamdır, tam fayl gələndə düzələcək». **Bu doğru

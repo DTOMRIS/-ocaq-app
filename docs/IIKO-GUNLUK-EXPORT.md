@@ -340,6 +340,66 @@ kiçik ikinci vərəq — `Ticarət müəssisəsi · Uçot günü · Çek sayı`
 sətir). Bu halda əsas vərəqdə qəbz nömrəsi lazım deyil və fayl kiçilir.
 Çatışmazlığı: qəbz səviyyəsində analiz (səbət tərkibi) mümkün olmur.
 
+## 7.7 «Doğan Tomris Rapor» faylının qiymətləndirilməsi (22.08.2026) — ŞABLON NAMİZƏDİ
+
+Fayl: `22 avqusta kimi 21 avqust daxil.xlsx` — 8 MB, tək vərəq, 203 293 sətir,
+dövr 01–21.08.2026. iiko-da bizim üçün ayrıca qurulmuş OLAP hesabatı.
+
+**Quruluş:** 4 səviyyəli pivot —
+`Ticarət müəssisəsi → Ödəniş növü → Bağlama saatı → Məhsul ilə satılıb`,
+ölçmələr: `Məhsulların sayı`, `Endirimli məbləğ, m.`, `Qonaqların sayı`,
+`Qonaqdan orta gəlir, m.`
+
+### ✅ NƏ VERİR (başqa heç bir faylda yoxdur)
+
+| Nə | Vəziyyət | Real rəqəm (01–21.08) |
+|---|---|---|
+| **SAATLIQ ciro** — 24 saatın hamısı | ✅ | pik 21:00 = %10,14; ən sakit 08:00 = %0,13 |
+| Saat × **filial** × **ödəniş növü** kəsiyi | ✅ | 30 filial × 13 ödəniş növü × 24 saat |
+| Wolt / Bolt / nağd / kart ayrımı | ✅ | Nağd %36,08 · kart %47,79 · Wolt %12,20 · Bolt %3,72 |
+| Qonaq sayı və qonaq başına gəlir | ✅ (ara cəmdən) | 129 130 qonaq · 20,85 ₼ |
+| **Bütün 30 filial** | ✅ | Nərimanov DA VAR |
+| Daxili tutarlıq | ✅ | oxunan cəm 2 691 752,86 ₼ ↔ faylın öz «Grand Total»-ı 2 691 753,06 ₼ (fərq 0,20 ₼ = pivot yuvarlaması) |
+
+**Əlavə tapıntı — köhnə sual bağlandı:** özüm endirdiyim «Satış-filiallar üzrə»
+və «Məhsullar üzrə» hesabatlarında **Nərimanov filialı ÜMUMİYYƏTLƏ YOXDUR**
+(73 014,76 ₼). Bu şablon faylda var. Yəni §7.5-də qeyd olunan izahsız fərqin
+böyük hissəsi natamam data deyil, həmin iki hesabatdakı **filial süzgəci /
+icazə problemidir** — Rafael bəyə deyilməlidir.
+
+### ❌ NƏ VERMİR — və nəyi əvəz ETMİR
+
+| Çatışmazlıq | Nəticə |
+|---|---|
+| **`Uçot günü` sütunu YOXDUR** | 21 gün TƏK rəqəmə yığılıb. Günlük fakt cədvəlinə **yazıla bilmir** — hansı günə aid olduğu bilinmir. **ƏSAS MANE BUDUR.** |
+| Məhsul məbləği = 0 | `Məhsul ilə satılıb` səbət (basket) ölçüsüdür; pul yalnız məhsulsuz sətirdədir (kombolar istisna). Menyu analizi buradan **çıxmır**. |
+| Məhsul ədədi ölçü kimi qurulub | `Məhsulların sayı` = «qəbzdə neçə ədəd vardı», say deyil. Cəmlənsə yanlışdır (ən çox satılan məhsul 21 gündə guya 3 188 ədəd = filiala günə 5). **Oxunmur.** |
+| `Bills` (çek sayı) yoxdur | Yalnız `Qonaqların sayı` var — o, çek deyil (real faylda çekdən ~%1,4 yuxarı). |
+| `Maya dəyəri` yoxdur | Food cost / marja yenə hesablanmır. |
+
+### 🔧 QƏRAR
+
+Fayl **şablon olur** — amma **tək başına yox, üçüncü fayl kimi**. Onu günlük
+cədvələ bağlamaq üçün **BİR dəyişiklik** kifayətdir, ikisindən biri:
+
+1. **Tövsiyə olunan:** hesabata **`Uçot günü`** ən üst qruplaşdırma səviyyəsi
+   kimi əlavə edilsin. Onda ay boyu tək fayl da işləyir, gün də bilinir.
+2. **Alternativ (heç nə dəyişdirmədən):** eyni hesabat **TƏK GÜNLÜK** endirilsin
+   — `Dövrün: əvvəli 21.08.2026 sonu 21.08.2026`. Başlıqdakı dövr tək günə
+   bərabər olanda parser tarixi oradan götürür. Fayl da ~400 KB-a düşür.
+
+Hər ikisi kodda dəstəklənir (`parseHourlySales`). Heç biri yoxdursa **gün
+uydurulmur** — `canWriteDaily = false` qaytarılır və səbəb ekranda yazılır.
+
+### Qruplaşdırma haqqında əvvəlki tövsiyə LƏĞV OLUNDU
+
+§8.0-da «3-cü faylda qruplaşdırma söndürülsün» yazılmışdı. **Artıq lazım
+deyil** — parser pivotu olduğu kimi oxuyur. Üstəlik qruplaşdırma **söndürülməsin**:
+`Qonaqların sayı` yalnız pivotun öz ara cəm sətirlərində düzgündür (yarpaq
+sətirlərdə hər məhsul üçün təkrar sayılır — şəbəkə üzrə 557 515 ↔ düzgünü
+129 130). Ara cəmlər olmasa ciro yenə düz oxunur, qonaq sayı isə şişik olur və
+sistem bunu xəbərdarlıq kimi göstərir.
+
 ## 8.0 ⭐ ƏSAS VARİANT — 3 FAYL, YALNIZ 1 DÜZƏLİŞ (tövsiyə olunan)
 
 > İstifadəçi təsdiqi (10.08.2026): «olmazsa 2-3 dosya olsun ama tüm sistemi
@@ -353,10 +413,14 @@ Yalnız üçüncüsündə bir export ayarı dəyişir:
 |---|---|---|
 | **1. Məhsul** (`avqust plan` → BAZA 2026) | ✅ **İŞLƏYİR** — kod, ad, ədəd, məbləğ var | **Heç nə. Olduğu kimi davam.** (mümkünsə `Maya dəyəri` + `Kateqoriya`) |
 | **2. Ödəniş/çek** (`ödəniş şərtləri` → Baza 2026) | ✅ **İŞLƏYİR** — qəbz nömrəsi, ödəniş növü var | **Heç nə. Olduğu kimi davam.** |
-| **3. Saatlıq** (`total satış`) | ⚠️ data düzgün, FORMAT problemli | **Qruplaşdırma söndürülsün** (ara cəm sətirləri olmasın, qrup sütunları hər sətirdə təkrarlansın) |
+| **3. Saatlıq** (`Doğan Tomris Rapor`) | ⚠️ format DÜZGÜN, GÜN yoxdur | **`Uçot günü` qruplaşdırma səviyyəsi əlavə olunsun** — ya da eyni hesabat tək günlük endirilsin (§7.7) |
 
-**Yəni tək iş: 3-cü faylda qruplaşdırmanı söndürmək.** Bu, iiko-da bir export
-ayarıdır — yeni hesabat qurmaq deyil.
+**Yəni tək iş: 3-cü fayla GÜNÜ əlavə etmək.** Bu, iiko-da bir qruplaşdırma
+səviyyəsidir — yeni hesabat qurmaq deyil.
+
+> 22.08.2026 yeniləməsi: əvvəl bu sətirdə «qruplaşdırma söndürülsün» yazılırdı.
+> **Ləğv olundu** — parser pivotu olduğu kimi oxuyur və qruplaşdırma qonaq
+> sayının düzgün olması üçün LAZIMDIR. Bax §7.7.
 
 ### Niyə bu variant daha yaxşıdır (birləşik fayldan)
 
@@ -375,7 +439,8 @@ ayarıdır — yeni hesabat qurmaq deyil.
 | Top 5 ən çox / ən az satılan məhsul | fayl 1 | ✅ hazır |
 | Satış və çekin bölgə üzrə faiz payı | fayl 1+2 | ✅ hazır |
 | Top 5 filial (satış və çek) | fayl 1+2 | ✅ hazır |
-| **Saatlıq satış, çek sayı, orta çek** | **fayl 3** | ⏳ format düzəlişindən sonra |
+| **Saatlıq satış, ödəniş növü, qonaq başına gəlir** | **fayl 3** | ✅ parser hazır (`parseHourlySales`) — dövr səviyyəsində OXUNUR |
+| Saatlıq satışın GÜN-GÜN müqayisəsi | fayl 3 | ⏳ `Uçot günü` əlavə olunanda (ya da tək günlük endiriləndə) |
 
 ## 8. ALTERNATİV — TƏK BİRLƏŞİK FAYL (yalnız §8.0 mümkün olmazsa)
 
