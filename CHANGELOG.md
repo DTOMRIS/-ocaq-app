@@ -6,6 +6,37 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — Saatlıq satış KUMULYATİV axını: hər gün yeni fayl, toplamdan davam
+- İstifadəçi qərarı: «bunu 21 günlük olaraq qeyd et, mən hər gün ocağa yenisini
+  atım, amma **toplamdan davam etsin**». iiko-da **heç bir ayar dəyişmir**.
+- Fayl KUMULYATİVDİR (ayın əvvəlindən bu günə). İki ardıcıl görüntünün FƏRQİ
+  məhz aradakı gündür → gün-gün saatlıq data `Uçot günü` sütunu olmadan çıxır.
+- Yeni migration **`0013_analytics_hourly.sql`** (add-only, IF NOT EXISTS):
+  - `analytics_hourly_cume` — faylın olduğu kimi yazıldığı görüntü. Açar dövrün
+    sonunu da daxil edir → **eyni fayl təkrar atılsa cəm ŞİŞMİR**.
+  - `analytics_hourly_fact` — fərqdən çıxan günlük saatlıq fakt. `derivation`
+    sütunu mənbəyi gizlətmir (`delta` / `direct`).
+- Yeni endpoint `POST /api/dashboard/analytics/hourly-save` (super_admin) —
+  `unnest` upsert, əvvəlki görüntünü YAZMAZDAN ƏVVƏL oxuyur (yoxsa fərq həmişə
+  sıfır çıxardı), audit yazır, xəta teşhis məlumatı ilə qaytarılır.
+- Yeni ekran `/dashboard/panel` → **🕐 Saatlıq satış**. Mövcud PRODMIX/ÇEK
+  yükləmə axınına TOXUNULMADI — ayrıca komponent (AGENTS.md §4).
+- **Dörd qayda, hamısı testlə bağlı** (`hourly-delta.test.ts`, 12 test):
+  - birinci fayl yalnız BAZA — 21 günün cəmi tək günə **yazılmır**;
+  - gün atlansa (21 → 24) fərq bir günə **yazılmır**, səbəb ekranda;
+  - eyni/köhnə fayl təkrar atılsa üzərinə yazılır, cəm şişmir;
+  - mənfi fərq (keçmişə düzəliş) **udulmur** — saxlanılır və sayılıb bildirilir.
+- Real fayl üzərində uçdan-uca yoxlandı: 3 899 sətir / 302 KB yük (Vercel
+  4,5 MB limitinin çox altında), simulyasiya edilmiş 22.08 faylı ilə fərq
+  128 178,44 ₼ / 6 061 qonaq, pik saat 21:00 (%10,14), mənfi 0, itən 0.
+- ⚠️ Faylın əhatə etdiyi son gün **istifadəçidən soruşulur** (standart «dünən»):
+  başlıqdakı «sonu 31.08.2026» *istənilən* aralıqdır, datanın bitdiyi gün deyil.
+
+### Changed — «`Uçot günü` əlavə olunsun» tələbi də LƏĞV OLUNDU
+- Bir gün əvvəl §7.7-də iiko-dan `Uçot günü` istənilməsi tövsiyə edilmişdi.
+  Kumulyativ fərq üsulu ilə **buna da ehtiyac qalmadı**. `parseHourlySales`
+  `Uçot günü` gələrsə yenə birbaşa oxuyur — dəstək itmir.
+
 ### Added — Saatlıq satış pivotu oxunur (`parseHourlySales`)
 - iiko-da bizim üçün qurulan «Doğan Tomris Rapor» hesabatı (`Ticarət
   müəssisəsi → Ödəniş növü → Bağlama saatı → Məhsul ilə satılıb`) artıq

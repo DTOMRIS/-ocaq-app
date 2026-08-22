@@ -4,6 +4,7 @@ import { useState, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
 import DetailUpload from './detail-upload'
+import HourlyUpload from './hourly-upload'
 import { computeAttainment, attainmentByRegion } from '@/lib/analytics/target-attainment'
 import { canonBranchKey } from '@/lib/analytics/filial-map'
 
@@ -312,6 +313,11 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           Ortalama çek, müştəri sayı və menyu analizinin mənbəyi budur.
           Panel verisi olsun-olmasın həmişə görünür (aşağıdaki bloklara toxunmur). */}
       {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><DetailUpload /></div>}
+
+      {/* SAATLIQ satış — AYRI komponent, çünki axın fərqlidir: fayl KUMULYATİVDİR
+          (ayın əvvəlindən bu günə), iki ardıcıl görüntünün fərqi günlük datanı verir.
+          Yuxarıdakı PRODMIX/ÇEK axınına toxunmur. */}
+      {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><HourlyUpload /></div>}
 
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>

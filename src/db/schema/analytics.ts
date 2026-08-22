@@ -104,3 +104,56 @@ export const analytics_item_fact = pgTable('analytics_item_fact', {
   index('aif_item_idx').on(t.tenant_id, t.item_name),
   index('aif_kind_idx').on(t.tenant_id, t.line_kind, t.business_date),
 ])
+
+// ─── SAATLIQ SATIŞ ──────────────────────────────────────────────────────────
+//
+// iiko-nun saatlıq hesabatında sətir səviyyəsində TARİX YOXDUR — fayl ayın
+// əvvəlindən bu günə qədərki KUMULYATİV cəmdir. İstifadəçi hər gün yenisini
+// atır; iki ardıcıl görüntünün FƏRQİ aradakı gündür (bax `hourly-delta.ts`).
+// Ona görə iki cədvəl var: xam görüntü + ondan çıxarılan günlük fakt.
+
+/** Faylın olduğu kimi yazıldığı KUMULYATİV görüntü. Təkrar yükləmə üzərinə yazır. */
+export const analytics_hourly_cume = pgTable('analytics_hourly_cume', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  tenant_id:    uuid('tenant_id').notNull().references(() => tenants.id),
+  branch_id:    uuid('branch_id').references(() => branches.id),
+  filial:       text('filial').notNull(),
+  period_start: date('period_start').notNull(),
+  // Faylın ƏHATƏ ETDİYİ son gün (daxil). Başlıqdakı «sonu» İSTƏNİLƏN aralığı
+  // göstərir (31.08 yazır, data 21.08-də bitir) → ona GÜVƏNİLMİR, istifadəçidən
+  // alınır.
+  period_end:   date('period_end').notNull(),
+  pay_type:     text('pay_type').notNull(),
+  hour:         integer('hour').notNull(),                 // 0–23
+  net:          numeric('net', { precision: 14, scale: 2 }).notNull(),
+  guests:       integer('guests'),
+  source:       text('source'),                            // LINEAGE — filtr DEYİL
+  updated_at:   timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('ahc_uq').on(t.tenant_id, t.period_start, t.period_end, t.filial, t.pay_type, t.hour),
+  index('ahc_period_idx').on(t.tenant_id, t.period_start, t.period_end),
+])
+
+/** İki kumulyativ görüntünün fərqindən çıxan GÜNLÜK saatlıq fakt. */
+export const analytics_hourly_fact = pgTable('analytics_hourly_fact', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  tenant_id:     uuid('tenant_id').notNull().references(() => tenants.id),
+  branch_id:     uuid('branch_id').references(() => branches.id),
+  filial:        text('filial').notNull(),
+  business_date: date('business_date').notNull(),
+  pay_type:      text('pay_type').notNull(),
+  hour:          integer('hour').notNull(),
+  net:           numeric('net', { precision: 14, scale: 2 }).notNull(),
+  guests:        integer('guests'),
+  // 'delta' = iki kumulyativ görüntünün fərqi; 'direct' = faylda `Uçot günü`
+  // sütunu olduğu üçün birbaşa oxunub. Dürüstlük sütunu: `delta` təxmin deyil,
+  // amma törəmədir — mənbəyi gizlətmirik.
+  derivation:    text('derivation').notNull().default('delta'),
+  source:        text('source'),
+  updated_at:    timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('ahf_uq').on(t.tenant_id, t.filial, t.business_date, t.pay_type, t.hour),
+  index('ahf_date_idx').on(t.tenant_id, t.business_date),
+  index('ahf_branch_idx').on(t.tenant_id, t.branch_id, t.business_date),
+  index('ahf_hour_idx').on(t.tenant_id, t.hour, t.business_date),
+])

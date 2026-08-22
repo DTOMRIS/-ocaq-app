@@ -377,19 +377,47 @@ icazə problemidir** — Rafael bəyə deyilməlidir.
 | `Bills` (çek sayı) yoxdur | Yalnız `Qonaqların sayı` var — o, çek deyil (real faylda çekdən ~%1,4 yuxarı). |
 | `Maya dəyəri` yoxdur | Food cost / marja yenə hesablanmır. |
 
-### 🔧 QƏRAR
+### 🔧 QƏRAR — ŞABLON QƏBUL EDİLDİ, iiko-DA HEÇ NƏ DƏYİŞMİR
 
-Fayl **şablon olur** — amma **tək başına yox, üçüncü fayl kimi**. Onu günlük
-cədvələ bağlamaq üçün **BİR dəyişiklik** kifayətdir, ikisindən biri:
+> İstifadəçi qərarı (22.08.2026): «bunu 21 günlük olaraq qeyd et, mən hər gün
+> ocağa yenisini atım, amma **toplamdan davam etsin**».
 
-1. **Tövsiyə olunan:** hesabata **`Uçot günü`** ən üst qruplaşdırma səviyyəsi
-   kimi əlavə edilsin. Onda ay boyu tək fayl da işləyir, gün də bilinir.
-2. **Alternativ (heç nə dəyişdirmədən):** eyni hesabat **TƏK GÜNLÜK** endirilsin
-   — `Dövrün: əvvəli 21.08.2026 sonu 21.08.2026`. Başlıqdakı dövr tək günə
-   bərabər olanda parser tarixi oradan götürür. Fayl da ~400 KB-a düşür.
+Fayl **olduğu kimi qəbul olunur**. `Uçot günü` tələb etmirik — çünki
+**KUMULYATİV FƏRQ** üsulu ilə gün-gün data onsuz da çıxarılır:
 
-Hər ikisi kodda dəstəklənir (`parseHourlySales`). Heç biri yoxdursa **gün
-uydurulmur** — `canWriteDaily = false` qaytarılır və səbəb ekranda yazılır.
+```
+01.08–21.08 kumulyativ cəm   ─┐
+                              ├─  fərq  =  22 avqust
+01.08–22.08 kumulyativ cəm   ─┘
+```
+
+İstifadəçi hər gün yenisini atır; sistem əvvəlki görüntü ilə fərqi alır və
+həmin günün saatlıq datasını yazır. **iiko-da bir dənə də ayar dəyişmir.**
+
+Texniki tərəf: `analytics_hourly_cume` (görüntü, idempotent) +
+`analytics_hourly_fact` (fərqdən çıxan günlük fakt) — migration `0013`,
+məntiq `src/lib/analytics/hourly-delta.ts`, endpoint
+`/api/dashboard/analytics/hourly-save`, ekran `/dashboard/panel` → 🕐 Saatlıq satış.
+
+**Dörd qayda — hamısı testlə bağlıdır:**
+
+| Vəziyyət | Davranış |
+|---|---|
+| **Birinci fayl** (əvvəlki görüntü yoxdur) | Yalnız BAZA saxlanılır. 21 günün cəmi tək günə **YAZILMIR**. |
+| **Ardıcıl gün** (21 → 22) | Fərq həmin günə yazılır. ✅ |
+| **Gün atlanıb** (21 → 24) | Fərq **bir günə yazılmır** — hansı gün nə qədərdir bilinmir. Görüntü yenilənir, səbəb ekranda yazılır. |
+| **Eyni fayl təkrar / köhnə fayl** | Üzərinə yazılır, cəm **ŞİŞMİR**; günlük data toxunulmur. |
+
+Mənfi fərq (keçmiş günə düzəliş/ləğv) **udulmur** — olduğu kimi saxlanılır və
+ayrıca sayılıb xəbərdarlıqda göstərilir.
+
+⚠️ **Faylın son günü İSTİFADƏÇİDƏN soruşulur.** Başlıqdakı «sonu 31.08.2026»
+*istənilən* aralıqdır, datanın bitdiyi gün deyil (real faylda başlıq 31.08
+yazır, data 21.08-də bitir). Standart dəyər «dünən» — hesabat səhər çıxarılır.
+
+`Uçot günü` sütunu gələcəkdə əlavə olunsa, yaxud fayl tək günlük endirilsə,
+parser tarixi birbaşa oradan götürür (`parseHourlySales` hər ikisini dəstəkləyir).
+Heç biri yoxdursa **gün uydurulmur**.
 
 ### Qruplaşdırma haqqında əvvəlki tövsiyə LƏĞV OLUNDU
 
@@ -413,14 +441,14 @@ Yalnız üçüncüsündə bir export ayarı dəyişir:
 |---|---|---|
 | **1. Məhsul** (`avqust plan` → BAZA 2026) | ✅ **İŞLƏYİR** — kod, ad, ədəd, məbləğ var | **Heç nə. Olduğu kimi davam.** (mümkünsə `Maya dəyəri` + `Kateqoriya`) |
 | **2. Ödəniş/çek** (`ödəniş şərtləri` → Baza 2026) | ✅ **İŞLƏYİR** — qəbz nömrəsi, ödəniş növü var | **Heç nə. Olduğu kimi davam.** |
-| **3. Saatlıq** (`Doğan Tomris Rapor`) | ⚠️ format DÜZGÜN, GÜN yoxdur | **`Uçot günü` qruplaşdırma səviyyəsi əlavə olunsun** — ya da eyni hesabat tək günlük endirilsin (§7.7) |
+| **3. Saatlıq** (`Doğan Tomris Rapor`) | ✅ **İŞLƏYİR** — olduğu kimi | **Heç nə.** Hər gün yenisi atılır, sistem kumulyativ fərqdən günü çıxarır (§7.7) |
 
-**Yəni tək iş: 3-cü fayla GÜNÜ əlavə etmək.** Bu, iiko-da bir qruplaşdırma
-səviyyəsidir — yeni hesabat qurmaq deyil.
+**Yəni artıq iiko-da HEÇ NƏ dəyişmir.** Üç hesabat da olduğu kimi davam edir.
 
-> 22.08.2026 yeniləməsi: əvvəl bu sətirdə «qruplaşdırma söndürülsün» yazılırdı.
-> **Ləğv olundu** — parser pivotu olduğu kimi oxuyur və qruplaşdırma qonaq
-> sayının düzgün olması üçün LAZIMDIR. Bax §7.7.
+> 22.08.2026 yeniləməsi (iki dəfə düzəldildi): əvvəl «qruplaşdırma söndürülsün»
+> yazılırdı → **ləğv olundu** (qruplaşdırma qonaq sayı üçün lazımdır). Sonra
+> «`Uçot günü` əlavə olunsun» yazıldı → **o da lazım deyil**: kumulyativ fərq
+> üsulu günü onsuz da verir. Bax §7.7.
 
 ### Niyə bu variant daha yaxşıdır (birləşik fayldan)
 
@@ -439,8 +467,8 @@ səviyyəsidir — yeni hesabat qurmaq deyil.
 | Top 5 ən çox / ən az satılan məhsul | fayl 1 | ✅ hazır |
 | Satış və çekin bölgə üzrə faiz payı | fayl 1+2 | ✅ hazır |
 | Top 5 filial (satış və çek) | fayl 1+2 | ✅ hazır |
-| **Saatlıq satış, ödəniş növü, qonaq başına gəlir** | **fayl 3** | ✅ parser hazır (`parseHourlySales`) — dövr səviyyəsində OXUNUR |
-| Saatlıq satışın GÜN-GÜN müqayisəsi | fayl 3 | ⏳ `Uçot günü` əlavə olunanda (ya da tək günlük endiriləndə) |
+| **Saatlıq satış, ödəniş növü, qonaq başına gəlir** | **fayl 3** | ✅ hazır (`parseHourlySales`) |
+| **Saatlıq satışın GÜN-GÜN müqayisəsi** | **fayl 3** | ✅ hazır — kumulyativ fərq (2-ci fayldan etibarən) |
 
 ## 8. ALTERNATİV — TƏK BİRLƏŞİK FAYL (yalnız §8.0 mümkün olmazsa)
 
