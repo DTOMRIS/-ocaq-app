@@ -39,7 +39,7 @@ type SaveResult = {
   periodStart: string; periodEnd: string
   cumeWritten: number; cumeNet: number; merged: number; rejected: number
   prevEnd: string | null; deltaDate: string | null; spanDays: number
-  deltaNet: number; deltaGuests: number; dailyWritten: number
+  deltaNet: number; deltaGuests: number; dailyWritten: number; derivation: 'delta' | 'direct'
   negatives: number; negativesSample: Array<{ filial: string; payType: string; hour: number; net: number }>
   vanished: number; warnings: string[]; unmatchedBranches: string[]
 }
@@ -92,11 +92,15 @@ export default function HourlyUpload() {
     if (!rep || !rep.rows.length) return
     setBusy(true); setErr(null); setPhase('Yazılır…')
     try {
+      // Başlıqdan dövr başlanğıcı oxunmasa ayın 1-i götürülür — hesabat həmişə
+      // ayın əvvəlindən çıxarılır. Bu, tək bir başlıq dəyişikliyinin bütün
+      // axını bloklamasının qarşısını alır; seçim ekranda da yazılır.
+      const periodStart = rep.period.from ?? `${coverEnd.slice(0, 8)}01`
       const res = await fetch('/api/dashboard/analytics/hourly-save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          periodStart: rep.period.from,
+          periodStart,
           periodEnd: coverEnd,
           source: file?.name?.slice(0, 120) ?? null,
           rows: rep.rows.map(r => ({ filial: r.filial, payType: r.payType, hour: r.hour, net: r.net, guests: r.guests })),
@@ -173,6 +177,8 @@ export default function HourlyUpload() {
                 <div style={{ fontSize: 12, color: '#6b655c', lineHeight: 1.6 }}>
                   Fayl başlığı «{rep.period.raw ?? '—'}» yazır — bu, <b>istənilən</b> aralıqdır, datanın bitdiyi gün deyil.
                   Ona görə soruşuruq. «22 avqusta kimi, 21 avqust daxil» faylı üçün <b>21.08</b> seçilməlidir.
+                  {' '}Dövrün başlanğıcı: <b>{rep.period.from ?? `${coverEnd.slice(0, 8)}01`}</b>
+                  {!rep.period.from && ' (başlıqdan oxunmadı — ayın 1-i götürüldü)'}.
                 </div>
               </div>
 
@@ -202,7 +208,11 @@ export default function HourlyUpload() {
             <Note tone="green">
               <b>Günlük data çıxarıldı: {result.deltaDate}</b> — {money(result.deltaNet)} ·
               {' '}{int(result.deltaGuests)} qonaq · {int(result.dailyWritten)} saat sətri.
-              {' '}<span style={{ color: '#6b655c' }}>(əvvəlki görüntü {result.prevEnd} ilə fərq)</span>
+              {' '}<span style={{ color: '#6b655c' }}>
+                ({result.derivation === 'direct'
+                  ? 'dövr tək gündür — birbaşa yazıldı'
+                  : `əvvəlki görüntü ${result.prevEnd} ilə fərq`})
+              </span>
             </Note>
           ) : (
             <Note tone="amber">

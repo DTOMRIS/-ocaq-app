@@ -106,13 +106,18 @@ export async function POST(req: NextRequest) {
     // ── 1. ƏVVƏLKİ görüntünü ƏVVƏLCƏ oxu ────────────────────────────────────
     // Yenisini yazmazdan ƏVVƏL: eyni dövr sonu təkrar göndərilibsə öz üzərinə
     // yazıb özü ilə fərq alsaydıq nəticə həmişə sıfır çıxardı.
+    //
+    // ⚠️ `sqlClient.query()` bu sürücüdə (`@neondatabase/serverless`, neon-http,
+    // `fullResults` sönülü) SƏTİR MASSİVİNİ BİRBAŞA qaytarır — `{ rows }` obyekti
+    // DEYİL. `q.rows` yazsaq `undefined` alınar və fərq hesabı SƏSSİZCƏ heç vaxt
+    // işləməzdi. Repoda mövcud desən budur (`checklists/route.ts` → `rows[0]`).
     const prevQ = await sqlClient.query(`
       select period_end from analytics_hourly_cume
       where tenant_id = $1::uuid and period_start = $2::date and period_end < $3::date
       order by period_end desc limit 1
-    `, [tenantId, periodStart, periodEnd])
-    const prevEnd: string | null = prevQ.rows?.[0]?.period_end
-      ? String(prevQ.rows[0].period_end).slice(0, 10)
+    `, [tenantId, periodStart, periodEnd]) as Array<{ period_end: unknown }>
+    const prevEnd: string | null = prevQ?.[0]?.period_end
+      ? String(prevQ[0].period_end).slice(0, 10)
       : null
 
     let prevRows: CumeRow[] | null = null
@@ -120,8 +125,8 @@ export async function POST(req: NextRequest) {
       const q = await sqlClient.query(`
         select filial, pay_type, hour, net, guests from analytics_hourly_cume
         where tenant_id = $1::uuid and period_start = $2::date and period_end = $3::date
-      `, [tenantId, periodStart, prevEnd])
-      prevRows = (q.rows ?? []).map((x: Record<string, unknown>) => ({
+      `, [tenantId, periodStart, prevEnd]) as Array<Record<string, unknown>>
+      prevRows = (q ?? []).map(x => ({
         filial: String(x.filial),
         payType: String(x.pay_type),
         hour: Number(x.hour),
@@ -156,14 +161,33 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Fərqi hesabla və günlük cədvələ yaz ──────────────────────────────
-    const delta = diffCumulative(prevRows, prevEnd, rows, periodEnd)
+    //
+    // AY DÖNÜŞÜ HALI: ayın 1-də kumulyativ fayl ONSUZ DA tək gündür
+    // (`əvvəli 01.09` … əhatə etdiyi son gün 01.09). Burada fərqə ehtiyac
+    // yoxdur — sətirlər BİRBAŞA həmin günə aiddir. Bu olmasaydı hər ayın
+    // 1-i «baza» sayılıb günlük datasız qalardı.
+    const singleDayPeriod = periodStart === periodEnd
+    const delta = singleDayPeriod
+      ? {
+          rows: rows.map(r => ({ ...r, date: periodEnd })),
+          date: periodEnd, spanDays: 1,
+          totals: {
+            net: Math.round(rows.reduce((s, r) => s + r.net, 0) * 100) / 100,
+            guests: rows.reduce((s, r) => s + r.guests, 0),
+          },
+          negatives: [], vanished: 0,
+          canWriteDaily: rows.length > 0,
+          warnings: ['Dövr tək gündür — fərqə ehtiyac yoxdur, sətirlər birbaşa həmin günə yazıldı.'],
+        }
+      : diffCumulative(prevRows, prevEnd, rows, periodEnd)
+    const derivation = singleDayPeriod ? 'direct' : 'delta'
     let dailyWritten = 0
     if (delta.canWriteDaily && delta.rows.length) {
       const d = delta.rows
       await sqlClient.query(`
         insert into analytics_hourly_fact
           (tenant_id, branch_id, filial, business_date, pay_type, hour, net, guests, derivation, source)
-        select $1::uuid, t.branch_id, t.filial, $2::date, t.pay_type, t.hour, t.net, t.guests, 'delta', $3::text
+        select $1::uuid, t.branch_id, t.filial, $2::date, t.pay_type, t.hour, t.net, t.guests, $10::text, $3::text
         from unnest($4::uuid[], $5::text[], $6::text[], $7::integer[], $8::numeric[], $9::integer[])
           as t(branch_id, filial, pay_type, hour, net, guests)
         on conflict (tenant_id, filial, business_date, pay_type, hour) do update set
@@ -181,6 +205,7 @@ export async function POST(req: NextRequest) {
         d.map(r => r.hour),
         d.map(r => r.net.toFixed(2)),
         d.map(r => r.guests),
+        derivation,
       ])
       dailyWritten = d.length
     }
@@ -198,7 +223,7 @@ export async function POST(req: NextRequest) {
           cumeWritten: rows.length, merged, rejected: rejected.length, source,
           cumeNet: Number(cumeNet.toFixed(2)),
           prevEnd, deltaDate: delta.date, spanDays: delta.spanDays,
-          dailyWritten, deltaNet: delta.totals.net,
+          dailyWritten, deltaNet: delta.totals.net, derivation,
           negatives: delta.negatives.length, vanished: delta.vanished,
           unmatchedBranches: [...unmatched],
         }),
@@ -218,6 +243,7 @@ export async function POST(req: NextRequest) {
       deltaNet: delta.totals.net,
       deltaGuests: delta.totals.guests,
       dailyWritten,
+      derivation,
       negatives: delta.negatives.length,
       negativesSample: delta.negatives.slice(0, 5),
       vanished: delta.vanished,
