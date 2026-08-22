@@ -34,7 +34,15 @@ import { normalizeFilial, EXCLUDE } from './filial-map'
 // Bu, dil sıralaması üçün deyil, YALNIZ açar söz uyğunlaşdırması üçündür.
 // ─────────────────────────────────────────────────────────────────────────────
 export function azFold(v: unknown): string {
-  return String(v ?? '').replace(/[\u0130\u0131Ii]/g, 'i').toLowerCase().trim()
+  return String(v ?? '')
+    // \u26a0\ufe0f 22.08.2026 \u2014 G\u00d6R\u00dcNM\u018fZ S\u0130MVOLLAR. iiko-nun \u0130ngilis dilli export-unda
+    // ba\u015fl\u0131q \u00abNumber of \ufeffitems\u00bb \u015f\u0259klind\u0259 g\u0259lir: s\u00f6z ARASINDA BOM var.
+    // T\u0259mizl\u0259nm\u0259s\u0259 `/number of items/` nax\u0131\u015f\u0131 UY\u011eUN G\u018fLM\u0130R v\u0259 s\u00fctun \u00abyoxdur\u00bb
+    // say\u0131l\u0131r \u2014 g\u00f6zl\u0259 g\u00f6r\u00fcnm\u0259y\u0259n s\u0259b\u0259bd\u0259n b\u00fct\u00fcn fayl oxunmaz olur.
+    .replace(/[\ufeff\u200b-\u200d\u2060\u00a0]/g, m => (m === '\u00a0' ? ' ' : ''))
+    .replace(/[\u0130\u0131Ii]/g, 'i').toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
