@@ -312,12 +312,21 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           `analytics_daily_fact` / `analytics_item_fact`-a upsert olunur.
           Ortalama çek, müştəri sayı və menyu analizinin mənbəyi budur.
           Panel verisi olsun-olmasın həmişə görünür (aşağıdaki bloklara toxunmur). */}
-      {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><DetailUpload /></div>}
-
-      {/* SAATLIQ satış — AYRI komponent, çünki axın fərqlidir: fayl KUMULYATİVDİR
-          (ayın əvvəlindən bu günə), iki ardıcıl görüntünün fərqi günlük datanı verir.
-          Yuxarıdakı PRODMIX/ÇEK axınına toxunmur. */}
-      {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><HourlyUpload /></div>}
+      {/* İKİ QUTU BİR BAŞLIQ ALTINDA. Əvvəl ayrı-ayrı dururdular və saatlıq fayl
+          səhv qutuya atıldı. İndi hansı faylın hara getdiyi BİR SƏTİRDƏ yazılır;
+          səhv qutuya atılsa parser tanıyıb doğru qutunu göstərir. */}
+      {canUpload && (
+        <div className="no-print" style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>📥 iiko faylını yüklə</div>
+            <div style={{ fontSize: 12, color: '#8b8378' }}>
+              Məhsul/çek faylı → <b>📦</b> · Saatlıq hesabat → <b>🕐</b>
+            </div>
+          </div>
+          <DetailUpload />
+          <HourlyUpload />
+        </div>
+      )}
 
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>

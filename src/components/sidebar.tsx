@@ -9,6 +9,7 @@ const NAV: NavItem[] = [
   { href: '/dashboard', icon: '◈', label: 'İdarə paneli', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/analitika', icon: '📊', label: 'Analitika', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/panel', icon: '📈', label: 'Günlük Panel', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/saatlik', icon: '🕐', label: 'Saatlıq Satış', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/kasa-banka', icon: '🏦', label: 'Kasa/Banka', roles: ['super_admin'] },
   { href: '/dashboard/menyu', icon: '🍔', label: 'Menü', roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/promosyonlar', icon: '🎁', label: 'Promosyonlar', roles: ['super_admin', 'region_manager', 'branch_manager'] },

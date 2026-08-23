@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseHourlySales, type HourlySalesReport } from '@/lib/analytics/parse-iiko-reports'
@@ -240,9 +241,16 @@ export default function HourlyUpload() {
             </Note>
           )}
 
-          <button onClick={reset} style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: 10, border: '1px solid #d8d2c6', background: '#faf8f4', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-            yeni fayl
-          </button>
+          {/* Yazdıqdan sonra datanın GÖRÜNDÜYÜ yerə birbaşa keçid. Əvvəl belə bir
+              keçid yox idi və istifadəçi «yüklədim, çıxmadı» dedi — haqlıydı. */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href="/dashboard/saatlik" style={{ padding: '9px 18px', borderRadius: 10, background: '#26221d', color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>
+              🕐 Saatlıq satışa bax →
+            </Link>
+            <button onClick={reset} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #d8d2c6', background: '#faf8f4', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              yeni fayl
+            </button>
+          </div>
         </div>
       )}
     </div>
