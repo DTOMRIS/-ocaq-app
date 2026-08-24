@@ -6,6 +6,45 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — TƏK FAYL, ÜÇ İSTƏK: «Satış ay və gün» hesabatı bağlandı
+- İstifadəçinin üç tələbi (① saatlıq filial satışı ② məhsul satışı
+  ③ kart/Wolt/Bolt) üçün doğru fayl tapıldı: **«Satış ay və gün»** —
+  `Ticarət müəssisəsi | Ödəniş növü | Uçot günü | Bağlama saatı →
+  Endirimli məbləğ + Qonaqların sayı`.
+- Bu fayl `Uçot günü` DAŞIYIR → kumulyativ fərq hesabına **ehtiyac yoxdur**,
+  sətirlər birbaşa öz gününə yazılır. Fayl da kiçikdir (1,8 MB / 47 324 sətir;
+  əvvəlki namizədlər 8–11 MB idi).
+- Mövcud `parseHourlySales` bu faylı **olduğu kimi oxudu** — yeni parser
+  yazılmadı. Doğrulama: oxunan **2 978 124,02 ₼** = faylın «Grand Total»-ı,
+  fərq **0,00**. 30 filial · 13 ödəniş növü · 24 saat · **24 gün**.
+- Yeni `hourlyToDailyFacts()` — saatlıq sətirləri MÖVCUD `analytics_daily_fact`
+  formatına çevirir (ödəniş səbətləri + `__day__` sentinel). 43 074 saatlıq
+  sətir → 3 444 günlük sətir, cəm eyni (0,00 fərq), tanınmayan ödəniş növü
+  YOX. Beləliklə dashboard və Analitika səhifələri də bu tək fayldan dolur.
+- `hourly-save` endpoint-inə **'dated' rejimi** əlavə olundu: hər sətir öz
+  gününü daşıdığı üçün fərq maşınına toxunulmur, `derivation='direct'` yazılır.
+  Kumulyativ rejim silinmədi — köhnə fayl formatı üçün işləməyə davam edir.
+- Yükləmə ekranı iki rejimi özü ayırır: faylda `Uçot günü` varsa **tarix
+  soruşulmur** (soruşmaq səhv cavab riski yaradırdı), 4 000-lik chunk-larla
+  yazılır, sonra günlük fakt mövcud `fact-save` endpoint-inə göndərilir.
+- Uçdan-uca REAL Postgres-də (PGlite) yoxlandı: 3 migration + real fayl →
+  `analytics_hourly_fact` 2 978 124,02 ₼ / 43 074 sətir / 24 gün,
+  `analytics_daily_fact` (`__day__`) 2 978 124,02 ₼ / 144 902 çek,
+  **təkrar yükləmədə cəm şişmədi**, Analitika sorğuları doğru cavab verdi.
+
+### Fixed — «qonaq sayı çek deyil» ifadəsi ÖLÇÜLDÜ və yumşaldıldı
+- Əvvəl parser şərtsiz «Çek sayı DEYİL» yazırdı. Real data ilə ölçüldü:
+  01–21.08 üzrə **124 968 qonaq ↔ 123 720 «Bills» = %1,01 fərq** (filial
+  səviyyəsində −%1,90…+%3,33; hər iki tərəfdən Nərimanov çıxarılmaqla).
+  Yəni qonaq sayı çek sayının işlək qarşılığıdır və ayrıca `Bills` hesabatı
+  İSTƏMƏYƏ EHTİYAC YOXDUR. Mətn ölçülmüş rəqəmlə dəyişdirildi.
+
+### Fixed — «qonaq sayı şişikdir» xəbərdarlığı YALAN HALDA VERİLİRDİ
+- Xəbərdarlıq şərtsiz verilirdi. Təkrar sayım YALNIZ saatdan dərin ölçü
+  (`Məhsul ilə satılıb`) olanda yaranır; «Satış ay və gün» faylında ən dərin
+  səviyyə saatdır → təkrar YOXDUR. Şərt `cItem >= 0` ilə məhdudlaşdırıldı.
+
+
 ### Added — Saatlıq satış KUMULYATİV axını: hər gün yeni fayl, toplamdan davam
 - İstifadəçi qərarı: «bunu 21 günlük olaraq qeyd et, mən hər gün ocağa yenisini
   atım, amma **toplamdan davam etsin**». iiko-da **heç bir ayar dəyişmir**.

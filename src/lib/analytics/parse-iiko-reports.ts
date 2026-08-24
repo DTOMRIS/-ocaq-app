@@ -1,4 +1,4 @@
-import { azFold, excelSerialToISO } from './parse-sales-detail'
+import { azFold, excelSerialToISO, normalizePayment } from './parse-sales-detail'
 import { normalizeFilial, EXCLUDE } from './filial-map'
 
 /**
@@ -626,8 +626,21 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
   // Pivotun ara cəmləri varsa ONLAR əsasdır (qonaq sayı yalnız orada düzgündür).
   const usedSubtotals = sub.size > 0
   const merged = usedSubtotals ? [...sub.values()] : [...leaf.values()]
-  if (!usedSubtotals && cGuests >= 0 && leaf.size) {
-    warnings.push('Pivotun saat ara cəm sətirləri («00 Total») tapılmadı — qonaq sayı yarpaq sətirlərdən yığılır və TƏKRAR SAYIM səbəbindən ŞİŞİKDİR. Ciro düzgündür. Hesabatı ara cəmlərlə birlikdə endir.')
+  // TƏKRAR SAYIM YALNIZ SAATDAN DAHA DƏRİN SƏVİYYƏ VARSA OLUR.
+  //
+  // «Doğan Tomris Rapor»-da ən dərin səviyyə `Məhsul ilə satılıb` idi → eyni
+  // qonaq hər məhsul sətrində yenidən sayılırdı (557 515 ↔ düzgünü 129 130),
+  // ona görə ölçü rəqəmləri ara cəmdən götürülməli idi.
+  //
+  // «Satış ay və gün» hesabatında isə ən dərin səviyyə SAATDIR: hər
+  // filial × ödəniş × gün × saat kombinasiyası TƏK sətirdir → təkrar YOXDUR,
+  // yarpaqdan toplamaq DÜZGÜNDÜR. Ölçüldü: 01–21.08 üzrə 124 968 qonaq ↔
+  // «Bills» 123 720 = **%1,01** fərq (filial üzrə −%1,90…+%3,33).
+  //
+  // Ona görə xəbərdarlıq YALNIZ dərin sütun (`cItem`) varsa verilir. Əvvəl
+  // şərtsiz verilirdi və düzgün faylda da «rəqəm şişikdir» yazırdı — yalan idi.
+  if (!usedSubtotals && cGuests >= 0 && leaf.size && cItem >= 0) {
+    warnings.push('Pivotun saat ara cəm sətirləri («00 Total») tapılmadı, lakin saatdan dərin sütun («Məhsul…») var — qonaq sayı yarpaqdan yığıldığı üçün TƏKRAR SAYIMLA ŞİŞİKDİR. Ciro düzgündür. Hesabatı ara cəmlərlə endirin, ya da məhsul sütununu çıxarın.')
   }
 
   const net = merged.reduce((s, x) => s + x.net, 0)
@@ -651,8 +664,15 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
   if (cItem >= 0) {
     warnings.push('Bu hesabatdakı «Məhsulların sayı» ölçü (dimension) kimi qurulub, say kimi deyil — məhsul ƏDƏDİ buradan OXUNMUR, «Satiş Hesabati Mehsullar Uzre» faylından götürülür.')
   }
+  // ÇEK SAYISI ƏVƏZİNƏ QONAQ SAYI — ÖLÇÜLDÜ, İSTİFADƏ OLUNA BİLƏR.
+  // 01–21.08 real data ilə «Satış-filiallar üzrə» hesabatının `Bills` sütununa
+  // qarşı yoxlanıldı: 124 968 ↔ 123 720 = **%1,01** fərq (Nərimanov hər iki
+  // tərəfdən çıxarılmaqla). Filial səviyyəsində sapma −%1,90…+%3,33.
+  // Yəni gündəlik idarəetmə üçün çek sayı kimi işlədilə bilər; ayrıca `Bills`
+  // hesabatı İSTƏMƏYƏ EHTİYAC YOXDUR. Fərqin səbəbi qorunur (bir qəbzdə iki
+  // qonaq, ya da qəbzin iki saata/ödəniş növünə düşməsi), amma böyüdülmür.
   if (cGuests >= 0) {
-    warnings.push('«Qonaqların sayı» saat və ödəniş növü səviyyəsində sayılır — bir qəbz iki saata/iki ödəniş növünə düşübsə iki dəfə sayıla bilər (real faylda şəbəkə üzrə ~%1,4 yuxarı). Çek sayı DEYİL — çek sayı «Satış-filiallar üzrə» faylının `Bills` sütunundadır.')
+    warnings.push('«Qonaqların sayı» çek sayının yaxın qarşılığıdır — real data ilə ölçüldü: «Bills»-dən cəmi %1,01 yuxarı (filial üzrə −%1,90…+%3,33). Ortalama çek bu fərq daxilində doğrudur.')
   }
   // İKİ MÜSTƏQİL YOL BİR-BİRİNİ YOXLAYIR: ara cəmlərdən gələn ciro ilə
   // yarpaq sətirlərdən gələn ciro üst-üstə düşməlidir.
@@ -729,4 +749,95 @@ export function deletionRatio(
       count: b.count,
     }
   }).sort((a, b) => (b.pctClean ?? -1) - (a.pctClean ?? -1))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. SAATLIQ SƏTİRLƏR → GÜNLÜK FAKT (mövcud `analytics_daily_fact` formatı)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `parseHourlySales` nəticəsini MÖVCUD günlük fakt formatına çevirir.
+ *
+ * NİYƏ: «Satış ay və gün» hesabatında `Uçot günü` VAR, yəni bu tək fayl həm
+ * saatlıq cədvəli, həm də dashboard/analitika-nın oxuduğu `analytics_daily_fact`
+ * cədvəlini doldura bilər. Ayrı PRODMIX/ÇEK faylına ehtiyac qalmır.
+ *
+ * İKİ NÖV SƏTİR ÇIXIR (mövcud sxemin qaydası — `fact-save/route.ts`):
+ *   1. Ödəniş növü sətirləri — `payment_type` = nagd/kart/wolt/bolt/…
+ *      Yalnız MƏBLƏĞ daşıyır.
+ *   2. `__day__` sentinel sətri — günün CƏMİ + ÇEK SAYI.
+ *      Çek sayı ödəniş növlərinə BÖLÜNMÜR: bir qəbz həm nağd həm kart ola
+ *      bilər, paylasaq müştəri sayı şişər. Ona görə gün başına BİR dəfə.
+ *
+ * ⚠️ ÇEK SAYI = `Qonaqların sayı`. Real data ilə ölçüldü: «Bills» sütununa
+ * qarşı %1,01 fərq (filial üzrə −%1,90…+%3,33). Dəqiq çek deyil, lakin
+ * gündəlik idarəetmə üçün etibarlıdır — və başqa mənbə tələb etmir.
+ *
+ * ⚠️ TANINMAYAN ÖDƏNİŞ NÖVÜ UDULMUR: `normalizePayment` null qaytarsa məbləğ
+ * ATILMIR — `unmapped` siyahısına yazılır və `__day__` cəmində QALIR, yəni
+ * günün cirosu tam olur. Səssiz itki olmaz.
+ */
+export type DailyFactRow = {
+  filial: string
+  date: string
+  payment_type: string
+  amount: number
+  receipts?: number | null
+}
+
+export function hourlyToDailyFacts(rows: HourlySalesRow[]): {
+  rows: DailyFactRow[]
+  unmapped: Array<{ payType: string; amount: number }>
+  days: string[]
+  totals: { amount: number; receipts: number }
+} {
+  // (filial|gün) → { kind → məbləğ, cəm, qonaq }
+  const byDay = new Map<string, {
+    filial: string; date: string
+    kinds: Map<string, number>
+    total: number; guests: number
+  }>()
+  const unmappedM = new Map<string, number>()
+
+  for (const r of rows) {
+    if (!r.date) continue          // günü bilinməyən sətir günlük cədvələ getmir
+    const k = `${r.filial}|${r.date}`
+    let e = byDay.get(k)
+    if (!e) { e = { filial: r.filial, date: r.date, kinds: new Map(), total: 0, guests: 0 }; byDay.set(k, e) }
+    e.total += r.net
+    e.guests += r.guests
+    const kind = normalizePayment(r.payType)
+    if (kind) e.kinds.set(kind, (e.kinds.get(kind) ?? 0) + r.net)
+    else unmappedM.set(r.payType, (unmappedM.get(r.payType) ?? 0) + r.net)
+  }
+
+  const out: DailyFactRow[] = []
+  for (const e of byDay.values()) {
+    for (const [kind, amount] of e.kinds) {
+      if (amount === 0) continue
+      out.push({ filial: e.filial, date: e.date, payment_type: kind, amount: round2(amount) })
+    }
+    // Gün cəmi + çek sayı — HƏMİŞƏ yazılır (ödəniş növü tanınmasa belə cəm tam).
+    out.push({
+      filial: e.filial, date: e.date, payment_type: '__day__',
+      amount: round2(e.total),
+      receipts: Math.round(e.guests),
+    })
+  }
+
+  return {
+    rows: out,
+    unmapped: [...unmappedM.entries()]
+      .map(([payType, amount]) => ({ payType, amount: round2(amount) }))
+      .sort((a, b) => b.amount - a.amount),
+    days: [...new Set(out.map(r => r.date))].sort(),
+    totals: {
+      amount: round2(out.filter(r => r.payment_type === '__day__').reduce((s, r) => s + r.amount, 0)),
+      receipts: out.filter(r => r.payment_type === '__day__').reduce((s, r) => s + (r.receipts ?? 0), 0),
+    },
+  }
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100
 }

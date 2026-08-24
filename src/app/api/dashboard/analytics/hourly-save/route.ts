@@ -39,7 +39,7 @@ const MAX_ROWS = 12000
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/
 
-type InRow = { filial: string; payType: string; hour: number; net: number; guests?: number | null }
+type InRow = { filial: string; payType: string; hour: number; net: number; guests?: number | null; date?: string | null }
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -48,8 +48,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   }
 
-  let body: { periodStart?: unknown; periodEnd?: unknown; rows?: unknown; source?: unknown }
+  let body: { periodStart?: unknown; periodEnd?: unknown; rows?: unknown; source?: unknown; mode?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON oxunmadı' }, { status: 400 }) }
+
+  // ── İKİ REJİM ───────────────────────────────────────────────────────────────
+  //
+  // 'dated'  — faylda `Uçot günü` VAR («Satış ay və gün» hesabatı). Hər sətir
+  //            öz gününü daşıyır → BİRBAŞA yazılır, fərq hesabına ehtiyac yox.
+  //            Bu ƏSAS və TƏRCİH EDİLƏN rejimdir.
+  //
+  // 'cume'   — faylda gün YOX («Doğan Tomris Rapor»). Kumulyativ görüntü
+  //            saxlanılır, iki ardıcıl görüntünün fərqi günü verir. Köhnə
+  //            fayl formatı üçün saxlanılır — silmirik ki mövcud axın sınmasın.
+  const mode = body.mode === 'dated' ? 'dated' : 'cume'
+
+  if (!Array.isArray(body.rows)) return NextResponse.json({ error: 'rows massiv olmalıdır' }, { status: 400 })
+  if (body.rows.length > MAX_ROWS) {
+    return NextResponse.json({ error: `Maksimum ${MAX_ROWS} sətir (gələn: ${body.rows.length})` }, { status: 413 })
+  }
+
+  if (mode === 'dated') return saveDated(session, body.rows as InRow[], typeof body.source === 'string' ? body.source.slice(0, 120) : null)
 
   const periodStart = typeof body.periodStart === 'string' && ISO.test(body.periodStart) ? body.periodStart : null
   const periodEnd = typeof body.periodEnd === 'string' && ISO.test(body.periodEnd) ? body.periodEnd : null
@@ -57,10 +75,6 @@ export async function POST(req: NextRequest) {
   if (!periodEnd) return NextResponse.json({ error: 'periodEnd YYYY-MM-DD formatında olmalıdır' }, { status: 400 })
   if (periodEnd < periodStart) {
     return NextResponse.json({ error: 'Dövrün sonu başlanğıcdan əvvəl ola bilməz' }, { status: 400 })
-  }
-  if (!Array.isArray(body.rows)) return NextResponse.json({ error: 'rows massiv olmalıdır' }, { status: 400 })
-  if (body.rows.length > MAX_ROWS) {
-    return NextResponse.json({ error: `Maksimum ${MAX_ROWS} sətir (gələn: ${body.rows.length})` }, { status: 413 })
   }
   const source = typeof body.source === 'string' ? body.source.slice(0, 120) : null
 
@@ -263,6 +277,136 @@ export async function POST(req: NextRequest) {
       cause: err?.sourceError?.message ?? null,
     }
     console.error('hourly-save error:', detail, meta)
+    return NextResponse.json({ error: 'Yazma xətası', detail, meta }, { status: 500 })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 'dated' REJİMİ — hər sətir öz gününü daşıyır
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * «Satış ay və gün» hesabatı üçün. Faylda `Uçot günü` olduğu üçün fərq
+ * hesabına EHTİYAC YOXDUR — sətirlər birbaşa `analytics_hourly_fact`-a yazılır.
+ *
+ * NİYƏ AYRI FUNKSİYA: kumulyativ rejim dövr açarı üzərində qurulub
+ * (`period_start`/`period_end`) və əvvəlki görüntünü oxumalıdır. Burada
+ * heç biri lazım deyil; ikisini bir axında qarışdırmaq səhv gətirər.
+ *
+ * ÇAĞIRAN HİSSƏ-HİSSƏ GÖNDƏRƏ BİLƏR (kumulyativ rejimdən fərqli olaraq):
+ * yazı açar üzrə upsert-dir və heç bir sətir digərindən asılı deyil. 24 günlük
+ * fayl 43 074 sətirdir → chunk MƏCBURİDİR.
+ *
+ * `derivation = 'direct'` — bu sətirlər törəmə deyil, faylın öz günündən gəlir.
+ */
+async function saveDated(
+  session: { user: { id: string; tenant_id: string } },
+  raw: InRow[],
+  source: string | null,
+) {
+  const tenantId = session.user.tenant_id
+  const tb = await db.select({ id: branches.id, name: branches.name }).from(branches)
+    .where(eq(branches.tenant_id, tenantId))
+  const byName = new Map(tb.map(b => [canonBranchKey(b.name), b.id]))
+  const branchIdOf = (filial: string) => byName.get(canonBranchKey(filial)) ?? null
+  const canonName = (s: string) => normalizeFilial(s) ?? s.trim()
+
+  const rejected: string[] = []
+  const valid = raw.filter((r, i) => {
+    const ok = !!r && typeof r.filial === 'string' && !!r.filial.trim()
+      && typeof r.payType === 'string' && !!r.payType.trim()
+      && Number.isInteger(r.hour) && r.hour >= 0 && r.hour <= 23
+      && Number.isFinite(Number(r.net))
+      && typeof r.date === 'string' && ISO.test(r.date)
+    if (!ok && rejected.length < 5) rejected.push(`row[${i}]`)
+    return ok
+  })
+
+  // Chunk daxilində təkrar açarı TOPLA — Postgres eyni sətrə iki dəfə toxunmur.
+  type D = { date: string; filial: string; payType: string; hour: number; net: number; guests: number }
+  const acc = new Map<string, D>()
+  let merged = 0
+  for (const r of valid) {
+    const filial = canonName(r.filial)
+    const payType = r.payType.trim()
+    const k = `${r.date}|${canonBranchKey(filial)}|${payType}|${r.hour}`
+    const prev = acc.get(k)
+    if (prev) {
+      merged++
+      prev.net += Number(r.net)
+      prev.guests += Math.trunc(Number(r.guests ?? 0))
+    } else {
+      acc.set(k, {
+        date: r.date as string, filial, payType, hour: r.hour,
+        net: Number(r.net), guests: Math.trunc(Number(r.guests ?? 0)),
+      })
+    }
+  }
+  const rows = [...acc.values()]
+  const unmatched = new Set<string>()
+  for (const r of rows) if (branchIdOf(r.filial) == null) unmatched.add(r.filial)
+  const days = [...new Set(rows.map(r => r.date))].sort()
+  const net = rows.reduce((s, r) => s + r.net, 0)
+
+  try {
+    if (rows.length) {
+      await sqlClient.query(`
+        insert into analytics_hourly_fact
+          (tenant_id, branch_id, filial, business_date, pay_type, hour, net, guests, derivation, source)
+        select $1::uuid, t.branch_id, t.filial, t.business_date, t.pay_type, t.hour, t.net, t.guests, 'direct', $2::text
+        from unnest($3::uuid[], $4::text[], $5::date[], $6::text[], $7::integer[], $8::numeric[], $9::integer[])
+          as t(branch_id, filial, business_date, pay_type, hour, net, guests)
+        on conflict (tenant_id, filial, business_date, pay_type, hour) do update set
+          net        = excluded.net,
+          guests     = coalesce(excluded.guests, analytics_hourly_fact.guests),
+          branch_id  = coalesce(excluded.branch_id, analytics_hourly_fact.branch_id),
+          derivation = excluded.derivation,
+          source     = coalesce(excluded.source, analytics_hourly_fact.source),
+          updated_at = now()
+      `, [
+        tenantId, source,
+        rows.map(r => branchIdOf(r.filial)),
+        rows.map(r => r.filial),
+        rows.map(r => r.date),
+        rows.map(r => r.payType),
+        rows.map(r => r.hour),
+        rows.map(r => r.net.toFixed(2)),
+        rows.map(r => r.guests),
+      ])
+    }
+
+    try {
+      await db.insert(audit_logs).values({
+        tenant_id: tenantId,
+        user_id: session.user.id,
+        action: 'analytics.hourly.dated',
+        entity: 'analytics',
+        entity_id: days.length ? `${days[0]}..${days[days.length - 1]}` : 'n/a',
+        metadata: JSON.stringify({
+          written: rows.length, merged, rejected: rejected.length, source,
+          net: Number(net.toFixed(2)), days, unmatchedBranches: [...unmatched],
+        }),
+      })
+    } catch (auditError) { console.error('Audit log write error:', auditError) }
+
+    return NextResponse.json({
+      ok: true, mode: 'dated',
+      written: rows.length, merged, rejected: rejected.length, rejectedSample: rejected,
+      net: Number(net.toFixed(2)),
+      guests: rows.reduce((s, r) => s + r.guests, 0),
+      days,
+      unmatchedBranches: [...unmatched],
+    }, { status: 200 })
+  } catch (e) {
+    // Xəta UDULMUR — teşhis məlumatı ilə qaytarılır (CLAUDE.md §2.7).
+    const err = e as { message?: string; code?: string; severity?: string; detail?: string; sourceError?: { message?: string } }
+    const detail = err?.message ?? String(e)
+    const meta = {
+      mode: 'dated', rowsReceived: raw.length, rowsAfterMerge: rows.length,
+      days: days.length, pgCode: err?.code ?? null, pgDetail: err?.detail ?? null,
+      severity: err?.severity ?? null, cause: err?.sourceError?.message ?? null,
+    }
+    console.error('hourly-save (dated) error:', detail, meta)
     return NextResponse.json({ error: 'Yazma xətası', detail, meta }, { status: 500 })
   }
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   parsePeriodHeader, parseBranchSales, parseProductSales, parseDeletions, deletionRatio,
-  parseHourlySales,
+  parseHourlySales, hourlyToDailyFacts,
 } from '../src/lib/analytics/parse-iiko-reports'
 
 // Fixture-lar REAL faylların strukturunu təkrarlayır: İngilis başlıqlar,
@@ -361,4 +361,103 @@ test('parseHourlySales ara cəm yoxdursa ciro düz qalır, qonaq şişməsi bild
   const rep = parseHourlySales(rows)
   assert.equal(Number(rep.totals.net.toFixed(2)), 211.7, 'ciro yarpaqlardan da düzgün yığılır')
   assert.ok(rep.warnings.some(w => w.includes('ŞİŞİK')), 'qonaq sayının etibarsızlığı deyilməlidir')
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. hourlyToDailyFacts — saatlıq sətirlər → mövcud günlük fakt formatı
+// ─────────────────────────────────────────────────────────────────────────────
+
+const H = (date: string | null, filial: string, payType: string, hour: number, net: number, guests: number) =>
+  ({ date, filial, payType, hour, net, guests })
+
+test('hourlyToDailyFacts ödəniş növünü səbətə yığır və gün cəmini verir', () => {
+  const r = hourlyToDailyFacts([
+    H('2026-08-01', 'Bulvar', 'Nağd', 20, 100, 5),
+    H('2026-08-01', 'Bulvar', 'Nağd', 21, 50, 3),
+    H('2026-08-01', 'Bulvar', 'Kapital Bank', 21, 200, 8),
+    H('2026-08-01', 'Bulvar', 'WOLT SATIŞ', 21, 30, 2),
+  ])
+  const by = new Map(r.rows.map(x => [x.payment_type, x]))
+  assert.equal(by.get('nagd')!.amount, 150)
+  assert.equal(by.get('kart')!.amount, 200)
+  assert.equal(by.get('wolt')!.amount, 30)
+  assert.equal(by.get('__day__')!.amount, 380, 'gün cəmi bütün növlərin cəmidir')
+  assert.equal(by.get('__day__')!.receipts, 18, 'çek sayı gün başına BİR dəfə')
+})
+
+test('hourlyToDailyFacts çek sayını ödəniş növlərinə BÖLMÜR', () => {
+  const r = hourlyToDailyFacts([
+    H('2026-08-01', 'X', 'Nağd', 20, 100, 5),
+    H('2026-08-01', 'X', 'Kapital Bank', 20, 100, 5),
+  ])
+  const withRec = r.rows.filter(x => x.receipts != null)
+  assert.equal(withRec.length, 1, 'yalnız __day__ sətrində çek olmalıdır')
+  assert.equal(withRec[0].payment_type, '__day__')
+  assert.equal(r.rows.filter(x => x.payment_type === 'nagd')[0].receipts, undefined)
+})
+
+test('hourlyToDailyFacts günləri və filialları ayırır', () => {
+  const r = hourlyToDailyFacts([
+    H('2026-08-01', 'A', 'Nağd', 20, 10, 1),
+    H('2026-08-02', 'A', 'Nağd', 20, 20, 2),
+    H('2026-08-01', 'B', 'Nağd', 20, 30, 3),
+  ])
+  assert.deepEqual(r.days, ['2026-08-01', '2026-08-02'])
+  assert.equal(r.rows.filter(x => x.payment_type === '__day__').length, 3, '2 filial × günlər')
+  assert.equal(r.totals.amount, 60)
+  assert.equal(r.totals.receipts, 6)
+})
+
+test('hourlyToDailyFacts tanınmayan ödəniş növünü UDMUR — cəmdə qalır, bildirilir', () => {
+  const r = hourlyToDailyFacts([
+    H('2026-08-01', 'X', 'Nağd', 20, 100, 5),
+    H('2026-08-01', 'X', 'Kripto XYZ', 20, 40, 2),
+  ])
+  assert.equal(r.unmapped.length, 1)
+  assert.equal(r.unmapped[0].payType, 'Kripto XYZ')
+  assert.equal(r.unmapped[0].amount, 40)
+  const day = r.rows.find(x => x.payment_type === '__day__')!
+  assert.equal(day.amount, 140, 'tanınmayan məbləğ gün cəmindən DÜŞMÜR')
+  assert.equal(r.rows.some(x => x.payment_type === 'kart'), false)
+})
+
+test('hourlyToDailyFacts günü olmayan sətri ATLAYIR (gün uydurulmur)', () => {
+  const r = hourlyToDailyFacts([
+    H(null, 'X', 'Nağd', 20, 999, 9),
+    H('2026-08-01', 'X', 'Nağd', 20, 100, 5),
+  ])
+  assert.equal(r.totals.amount, 100, 'tarixsiz sətir günlük cədvələ yazılmır')
+  assert.deepEqual(r.days, ['2026-08-01'])
+})
+
+test('hourlyToDailyFacts sıfır məbləğli səbət sətri yaratmır', () => {
+  const r = hourlyToDailyFacts([H('2026-08-01', 'X', 'Nağd', 20, 0, 3)])
+  assert.equal(r.rows.filter(x => x.payment_type === 'nagd').length, 0)
+  const day = r.rows.find(x => x.payment_type === '__day__')!
+  assert.equal(day.receipts, 3, 'qonaq varsa gün sətri yenə yazılır')
+})
+
+test('hourlyToDailyFacts qəpik dəqiqliyi saxlayır', () => {
+  const r = hourlyToDailyFacts([
+    H('2026-08-01', 'X', 'Nağd', 20, 17.9, 1),
+    H('2026-08-01', 'X', 'Nağd', 21, 23.7, 1),
+  ])
+  assert.equal(r.rows.find(x => x.payment_type === 'nagd')!.amount, 41.6)
+})
+
+test('hourlyToDailyFacts — Wolt/Bolt-un bank variantı da doğru səbətə düşür', () => {
+  const r = hourlyToDailyFacts([
+    H('2026-08-01', 'X', 'WOLT SATIŞ', 20, 10, 1),
+    H('2026-08-01', 'X', 'WOLT SATIŞ Bank', 20, 20, 1),
+    H('2026-08-01', 'X', 'Wolt Storefront', 20, 5, 1),
+    H('2026-08-01', 'X', 'BOLT SATIŞ Bank', 20, 7, 1),
+    H('2026-08-01', 'X', 'UNİBANK PAX A35', 20, 9, 1),
+    H('2026-08-01', 'X', 'Delivery SeaBreeze', 20, 3, 1),
+  ])
+  const by = new Map(r.rows.map(x => [x.payment_type, x.amount]))
+  assert.equal(by.get('wolt'), 35, 'WOLT + WOLT Bank + Storefront')
+  assert.equal(by.get('bolt'), 7)
+  assert.equal(by.get('kart'), 9, 'PAX terminal kartdır')
+  assert.equal(by.get('own_delivery'), 3)
+  assert.equal(r.unmapped.length, 0)
 })
