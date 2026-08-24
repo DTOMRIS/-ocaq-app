@@ -3,7 +3,11 @@
 import Link from 'next/link'
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { parseHourlySales, hourlyToDailyFacts, type HourlySalesReport } from '@/lib/analytics/parse-iiko-reports'
+import {
+  parseHourlySales, hourlyToDailyFacts,
+  parseProductDaily, productDailyToItemFacts,
+  type HourlySalesReport, type ProductDailyReport,
+} from '@/lib/analytics/parse-iiko-reports'
 
 /**
  * SAATLIQ satış hesabatını («Doğan Tomris Rapor») yükləyir.
@@ -65,6 +69,10 @@ export default function HourlyUpload() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [rep, setRep] = useState<HourlySalesReport | null>(null)
+  // Bir qutu İKİ hesabatı tanıyır: «Satış ay və gün» (saatlıq) və
+  // «DT Məhsul sayı və qiyməti» (menyu). Səhv qutu problemi qalmır.
+  const [prod, setProd] = useState<ProductDailyReport | null>(null)
+  const [prodDone, setProdDone] = useState<{ written: number; days: string[]; items: number; amount: number; qty: number; unmatched: string[] } | null>(null)
   const [coverEnd, setCoverEnd] = useState(yesterdayISO())
   const [busy, setBusy] = useState(false)
   const [phase, setPhase] = useState('')
@@ -75,28 +83,36 @@ export default function HourlyUpload() {
   const [open, setOpen] = useState(false)
 
   function reset() {
-    setFile(null); setRep(null); setErr(null); setResult(null); setDated(null); setProgress(null); setPhase('')
+    setFile(null); setRep(null); setProd(null); setErr(null); setResult(null); setDated(null); setProdDone(null); setProgress(null); setPhase('')
     setCoverEnd(yesterdayISO())
     if (inputRef.current) inputRef.current.value = ''
   }
 
   async function read() {
     if (!file) return
-    setBusy(true); setErr(null); setRep(null); setResult(null); setDated(null)
+    setBusy(true); setErr(null); setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null)
     try {
       setPhase('Fayl oxunur…')
       const XLSX = await import('xlsx')
       const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' })
       // Pivot tək vərəqdədir; yenə də bütün vərəqlərə baxırıq — başlıq tapılan
       // birincisi götürülür ki vərəq adı dəyişsə axın sınmasın.
+      // HANSI HESABAT OLDUĞUNU FAYLIN ÖZÜ DEYİR — ad/heuristika ilə təxmin
+      // etmirik, hər iki parser-i işlədirik və hansı sətir tapdıysa o götürülür.
       let best: HourlySalesReport | null = null
+      let bestProd: ProductDailyReport | null = null
       for (const sn of wb.SheetNames) {
         setPhase(`«${sn}» oxunur…`)
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: true, defval: null }) as unknown[][]
-        const r = parseHourlySales(rows)
-        if (r.rows.length && (!best || r.totals.net > best.totals.net)) best = r
+        const h = parseHourlySales(rows)
+        if (h.rows.length && (!best || h.totals.net > best.totals.net)) best = h
+        const p = parseProductDaily(rows)
+        if (p.rows.length && (!bestProd || p.totals.amount > bestProd.totals.amount)) bestProd = p
       }
-      if (!best) throw new Error('Saatlıq hesabat tapılmadı — başlıqlar gözlənildiyi kimi deyil (Ticarət müəssisəsi / Ödəniş növü / Bağlama saatı / Endirimli məbləğ).')
+      // Məhsul hesabatında `Ödəniş növü` YOXDUR, saatlıq hesabatda `Məhsul`
+      // yoxdur — ikisi eyni faylda tapılırsa daha çox sətir tapan qalib gəlir.
+      if (bestProd && (!best || bestProd.rows.length > best.rows.length)) { setProd(bestProd); setPhase(''); return }
+      if (!best) throw new Error('iiko hesabatı tanınmadı. Gözlənilən: «Satış ay və gün» (Ticarət müəssisəsi / Ödəniş növü / Bağlama saatı / Endirimli məbləğ) və ya «DT Məhsul sayı və qiyməti» (Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ).')
       setRep(best)
       // Fayl `Uçot günü` daşıyırsa və ya tək günlükdürsə tarixi ondan götür.
       if (best.period.singleDay) setCoverEnd(best.period.singleDay)
@@ -107,6 +123,7 @@ export default function HourlyUpload() {
   }
 
   async function save() {
+    if (prod && prod.rows.length) { setBusy(true); setErr(null); setPhase('Yazılır…'); try { await saveProduct() } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } return }
     if (!rep || !rep.rows.length) return
     setBusy(true); setErr(null); setPhase('Yazılır…')
     try {
@@ -176,6 +193,38 @@ export default function HourlyUpload() {
     router.refresh()
   }
 
+  /**
+   * Məhsul hesabatı → MÖVCUD `analytics_item_fact` (fact-save, kind='item').
+   * Ayrı endpoint yazmırıq: Analitika səhifəsi ONSUZ DA bu cədvəli oxuyur.
+   */
+  async function saveProduct() {
+    if (!prod) return
+    const src = file?.name?.slice(0, 120) ?? null
+    const facts = productDailyToItemFacts(prod.rows)
+    const unmatched = new Set<string>()
+    let written = 0
+    setProgress({ done: 0, total: facts.length })
+    for (let i = 0; i < facts.length; i += CHUNK) {
+      const slice = facts.slice(i, i + CHUNK)
+      setPhase(`Məhsul yazılır — ${i.toLocaleString('ru-RU')}/${facts.length.toLocaleString('ru-RU')}`)
+      const res = await fetch('/api/dashboard/analytics/fact-save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'item', source: src, rows: slice }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(`Məhsul yazma: ${j?.error ?? 'xəta'}${j?.detail ? ` — ${j.detail}` : ''}`)
+      written += Number(j.written ?? 0)
+      for (const b of (j.unmatchedBranches ?? []) as string[]) unmatched.add(b)
+      setProgress({ done: Math.min(i + CHUNK, facts.length), total: facts.length })
+    }
+    setProdDone({
+      written, days: prod.byDay.map(d => d.date), items: prod.totals.items,
+      amount: prod.totals.amount, qty: prod.totals.qty, unmatched: [...unmatched],
+    })
+    setProgress(null); setPhase('')
+    router.refresh()
+  }
+
   /** Tarixsiz (kumulyativ) fayl: görüntü + fərq. Köhnə format üçün saxlanılır. */
   async function saveCumulative() {
     if (!rep) return
@@ -203,9 +252,9 @@ export default function HourlyUpload() {
       <div style={{ ...card, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 20 }}>🕐</span>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>Saatlıq satış yüklə — «Doğan Tomris Rapor»</div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>iiko hesabatı yüklə — saatlıq satış / məhsul</div>
           <div style={{ color: '#8b8378', fontSize: 12, marginTop: 2 }}>
-            Saat-saat ciro, ödəniş növü, qonaq. Fayl KUMULYATİVDİR — hər gün yenisini at, toplamdan davam edir.
+            «Satış ay və gün» → saatlıq ciro, ödəniş növü, çek · «DT Məhsul» → menyu analizi. Fayl özü tanınır.
           </div>
         </div>
         <button onClick={() => setOpen(true)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #d8d2c6', background: '#faf8f4', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
@@ -218,21 +267,71 @@ export default function HourlyUpload() {
   return (
     <div style={{ ...card, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ fontWeight: 800, fontSize: 15 }}>🕐 Saatlıq satış hesabatı</div>
+        <div style={{ fontWeight: 800, fontSize: 15 }}>🕐 iiko hesabatı</div>
         <button onClick={() => { setOpen(false); reset() }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#8b8378', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}>bağla</button>
       </div>
 
       {err && <Note tone="red"><b>Xəta:</b> {err}</Note>}
 
-      {!result && !dated && (
+      {!result && !dated && !prodDone && (
         <>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb" onChange={e => { setFile(e.target.files?.[0] ?? null); setRep(null); setResult(null) }} />
+            <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb" onChange={e => { setFile(e.target.files?.[0] ?? null); setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null) }} />
             <button onClick={read} disabled={!file || busy} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: !file || busy ? '#9a9488' : '#26221d', color: '#fff', fontWeight: 700, cursor: !file || busy ? 'default' : 'pointer' }}>
               {busy ? (phase || 'oxunur…') : 'oxu'}
             </button>
             {file && <button onClick={reset} style={{ fontSize: 12, background: 'none', border: 'none', color: '#8b8378', cursor: 'pointer', textDecoration: 'underline' }}>təmizlə</button>}
           </div>
+
+          {prod && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10 }}>
+                <Mini k="Məhsul cirosu" v={money(prod.totals.amount)} />
+                <Mini k="Məhsul" v={int(prod.totals.items)} />
+                <Mini k="Ədəd" v={int(prod.totals.qty)} />
+                <Mini k="Gün" v={int(prod.totals.days)} sub={prod.byDay.length ? `${prod.byDay[0].date} … ${prod.byDay[prod.byDay.length - 1].date}` : undefined} />
+                <Mini k="Filial" v={int(prod.totals.branches)} />
+              </div>
+
+              {prod.grandTotal !== null && (
+                <Note tone={Math.abs(prod.totals.amount - prod.grandTotal) < Math.abs(prod.grandTotal) * 0.005 ? 'green' : 'amber'}>
+                  Faylın «Grand Total» sətri: <b>{money(prod.grandTotal)}</b> · oxunan: <b>{money(prod.totals.amount)}</b>
+                  {' '}(fərq {(prod.totals.amount - prod.grandTotal).toFixed(2)} ₼)
+                </Note>
+              )}
+
+              <Note tone="green">
+                <b>Bu, MƏHSUL hesabatıdır</b> — menyu analizi (top/flop, ədəd, orta qiymət) buradan gəlir.
+                Saatlıq ciro və ödəniş kırılımı «Satış ay və gün» faylından gəlir, bu fayl onu əvəz etmir.
+              </Note>
+
+              <div style={{ background: '#faf8f4', border: '1px solid #eee9e0', borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Ən çox ciro gətirən 5 məhsul</div>
+                {prod.byItem.slice(0, 5).map(i => (
+                  <div key={i.item} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '3px 0' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.item}</span>
+                    <span style={{ whiteSpace: 'nowrap', color: '#6b655c' }}>
+                      <b style={{ color: '#26221d' }}>{money(i.amount)}</b> · {int(i.qty)} əd · {i.avgPrice ? i.avgPrice.toFixed(2) : '—'} ₼
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {prod.warnings.map((w, i) => <Note key={i} tone={w.startsWith('⚠') ? 'amber' : 'grey'}>{w}</Note>)}
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={reset} disabled={busy} style={{ fontSize: 12, background: 'none', border: 'none', color: '#8b8378', cursor: 'pointer', textDecoration: 'underline' }}>ləğv et</button>
+                {progress && (
+                  <span style={{ fontSize: 12, color: '#6b655c' }}>
+                    {progress.done.toLocaleString('ru-RU')} / {progress.total.toLocaleString('ru-RU')} sətir
+                  </span>
+                )}
+                <button onClick={save} disabled={busy} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                  {busy ? (phase || 'yazılır…') : 'yaz'}
+                </button>
+              </div>
+            </>
+          )}
 
           {rep && (
             <>
@@ -293,6 +392,36 @@ export default function HourlyUpload() {
             </>
           )}
         </>
+      )}
+
+      {/* ── MƏHSUL FAYLININ NƏTİCƏSİ ────────────────────────────────────── */}
+      {prodDone && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Note tone="green">
+            <b>Məhsul datası yazıldı — {prodDone.days.length} gün</b>
+            {prodDone.days.length ? ` (${prodDone.days[0]} … ${prodDone.days[prodDone.days.length - 1]})` : ''}
+            <div style={{ marginTop: 6 }}>
+              {int(prodDone.items)} məhsul · {int(prodDone.qty)} ədəd · {money(prodDone.amount)} ·
+              {' '}{int(prodDone.written)} sətir
+            </div>
+          </Note>
+
+          {prodDone.unmatched.length > 0 && (
+            <Note tone="amber">
+              <b>OCAQ-da tapılmayan filial:</b> {prodDone.unmatched.join(', ')} — data yazıldı,
+              filial bağlantısı boşdur. <i>/admin/filiallar</i>-da yaradıldıqdan sonra doldurulacaq.
+            </Note>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href="/dashboard/analitika" style={{ padding: '9px 18px', borderRadius: 10, background: '#26221d', color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>
+              📊 Menyu analizinə bax →
+            </Link>
+            <button onClick={reset} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #d8d2c6', background: '#faf8f4', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              yeni fayl
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── TARİXLİ FAYLIN NƏTİCƏSİ ─────────────────────────────────────── */}

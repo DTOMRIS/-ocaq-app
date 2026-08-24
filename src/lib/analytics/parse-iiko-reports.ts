@@ -1,4 +1,4 @@
-import { azFold, excelSerialToISO, normalizePayment } from './parse-sales-detail'
+import { azFold, excelSerialToISO, normalizePayment, classifyLine } from './parse-sales-detail'
 import { normalizeFilial, EXCLUDE } from './filial-map'
 
 /**
@@ -840,4 +840,200 @@ export function hourlyToDailyFacts(rows: HourlySalesRow[]): {
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. «DT Məhsul sayı və qiyməti» — MƏHSUL × GÜN (menyu analizi)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Quruluş: `Ticarət müəssisəsi | Məhsul | Uçot günü | Bağlama saatı`
+ *          → `Məhsulların sayı`, `Endirimli məbləğ, m.`, `Endirimsiz orta qiymət, m.`
+ *
+ * BU FAYL NİYƏ LAZIM: menyu analizi (hansı məhsul çox satılır, hansı pul
+ * gətirir) YALNIZ buradan çıxır. `Satış ay və gün` faylında məhsul adı yoxdur.
+ *
+ * SAAT SƏVİYYƏSİ YIĞILIR: menyu qərarı saat səviyyəsində verilmir, `Uçot günü`
+ * kifayətdir. Yığmaq 225 140 yarpaq sətri kəskin azaldır və `analytics_item_fact`
+ * açarı (filial + gün + məhsul) onsuz da saatı saxlamır.
+ *
+ * 🔴 ƏHATƏ XƏBƏRDARLIĞI — GİZLƏDİLMİR:
+ * Bu hesabatın məhsul səviyyəsindəki `Endirimli məbləğ` cəmi `Satış ay və gün`
+ * faylının cirosunun HAMISINI ÖRTMÜR. 01–23.08.2026 real data:
+ *   satış 2 925 807,25 ₼ · məhsul 2 163 090,96 ₼ → **%73,9**
+ * İki ayrı səbəb var:
+ *   1. `Seabreeze` filialı bu hesabatda ÜMUMİYYƏTLƏ YOXDUR (filial süzgəci).
+ *   2. Qalan filiallarda da örtük %61–80 arasıdır — kombo/set məhsulların
+ *      məbləği məhsul sətrinə tam düşmür.
+ * Ona görə funksiya `coverage` qaytarır və ekranda göstərilir. Bu fayl
+ * MƏHSUL SIRALAMASI üçün etibarlıdır (ədəd, orta qiymət, top/flop), lakin
+ * «məhsul cirosu = filial cirosu» KİMİ İŞLƏDİLMƏMƏLİDİR.
+ */
+
+export type ProductDailyRow = {
+  date: string
+  filial: string
+  item: string
+  qty: number
+  amount: number
+  /** `product` / `service` / `packaging` / `modifier` / `included`. */
+  lineKind: string
+}
+
+export type ProductDailyReport = {
+  period: ReportPeriod
+  rows: ProductDailyRow[]
+  totals: { qty: number; amount: number; items: number; branches: number; days: number }
+  byItem: Array<{ item: string; qty: number; amount: number; branches: number; avgPrice: number | null }>
+  byDay: Array<{ date: string; qty: number; amount: number }>
+  hasDayColumn: boolean
+  canWriteDaily: boolean
+  grandTotal: number | null
+  skippedSubtotals: number
+  warnings: string[]
+}
+
+export function parseProductDaily(rows: unknown[][]): ProductDailyReport {
+  const period = parsePeriodHeader(rows)
+  const warnings: string[] = []
+  const h = findHeader(rows, [
+    /^(ticarət müəssisəsi|store)$/,
+    /^(məhsul|item)$/,
+    // ⚠️ `azFold` BÜTÜN ı/İ/I hərflərini «i»-yə çevirir — «Məhsulların sayı»
+    // → «məhsullarin sayi» (ların → larin!). Naxış bunu nəzərə almalıdır.
+    // Bu tələyə İKİNCİ dəfə düşdük (birincisi `satılıb` → `satilib`).
+    /məhsullarin sayi|number of items/,
+    /(endirimli məbləğ|gross sales)/,
+  ])
+  if (!h) {
+    return {
+      period, rows: [], byItem: [], byDay: [],
+      totals: { qty: 0, amount: 0, items: 0, branches: 0, days: 0 },
+      hasDayColumn: false, canWriteDaily: false, grandTotal: null, skippedSubtotals: 0,
+      warnings: ['Məhsul hesabatının başlıqları tapılmadı (Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ gözlənilir)'],
+    }
+  }
+  const [cStore, cItem, cQty, cNet] = h.idx
+  const cDay = optIndex(rows, h.row, [/uçot günü/, /accounting day/])
+  const cHour = optIndex(rows, h.row, [/(bağlama saat|closing (hour|time))/])
+  const hasDayColumn = cDay >= 0
+
+  // Ölçü sütunları — ölçmə sütunlarından SOLDA olanların hamısı. Ara cəm
+  // yoxlaması hamısına tətbiq olunur (bax `parseHourlySales` şərhi).
+  const measureFrom = Math.min(...[cQty, cNet].filter(i => i >= 0))
+  const groupCols: number[] = []
+  for (let c = 0; c < measureFrom; c++) groupCols.push(c)
+  for (const c of [cStore, cItem, cDay, cHour]) if (c >= measureFrom) groupCols.push(c)
+
+  if (!hasDayColumn && !period.singleDay) {
+    warnings.push(
+      period.days && period.days > 1
+        ? `Faylda «Uçot günü» sütunu yoxdur və dövr ${period.days} gündür — məhsul sətirləri hansı günə aid olduğu bilinmir, GÜNLÜK cədvələ YAZILMIR.`
+        : 'Faylda «Uçot günü» sütunu yoxdur və başlıqdan dövr oxunmadı — gün bilinmir, GÜNLÜK cədvələ YAZILMIR.',
+    )
+  }
+
+  let fDay = '', fStore = '', fItem = ''
+  let skipped = 0, excluded = 0, grandTotal: number | null = null
+  // Saat YIĞILIR → açar (gün|filial|məhsul).
+  const agg = new Map<string, ProductDailyRow>()
+
+  for (let r = h.row + 1; r < rows.length; r++) {
+    const row = rows[r] ?? []
+    if (/^grand total$/i.test(String(row[cStore] ?? '').trim())) {
+      grandTotal = num(row[cNet]); skipped++; continue
+    }
+    if (groupCols.some(c => isGroupTotalCell(row[c]))) { skipped++; continue }
+
+    if (row[cStore]) fStore = String(row[cStore]).trim()
+    if (row[cItem]) fItem = String(row[cItem]).trim()
+    if (hasDayColumn && row[cDay]) fDay = String(row[cDay]).trim()
+    if (!fStore || !fItem) continue
+
+    const date = hasDayColumn ? excelSerialToISO(fDay) : period.singleDay
+    if (!date) continue
+
+    const filial = normalizeFilial(fStore) ?? fStore
+    if (EXCLUDE.has(filial)) { excluded++; continue }
+
+    const qty = num(row[cQty])
+    const amount = num(row[cNet])
+    if (qty === 0 && amount === 0) continue
+
+    const k = `${date}|${filial}|${fItem}`
+    const e = agg.get(k)
+    if (e) { e.qty += qty; e.amount += amount }
+    else agg.set(k, { date, filial, item: fItem, qty, amount, lineKind: 'product' })
+  }
+
+  // Sətir növü YIĞILMIŞ məbləğə görə təyin olunur: bir məhsul bəzi saatlarda
+  // 0 ₼ (kombo daxilində), bəzilərində pullu gedə bilər — gün cəmi qərar verir.
+  const out = [...agg.values()].map(r => ({ ...r, lineKind: classifyLine(r.item, r.amount) }))
+
+  const im = new Map<string, { qty: number; amount: number; br: Set<string> }>()
+  const dm = new Map<string, { qty: number; amount: number }>()
+  for (const r of out) {
+    const i = im.get(r.item) ?? { qty: 0, amount: 0, br: new Set<string>() }
+    i.qty += r.qty; i.amount += r.amount; i.br.add(r.filial); im.set(r.item, i)
+    const d = dm.get(r.date) ?? { qty: 0, amount: 0 }
+    d.qty += r.qty; d.amount += r.amount; dm.set(r.date, d)
+  }
+
+  const amount = out.reduce((s, r) => s + r.amount, 0)
+  if (!out.length) warnings.push('Heç bir sətir oxunmadı')
+  if (excluded) warnings.push(`${excluded} sətir EXCLUDE filialına aiddir`)
+  if (grandTotal !== null && grandTotal !== 0) {
+    const d = Math.abs(amount - grandTotal) / Math.abs(grandTotal)
+    if (d > 0.005) {
+      warnings.push(`⚠ Oxunan cəm (${amount.toFixed(2)} ₼) faylın «Grand Total» sətrindən (${grandTotal.toFixed(2)} ₼) %${(d * 100).toFixed(2)} fərqlidir — ara cəm süzgəci yoxlanmalıdır.`)
+    }
+  }
+  // ƏHATƏ: bu fayl bütün cironu örtmür (yuxarıdaki şərh). Rəqəmi göstərmək
+  // çağıranın öhdəsindədir — burada yalnız xatırladırıq.
+  warnings.push('Bu hesabat MƏHSUL SIRALAMASI üçündür (ədəd, orta qiymət, top/flop). Məhsul səviyyəsindəki məbləğ filial cirosunun HAMISINI örtmür — real datada %73,9 (kombo/set məbləği məhsula tam düşmür, bir filial hesabatdan çıxıb). «Məhsul cirosu = filial cirosu» kimi işlədilməməlidir.')
+
+  return {
+    period, rows: out, grandTotal, skippedSubtotals: skipped,
+    totals: {
+      qty: out.reduce((s, r) => s + r.qty, 0),
+      amount: round2(amount),
+      items: im.size,
+      branches: new Set(out.map(r => r.filial)).size,
+      days: dm.size,
+    },
+    byItem: [...im.entries()]
+      .map(([item, v]) => ({
+        item, qty: v.qty, amount: round2(v.amount), branches: v.br.size,
+        avgPrice: v.qty > 0 ? v.amount / v.qty : null,
+      }))
+      .sort((a, b) => b.amount - a.amount),
+    byDay: [...dm.entries()]
+      .map(([date, v]) => ({ date, qty: v.qty, amount: round2(v.amount) }))
+      .sort((a, b) => a.date.localeCompare(b.date)),
+    hasDayColumn,
+    canWriteDaily: out.length > 0,
+    warnings,
+  }
+}
+
+/**
+ * `parseProductDaily` nəticəsini MÖVCUD `analytics_item_fact` formatına çevirir.
+ *
+ * `item_code`: bu hesabatda məhsul KODU yoxdur, yalnız ad var. Ad açar kimi
+ * işlədilir — sabitdir və menyu qərarı onsuz da ad səviyyəsində verilir
+ * (`analitika` səhifəsi `item_name` üzrə qruplaşdırır). Kod gələndə əvəz
+ * olunacaq; `coalesce` mövcud sətri korlamır.
+ */
+export type ItemFactRow = {
+  filial: string; date: string; item_code: string; item_name: string
+  qty: number; amount: number; line_kind: string
+}
+
+export function productDailyToItemFacts(rows: ProductDailyRow[]): ItemFactRow[] {
+  return rows.map(r => ({
+    filial: r.filial, date: r.date,
+    item_code: r.item.slice(0, 200),
+    item_name: r.item,
+    qty: r.qty, amount: r.amount, line_kind: r.lineKind,
+  }))
 }

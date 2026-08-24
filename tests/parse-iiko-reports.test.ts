@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   parsePeriodHeader, parseBranchSales, parseProductSales, parseDeletions, deletionRatio,
-  parseHourlySales, hourlyToDailyFacts,
+  parseHourlySales, hourlyToDailyFacts, parseProductDaily, productDailyToItemFacts,
 } from '../src/lib/analytics/parse-iiko-reports'
 
 // Fixture-lar REAL faylların strukturunu təkrarlayır: İngilis başlıqlar,
@@ -460,4 +460,118 @@ test('hourlyToDailyFacts — Wolt/Bolt-un bank variantı da doğru səbətə dü
   assert.equal(by.get('kart'), 9, 'PAX terminal kartdır')
   assert.equal(by.get('own_delivery'), 3)
   assert.equal(r.unmapped.length, 0)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. parseProductDaily — «DT Məhsul sayı və qiyməti»
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PDH = ['Ticarət müəssisəsi', 'Məhsul', 'Uçot günü', 'Bağlama saatı',
+  'Məhsulların sayı', 'Endirimli məbləğ, m.', 'Endirimsiz orta qiymət, m.']
+
+function pdFixture(): unknown[][] {
+  return [
+    ['DT Məhsul sayı və qiyməti'], ['Restoranın adı: Shaurma №1'],
+    ['Dövrün: əvvəli 01.08.2026 sonu 31.08.2026'], [null, null, null, null, null, 'Grand Total'],
+    PDH,
+    // Bulvar / SHAURMA / 01.08 — iki saat, YIĞILMALI
+    ['Bulvar', 'SHAURMA LAVAŞDA BÖYÜK', '01.08.2026', '20', 3, 36, 12],
+    [null, null, null, '21', 2, 24, 12],
+    [null, null, null, '21 Total', 5, 60, 12],                 // ara cəm → atılmalı
+    [null, null, '01.08.2026 Total', null, 5, 60, 12],          // ara cəm → atılmalı
+    // Bulvar / SHAURMA / 02.08 — ayrı gün
+    [null, null, '02.08.2026', '20', 1, 12, 12],
+    // Bulvar / Ketçup — 0 ₼ (kombo daxili)
+    [null, 'Ketçup', '01.08.2026', '20', 4, 0, 0],
+    [null, 'Ketçup Total', null, null, 4, 0, 0],                // ara cəm → atılmalı
+    ['Bulvar Total', null, null, null, 10, 72, 12],             // ara cəm → atılmalı
+    ['Corner', 'Ayran', '01.08.2026', '13', 10, 35, 3.5],
+    ['Grand Total', null, null, null, 20, 107, 0],
+  ]
+}
+
+test('parseProductDaily saatı YIĞIR və ara cəmləri atır', () => {
+  const r = parseProductDaily(pdFixture())
+  assert.equal(r.grandTotal, 107)
+  assert.equal(r.totals.amount, 107, 'cəm faylın «Grand Total»-ı ilə eynidir')
+  // Bulvar/SHAURMA/01.08 → iki saat BİR sətirdə
+  const one = r.rows.find(x => x.filial === 'Bulvar' && x.item === 'SHAURMA LAVAŞDA BÖYÜK' && x.date === '2026-08-01')!
+  assert.ok(one, 'sətir tapılmalıdır')
+  assert.equal(one.qty, 5, '3 + 2')
+  assert.equal(one.amount, 60, '36 + 24')
+  assert.deepEqual(r.warnings.filter(w => w.startsWith('⚠')), [], 'nəzarət xəbərdarlığı olmamalıdır')
+})
+
+test('parseProductDaily gün-gün ayırır', () => {
+  const r = parseProductDaily(pdFixture())
+  assert.deepEqual(r.byDay.map(d => d.date), ['2026-08-01', '2026-08-02'])
+  assert.equal(r.totals.days, 2)
+  assert.equal(r.hasDayColumn, true)
+  assert.equal(r.canWriteDaily, true)
+})
+
+test('parseProductDaily 0 ₼-lik sətri SİLMİR, təsnif edir', () => {
+  const r = parseProductDaily(pdFixture())
+  const k = r.rows.find(x => x.item === 'Ketçup')!
+  assert.ok(k, 'kombo daxilindəki məhsul silinməməlidir')
+  assert.equal(k.amount, 0)
+  assert.equal(k.qty, 4)
+  assert.equal(k.lineKind, 'included', 'pulsuz gedən real qida')
+  const paid = r.rows.find(x => x.item === 'Ayran')!
+  assert.equal(paid.lineKind, 'product')
+})
+
+test('parseProductDaily məhsulu şəbəkə üzrə birləşdirir və orta qiymət verir', () => {
+  const r = parseProductDaily(pdFixture())
+  const top = r.byItem[0]
+  assert.equal(top.item, 'SHAURMA LAVAŞDA BÖYÜK')
+  assert.equal(top.amount, 72, '60 + 12')
+  assert.equal(top.qty, 6)
+  assert.equal(top.avgPrice, 12)
+  assert.equal(top.branches, 1)
+  assert.equal(r.totals.items, 3)
+  assert.equal(r.totals.branches, 2)
+})
+
+test('parseProductDaily əhatə məhdudiyyətini HƏMİŞƏ bildirir', () => {
+  const r = parseProductDaily(pdFixture())
+  assert.ok(
+    r.warnings.some(w => w.includes('HAMISINI örtmür')),
+    'məhsul cirosunun filial cirosunu örtmədiyi susdurulmamalıdır',
+  )
+})
+
+test('parseProductDaily başlıq tapılmasa səssiz keçmir', () => {
+  const r = parseProductDaily([['boş'], ['fayl']])
+  assert.equal(r.rows.length, 0)
+  assert.equal(r.canWriteDaily, false)
+  assert.ok(r.warnings[0].includes('başlıqları tapılmadı'))
+})
+
+test('parseProductDaily — «Məhsulların sayı» azFold-dan sonra «məhsullarin sayi» olur', () => {
+  // REGRESSİYA: naxış `məhsulların sayi` yazılmışdı və sütun TAPILMIRDI
+  // (`ların` → `larin`). Fayl tamamilə oxunmamış qalırdı.
+  const r = parseProductDaily(pdFixture())
+  assert.ok(r.rows.length > 0, 'ədəd sütunu tapılmalı, fayl oxunmalıdır')
+  assert.equal(r.totals.qty, 20, 'ədəd cəmi (5+1+4+10)')
+})
+
+test('parseProductDaily EXCLUDE filialını atır, aliası kanonikləşdirir', () => {
+  const r = parseProductDaily([
+    ['x'], ['y'], ['Dövrün: əvvəli 01.08.2026 sonu 01.08.2026'], PDH,
+    ['Xırdalan', 'Ayran', '01.08.2026', '20', 1, 3, 3],            // alias → Masazır
+    ['Siciliano Restoran', 'Ayran', '01.08.2026', '20', 9, 99, 11], // EXCLUDE
+  ])
+  assert.equal(r.rows.length, 1)
+  assert.equal(r.rows[0].filial, 'Masazır')
+  assert.equal(r.totals.amount, 3)
+  assert.ok(r.warnings.some(w => w.includes('EXCLUDE')))
+})
+
+test('productDailyToItemFacts item_code-u addan qurur (kod yoxdur)', () => {
+  const r = parseProductDaily(pdFixture())
+  const f = productDailyToItemFacts(r.rows)
+  assert.equal(f.length, r.rows.length)
+  assert.equal(f[0].item_code, f[0].item_name)
+  assert.ok(f.every(x => x.date && x.filial && x.item_code && x.line_kind))
 })

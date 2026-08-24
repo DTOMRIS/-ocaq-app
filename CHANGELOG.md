@@ -6,6 +6,44 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — MENYU ANALİZİ bağlandı: «DT Məhsul sayı və qiyməti»
+- Üç namizəd fayl müqayisə edildi; qazanan: `Ticarət müəssisəsi | Məhsul |
+  Uçot günü | Bağlama saatı → Məhsulların sayı + Endirimli məbləğ`.
+  **Həm məhsul adı, həm gün, həm pul var** — digər ikisində məhsul adı yox idi.
+- `parseProductDaily()` — saat səviyyəsi YIĞILIR (menyu qərarı saatlıq
+  verilmir), açar `gün|filial|məhsul`. Real fayl: 292 610 sətir → **51 384**
+  aqreqat sətir, oxunan **2 163 090,96 ₼** = faylın «Grand Total»-ı, fərq
+  **0,00**. 277 məhsul · 29 filial · 23 gün.
+- `productDailyToItemFacts()` — MÖVCUD `analytics_item_fact` formatına çevirir.
+  Yeni cədvəl/endpoint YOX: Analitika səhifəsi onsuz da bu cədvəli oxuyur.
+  `item_code` yoxdur → ad açar kimi işlədilir (Analitika onsuz da ad üzrə
+  qruplaşdırır).
+- Yükləmə qutusu artıq **İKİ hesabatı özü tanıyır** — «Satış ay və gün» və
+  «DT Məhsul». Ad/heuristika ilə təxmin etmirik: hər iki parser işlədilir,
+  sətir tapan qalib gəlir. Səhv qutu problemi tamamilə bitdi.
+- Uçdan-uca REAL Postgres-də (PGlite): `analytics_item_fact` 2 163 090,96 ₼ /
+  51 384 sətir / 23 gün / 277 məhsul, **təkrar yükləmədə şişmədi**, Analitika
+  menyu sorğusu düzgün sıralama verdi (SHAURMA LAVAŞDA BÖYÜK 287 824,33 ₼ /
+  23 073 ədəd / 29 filial).
+
+### 🔴 ÖLÇÜLDÜ — məhsul hesabatı cironun HAMISINI örtmür (%73,9)
+- 01–23.08.2026 gün-gün müqayisə: satış **2 925 807,25 ₼** ↔ məhsul
+  **2 163 090,96 ₼** → **%73,9**. Fərq 762 716,29 ₼. İki səbəb:
+  1. **`Seabreeze` filialı məhsul hesabatında ÜMUMİYYƏTLƏ YOXDUR** (filial
+     süzgəci/icazə — Nərimanov hadisəsinin eynisi, Rafael bəyə deyilməli).
+  2. Qalan filiallarda örtük %61–80 — kombo/set məbləği məhsul sətrinə tam
+     düşmür.
+- Ona görə parser bu məhdudiyyəti **HƏR DƏFƏ xəbərdarlıq kimi qaytarır** və
+  ekranda göstərilir. Fayl menyu SIRALAMASI üçün etibarlıdır (ədəd, orta
+  qiymət, top/flop); «məhsul cirosu = filial cirosu» kimi İŞLƏDİLMƏMƏLİDİR.
+
+### Fixed — `azFold` tələsinə İKİNCİ dəfə düşüldü (`ların` → `larin`)
+- `Məhsulların sayı` başlığı üçün naxış `məhsulların sayi` yazılmışdı; `azFold`
+  BÜTÜN ı/İ/I hərflərini «i»-yə çevirdiyi üçün real dəyər `məhsullarin sayi`
+  olur. Sütun tapılmırdı və **fayl tamamilə oxunmamış** qalırdı. Naxış
+  düzəldildi, regressiya testi yazıldı (birinci hal: `satılıb` → `satilib`).
+
+
 ### Added — TƏK FAYL, ÜÇ İSTƏK: «Satış ay və gün» hesabatı bağlandı
 - İstifadəçinin üç tələbi (① saatlıq filial satışı ② məhsul satışı
   ③ kart/Wolt/Bolt) üçün doğru fayl tapıldı: **«Satış ay və gün»** —
