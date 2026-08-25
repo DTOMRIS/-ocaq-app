@@ -73,7 +73,7 @@ type Parsed = {
   fileNames: string[]
 }
 
-export default function DetailUpload() {
+export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string } = {}) {
   const router = useRouter()
   const [files, setFiles] = useState<File[]>([])
   const [parsed, setParsed] = useState<Parsed | null>(null)
@@ -196,7 +196,10 @@ export default function DetailUpload() {
       setParsed({ prodmix, receipts, recon, fileNames: files.map(f => f.name) })
       setPhase('')
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
+      // BUILD DAMĞASI XƏTAYA YAZILIR. Səbəb: «olmur» şəkli göndəriləndə mesajın
+      // hansı koddan gəldiyi bilinmirdi — köhnə paketlə yeni paketi ayırd etmək
+      // mümkün deyildi və eyni səhvi iki dəfə axtardıq.
+      setErr(`${e instanceof Error ? e.message : String(e)}\n\n[build ${buildSha}]`)
     } finally { setBusy(false) }
   }
 
@@ -362,6 +365,11 @@ export default function DetailUpload() {
             <div style={{ fontWeight: 700, fontSize: 14.5, marginTop: 6 }}>{busy ? phase || 'Oxunur…' : 'Faylları bura sürüklə'}</div>
             <div style={{ color: '#8b8378', fontSize: 12, marginTop: 4 }}>
               .xlsx · iiko hesabatları · «Satış ay və gün» · «DT Məhsul» · PRODMIX · ÇEK — fayl özü tanınır
+            </div>
+            {/* Canlıdakı build. Kiçik və solğun — iş axınını pozmur, lakin
+                «düzəltdim, olmur» halında hansı kodun işlədiyini DƏRHAL deyir. */}
+            <div style={{ color: '#b8b0a4', fontSize: 10.5, marginTop: 6, letterSpacing: 0.3 }}>
+              build {buildSha}
             </div>
             <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb" multiple hidden onChange={e => add(e.target.files)} />
           </div>

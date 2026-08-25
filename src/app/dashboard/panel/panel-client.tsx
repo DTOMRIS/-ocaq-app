@@ -63,10 +63,12 @@ function Chart({ d }: { d: Daily }) {
 
 type IngestRow = { period: string; engine: string; status: string; created: string; readable: boolean }
 
-export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [], factSource = false }: {
+export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [], factSource = false, buildSha = 'local' }: {
   initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null; inventory?: IngestRow[]
   /** Panel datası fakt cədvəlindən quruldu (blob-dan deyil) — mənbə göstərilir. */
   factSource?: boolean
+  /** Canlıda işləyən build-in commit SHA-sı (qısa). «Köhnə paket» tələsi üçün. */
+  buildSha?: string
 }) {
   const router = useRouter()
   const [files, setFiles] = useState<File[]>([])
@@ -314,7 +316,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
       {/* TƏK YÜKLƏMƏ QUTUSU. Əvvəl iki ayrı qutu vardı və istifadəçi faylı
           davamlı səhv qutuya atırdı. İndi bir qutu var: fayl tanınır və
           lazım olan axın onun ALTINDA açılır (`detail-upload.tsx` → iiko). */}
-      {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><DetailUpload /></div>}
+      {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><DetailUpload buildSha={buildSha} /></div>}
 
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>

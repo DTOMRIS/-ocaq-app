@@ -242,8 +242,17 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
     } catch { /* referans oxuma xətası paneli pozmasın */ }
   }
 
+  // ⚙️ HANSI KOD CANLIDIR? — 25.08.2026-da iki dəfə «düzəltdim, olmur»
+  // dövrəsinə düşdük: kod `main`-də DÜZGÜN idi, brauzerdə isə KÖHNƏ paket
+  // işləyirdi. Fərqi görmək mümkün deyildi, çünki ekran heç bir versiya
+  // göstərmirdi. Vercel build zamanı `VERCEL_GIT_COMMIT_SHA` verir — onu
+  // yükləmə qutusunda göstəririk ki, «olmur» deyəndə hansı build olduğu
+  // DƏRHAL bilinsin. Lokalda dəyişən yoxdur → 'local'.
+  const buildSha = (process.env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 7) || 'local'
+
   return (
     <PanelClient
+      buildSha={buildSha}
       initial={initial}
       targets={targets}
       canUpload={session.user.role === 'super_admin'}
