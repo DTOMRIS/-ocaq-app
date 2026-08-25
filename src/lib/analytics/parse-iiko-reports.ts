@@ -652,7 +652,25 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
     // hər məhsul sətrində yenidən sayılır) — real faylda cəm 557 515 çıxır,
     // faylın öz «Grand Total»-ı isə 129 130. Pivotun öz ara cəmi düzgün
     // (unikal) sayır, ona görə ölçü rəqəmləri oradan götürülür.
-    if (totalCols.length === 1 && totalCols[0] === cHour) {
+    // ⚠️ SƏVİYYƏNİ ƏN SOLDAKI cəm hücrəsi təyin edir, cəm hücrələrinin SAYI YOX.
+    //
+    // 🔴 25.08.2026 — BİRLƏŞDİRİLMİŞ HÜCRƏ (merged cell) TƏLƏSİ.
+    // Əvvəl şərt `totalCols.length === 1 && totalCols[0] === cHour` idi, yəni
+    // sətirdə DƏQİQ BİR cəm hücrəsi olmalıydı. Lakin iiko ara cəm etiketini
+    // BİRLƏŞDİRİLMİŞ xanaya yazır və fayl oxuyucusuna görə nəticə fərqlənir:
+    //   • xam XML / SheetJS → dəyər yalnız MASTER xanadadır  → 1 cəm hücrəsi
+    //   • exceljs           → dəyər BÜTÜN aralığa yayılır    → 2+ cəm hücrəsi
+    // İkinci halda şərt tutmurdu, saat ara cəmləri TAPILMIRDI və qonaq sayı
+    // yarpaqdan yığılırdı. Ölçüldü (eyni fayl, 24.08.2026): 6 122 qonaq
+    // əvəzinə 25 251 — **4 dəfə şişik**. Ciro düzgün qalırdı, ona görə səhv
+    // yalnız orta çekdə görünərdi.
+    //
+    // Hiyerarxiya sütunları soldan sağa dərinləşir (filial → ödəniş → gün →
+    // saat → məhsul). Ara cəm etiketi öz səviyyəsinin sütununda başlayır və
+    // birləşmə olsa yalnız SAĞA yayılır — ona görə ƏN SOLDAKI cəm hücrəsi
+    // səviyyəni birmənalı göstərir və oxuyucudan asılı deyil.
+    const firstTotal = totalCols.length ? Math.min(...totalCols) : -1
+    if (firstTotal === cHour) {
       const hv = parseHour(String(row[cHour]).trim().replace(TRAILING_TOTAL, ''))
       if (hv !== null && fStore && fPay) {
         const filial = normalizeFilial(fStore) ?? fStore

@@ -798,3 +798,72 @@ test('saatlıq: gün sütunu var amma heç bir tarix oxunmursa SƏSSİZ qalmır'
   assert.ok(w, 'səbəb açıq deyilməlidir — əvvəl tamamilə səssiz idi')
   assert.match(w!, /24 Ağustos 2026/, 'oxunmayan dəyər göstərilməlidir')
 })
+
+// ── BİRLƏŞDİRİLMİŞ HÜCRƏ (merged cell) ──────────────────────────────────────
+//
+// iiko ara cəm etiketini birləşdirilmiş xanaya yazır. Fayl oxuyucusuna görə:
+//   • xam XML / SheetJS → dəyər yalnız MASTER xanada  → 1 cəm hücrəsi
+//   • exceljs           → dəyər BÜTÜN aralığa yayılır → 2+ cəm hücrəsi
+// Əvvəl şərt «DƏQİQ BİR cəm hücrəsi» idi → ikinci halda saat ara cəmləri
+// tapılmır, qonaq sayı yarpaqdan yığılır və ŞİŞİR (ölçüldü: 6 122 → 25 251).
+
+/** Saatlıq pivot: filial · ödəniş · gün · saat · məhsul (dərin səviyyə). */
+const TR_DEEP_HEAD: unknown[][] = [
+  ['Doğan Tomris Rapor Total'],
+  [null, null, null, null, null, null, 'Genel Toplam'],
+  ['Şube', 'Ödeme türü', 'Muhasebe günü', 'Kapanış saati', 'Ürünle birlikte satıldı',
+    'Ürün miktarı', 'Brüt Satışlar (indirim sonrası), m.', 'Müşteri sayısı'],
+]
+
+/**
+ * `spread` = ara cəm etiketinin neçə sütuna yayıldığı.
+ *   1 → SheetJS davranışı (yalnız master xana)
+ *   2 → exceljs davranışı (birləşmə genişlənib)
+ */
+function trDeepRows(spread: number): unknown[][] {
+  const totalCell = (col: number, label: string) => {
+    const a: unknown[] = [null, null, null, null, null, null, null, null]
+    for (let i = 0; i < spread; i++) a[col + i] = label
+    return a
+  }
+  const hourTotal = (label: string, net: number, guests: number) => {
+    const a = totalCell(3, label); a[6] = net; a[7] = guests; return a
+  }
+  return [
+    ...TR_DEEP_HEAD.map(r => [...r]),
+    // saat 00 — məhsulsuz sətir + iki məhsul yarpağı (hər biri qonağı TƏKRAR sayır)
+    ['5 Mərtəbə', 'Nağd', 46258, '00', null, 1, 20, 2],
+    [null, null, null, null, 'Ayran', 1, 0, 1],
+    [null, null, null, null, 'KARTOF FRİ (160 qr)', 1, 0, 1],
+    hourTotal('00 Toplam', 20, 2),
+    ['Genel Toplam', null, null, null, null, null, 20, 2],
+  ]
+}
+
+test('birləşdirilmiş ara cəm xanası oxuyucudan asılı olmadan tanınır', () => {
+  const master = parseHourlySales(trDeepRows(1))   // SheetJS kimi
+  const merged = parseHourlySales(trDeepRows(2))   // exceljs kimi
+  for (const [label, rep] of [['master xana', master], ['genişlənmiş birləşmə', merged]] as const) {
+    assert.equal(Number(rep.totals.net.toFixed(2)), 20, `${label}: ciro düzgün olmalıdır`)
+    // 🔴 ƏSAS: qonaq ARA CƏMDƏN gəlməlidir (2), yarpaqdan yox (2+1+1 = 4).
+    assert.equal(rep.totals.guests, 2, `${label}: qonaq ara cəmdən götürülməlidir — yarpaqdan yığılsa ŞİŞƏR`)
+    assert.ok(
+      !rep.warnings.some(w => w.includes('TƏKRAR SAYIMLA ŞİŞİKDİR')),
+      `${label}: ara cəm tapıldığı üçün şişmə xəbərdarlığı olmamalıdır`,
+    )
+  }
+  assert.equal(master.totals.guests, merged.totals.guests, 'iki oxuyucu EYNİ nəticə verməlidir')
+})
+
+test('birləşmə genişlənsə də DAHA DƏRİN səviyyənin cəmi saat kimi sayılmır', () => {
+  // Məhsul səviyyəsindəki çılpaq « Toplam» (sütun 4) saat ara cəmi DEYİL —
+  // ən soldakı cəm hücrəsi saat sütunu (3) olmalıdır.
+  const rows: unknown[][] = [
+    ...TR_DEEP_HEAD.map(r => [...r]),
+    ['5 Mərtəbə', 'Nağd', 46258, '00', null, 1, 20, 2],
+    [null, null, null, null, ' Toplam', null, 20, 2],   // məhsul səviyyəsi
+    ['Genel Toplam', null, null, null, null, null, 20, 2],
+  ]
+  const rep = parseHourlySales(rows)
+  assert.equal(Number(rep.totals.net.toFixed(2)), 20, 'məhsul səviyyəsindəki cəm ciroyu İKİQAT etməməlidir')
+})

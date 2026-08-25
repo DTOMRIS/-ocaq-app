@@ -32,6 +32,20 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - Tanınmayan dil çıxsa mesaj artıq səbəbi (DİL) deyir və **faylın öz başlıq
   sətrini göstərir** ki dərhal lüğətə əlavə edilsin.
 
+### Fixed — birləşdirilmiş ara cəm xanası → qonaq sayı 4 DƏFƏ ŞİŞİRDİ
+- iiko ara cəm etiketini **birləşdirilmiş xanaya** yazır və nəticə fayl
+  oxuyucusuna görə dəyişir: xam XML/SheetJS dəyəri yalnız master xanada
+  saxlayır, exceljs isə BÜTÜN aralığa yayır.
+- Saat ara cəmi «sətirdə **dəqiq bir** cəm hücrəsi olsun» şərti ilə
+  tanınırdı → birləşmə genişlənəndə tanınmırdı → qonaq sayı yarpaq
+  sətirlərdən yığılırdı və hər məhsul üçün TƏKRAR sayılırdı.
+- Ölçüldü (eyni fayl, 24.08.2026): **6 122 əvəzinə 25 251 qonaq — 4 dəfə
+  şişik**. Ciro düzgün qalırdı, ona görə səhv yalnız ORTA ÇEKDƏ görünərdi
+  (19,28 ₼ → 4,67 ₼) — yəni asanlıqla gözdən qaçardı.
+- Düzəliş: səviyyəni artıq cəm hücrələrinin SAYI yox, **ən soldakı** cəm
+  hücrəsi təyin edir. Hiyerarxiya soldan sağa dərinləşdiyi və birləşmə
+  yalnız sağa yayıldığı üçün bu qayda oxuyucudan asılı deyil.
+
 ### Fixed — tarix `Date` obyekti kimi gələndə BÜTÜN sətirlər səssizcə atılırdı
 - Tarix hücrəsi **hansı kitabxananın oxuduğuna görə fərqli tipdə** gəlir:
   SheetJS (`raw: true`, brauzer) → xam serial `46258`; exceljs (server
