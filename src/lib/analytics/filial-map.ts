@@ -11,7 +11,10 @@ export const BOLGELER: Record<string, string[]> = {
   'Ceyhun':  ['Hüseyn Cavid', 'Əcəmi', 'İnşaatçılar', 'Masazır', 'Space', 'Sumqayıt'],
   'Elnur':   ['Neftçilər', 'Bakıxanov 1', 'Zığ', 'Bakıxanov 2', 'Həzi Aslanov', 'Əhmədli'],
   'Taleh':   ['Binəqədi', 'Duet', 'Ayna Sultanova', 'Nərimanov', 'Amay', 'Azadlıq'],
-  'Ramin':   ['Seabreeze', 'Bilgəh', 'Mərdəkan', 'Gəncə', 'İnqilab'],
+  // 'Aeroport' 25.08.2026-da əlavə olundu (istifadəçi `/admin/filiallar`-da
+  // Ramin bəyə təyin etdi). Bu siyahı artıq YALNIZ TOXUMDUR/ehtiyatdır —
+  // əsas mənbə `branches.region_id`-dir; burada olmayan filial bazadan gəlir.
+  'Ramin':   ['Seabreeze', 'Bilgəh', 'Mərdəkan', 'Gəncə', 'İnqilab', 'Aeroport'],
 }
 
 // Bölgə sırası (rapor/qruplaşma üçün)

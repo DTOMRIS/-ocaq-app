@@ -111,7 +111,28 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
       wantPeriod ? [tenantId, wantPeriod] : [tenantId],
     )
     const rows = (Array.isArray(fr) ? fr : (fr as { rows?: unknown[] }).rows ?? []) as FactRow[]
-    const built = factsToPanel(rows, wantPeriod)
+
+    // FİLİAL → BÖLGƏ BAZADAN. `/admin/filiallar`-da edilən təyinat panelə
+    // dərhal təsir etsin deyə (əvvəl yalnız sabit xəritə oxunurdu və təyinat
+    // görünmürdü — «Aeroportu Ramin bəyə əlavə etdim, panel almadı»).
+    // Təyin olunmamış filial üçün `factsToPanel` sabit xəritəyə düşür.
+    let dbRegionOf: Map<string, string> | null = null
+    try {
+      const rr = await sqlClient.query(
+        `select b.name as filial, r.name as region
+         from branches b join regions r on r.id = b.region_id
+         where b.tenant_id = $1 and r.tenant_id = $1`, [tenantId],
+      )
+      const rrows = (Array.isArray(rr) ? rr : (rr as { rows?: unknown[] }).rows ?? []) as Array<{ filial: string; region: string }>
+      if (rrows.length) {
+        dbRegionOf = new Map(rrows.map(x => [canonBranchKey(String(x.filial)), String(x.region)]))
+      }
+    } catch (err) {
+      // Bölgə oxunmasa panel yenə işləsin — sabit xəritəyə düşür. Xəta udulmur.
+      console.error('Panel region read error:', err)
+    }
+
+    const built = factsToPanel(rows, wantPeriod, dbRegionOf)
     if (built) {
       // Plan/YoY blob-dan gəlməyə davam edir (fakt cədvəlində plan yoxdur).
       initial = { daily: built, plan: initial?.plan ?? null, yoy: initial?.yoy }

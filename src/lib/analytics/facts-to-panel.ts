@@ -1,4 +1,4 @@
-import { BRANCH_TO_REGION, normalizeFilial } from './filial-map'
+import { BRANCH_TO_REGION, canonBranchKey, normalizeFilial } from './filial-map'
 
 /**
  * FACT CƏDVƏLİ → GÜNLÜK PANEL forması.
@@ -54,7 +54,33 @@ const round2 = (n: number) => Math.round(n * 100) / 100
  * `period` verilmirsə datanın ən son ayından götürülür. Ay proqnozu (`gedisat`)
  * mövcud günlərin ortalamasını ayın gün sayına vurur.
  */
-export function factsToPanel(rows: FactRow[], period?: string | null): PanelDaily | null {
+/**
+ * 🔴 BÖLGƏ MƏNBƏYİ (25.08.2026-da düzəldildi):
+ *
+ * Əvvəl filial→bölgə bağlantısı YALNIZ `BRANCH_TO_REGION` sabit xəritəsindən
+ * oxunurdu. Nəticə: istifadəçi `/admin/filiallar`-da filialı bölgə müdirinə
+ * təyin edirdi, `branches.region_id` bazada yazılırdı, LAKİN panel onu heç
+ * oxumurdu — «Aeroportu Ramin bəyə əlavə etdim, panel almadı».
+ *
+ * İndi: **BAZA ƏSAS MƏNBƏDİR**. `dbRegionOf` verilibsə ondan oxunur; həmin
+ * filial üçün baza təyinatı yoxdursa sabit xəritə EHTİYAT kimi qalır (kod
+ * dəyişmədən işləyən köhnə davranış pozulmasın).
+ *
+ * @param dbRegionOf kanonik filial açarı → bölgə adı (server tərəfdə
+ *                   `branches` × `regions` birləşməsindən qurulur)
+ */
+/** Baza təyinatı üstündür; yoxdursa sabit xəritə. Heç biri yoxdursa null. */
+export function regionOf(filial: string, dbRegionOf?: Map<string, string> | null): string | null {
+  const fromDb = dbRegionOf?.get(canonBranchKey(filial))
+  if (fromDb) return fromDb
+  return BRANCH_TO_REGION[normalizeFilial(filial) ?? filial] ?? null
+}
+
+export function factsToPanel(
+  rows: FactRow[],
+  period?: string | null,
+  dbRegionOf?: Map<string, string> | null,
+): PanelDaily | null {
   if (!rows.length) return null
 
   const per = period ?? rows.map(r => r.business_date.slice(0, 7)).sort().at(-1) ?? null
@@ -109,7 +135,7 @@ export function factsToPanel(rows: FactRow[], period?: string | null): PanelDail
   const branches = [...bmap.values()]
     .map(b => ({
       filial: b.filial,
-      bolge: BRANCH_TO_REGION[normalizeFilial(b.filial) ?? b.filial] ?? null,
+      bolge: regionOf(b.filial, dbRegionOf),
       total: round2(b.total), wolt: round2(b.wolt), bolt: round2(b.bolt),
     }))
     .sort((a, b) => b.total - a.total)

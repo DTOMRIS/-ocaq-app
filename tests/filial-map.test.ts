@@ -106,8 +106,15 @@ test('aktiv filial sayı bölgə xəritəsi ilə uzlaşır', () => {
   assert.equal(new Set(all).size, all.length, 'filial adı təkrarlanmamalıdır')
   const active = all.filter(isActiveBranch)
   assert.equal(all.length - CLOSED.size, active.length)
-  // 31 xəritədə − 2 bağlı (Masazır, Bulvar Festival) = 29 aktiv.
-  // Saha Nəzarət matrisi 28 deyir — o sənəd Mytcha-dan ƏVVƏLdir (08.2026-da
-  // əlavə olundu). Yeni filial açılanda bu rəqəm də artmalıdır.
-  assert.equal(active.length, 29)
+  // 32 xəritədə − 2 bağlı (Masazır, Bulvar Festival) = 30 aktiv.
+  //
+  // 25.08.2026: 29 → 30. «Aeroport» xəritədə YOX İDİ, halbuki iiko datasında
+  // vardı (01–24.08 üzrə 12 071,05 ₼) və istifadəçi onu `/admin/filiallar`-da
+  // Ramin bölgəsinə təyin etmişdi. Xəritədə olmadığı üçün panel onu bölgəsiz
+  // sayırdı. Real fayllarda 30 filial görünür — düzgün rəqəm budur.
+  //
+  // Saha Nəzarət matrisi 28 deyir — o sənəd daha köhnədir. Yeni filial
+  // açılanda bu rəqəm artmalıdır; ARTIQ ƏSAS MƏNBƏ `branches.region_id`-dir,
+  // bu siyahı yalnız toxum/ehtiyatdır.
+  assert.equal(active.length, 30)
 })

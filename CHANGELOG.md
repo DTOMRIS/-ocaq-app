@@ -6,6 +6,27 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — 🔴 `/admin/filiallar`-dakı BÖLGƏ TƏYİNATI heç yerdə görünmürdü
+- İstifadəçi «Aeroport»u Ramin bəyə təyin etdi, panel almadı. Səbəb: axın
+  TƏRS qurulmuşdu —
+  - `BOLGELER` (kodda sabit xəritə) → `assign-regions` ilə `branches.region_id`-yə
+    **YAZILIRDI**;
+  - panel və Analitika isə bölgəni **yenə həmin sabit xəritədən** oxuyurdu.
+  Yəni UI-dan edilən təyinat bazaya yazılırdı, lakin heç bir ekran onu oxumurdu
+  (üstəlik `assign-regions` yenidən işlədilsə təyinatı geri qaytarardı).
+- İndi **BAZA ƏSAS MƏNBƏDİR**: `panel` və `analitika` səhifələri
+  `branches × regions` birləşməsindən `dbRegionOf` xəritəsi qurur və ona baxır;
+  təyin olunmamış filial üçün sabit xəritə EHTİYAT kimi qalır. Bölgə sorğusu
+  sınsa səhifə işləməyə davam edir (xəta loga yazılır, udulmur).
+- `factsToPanel()` üçüncü arqument alır (`dbRegionOf`); `regionOf()` ixrac edildi.
+
+### Fixed — «Aeroport» bölgə xəritəsində ÜMUMİYYƏTLƏ YOX İDİ
+- iiko datasında var (01–24.08 üzrə 12 071,05 ₼), `BOLGELER`-də yox idi →
+  bölgəsiz sayılırdı. Ramin bölgəsinə əlavə olundu (toxum kimi).
+- Aktiv filial sayı 29 → **30**. Test gözləntisi real fayllarla uzlaşdırıldı
+  (real fayllarda da 30 filial görünür).
+
+
 ### Fixed — Saatlıq Satış səhifəsi KÖHNƏ rəqəmi başda göstərirdi
 - Səhifə HƏMİŞƏ `analytics_hourly_cume` (kumulyativ görüntü) ilə başlayırdı.
   Tarixli fayl yazılsa belə yuxarıdakı böyük rəqəm köhnə qalırdı

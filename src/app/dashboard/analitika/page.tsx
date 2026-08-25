@@ -80,8 +80,23 @@ export default async function AnalitikaPage({ searchParams }: {
     ? allFilials.filter(f => canonAllowed.includes(canonBranchKey(f)))
     : allFilials
 
-  // Bölgə xəritəsi — kanonik ad üzrə (fakt cədvəlindəki ad artıq kanonikdir).
-  const regionOf = (f: string) => BRANCH_TO_REGION[normalizeFilial(f) ?? f] ?? null
+  // Bölgə xəritəsi — BAZA ƏSAS MƏNBƏDİR, sabit xəritə ehtiyatdır.
+  // `/admin/filiallar`-da edilən təyinat dərhal təsir etsin deyə (əvvəl yalnız
+  // sabit xəritə oxunurdu və təyinat heç yerdə görünmürdü).
+  let dbRegionOf: Map<string, string> | null = null
+  try {
+    const rr = rowsOf(await sqlClient.query(
+      `select b.name as filial, r.name as region
+       from branches b join regions r on r.id = b.region_id
+       where b.tenant_id = $1 and r.tenant_id = $1`, [tenantId],
+    ))
+    if (rr.length) dbRegionOf = new Map(rr.map(x => [canonBranchKey(s(x.filial)), s(x.region)]))
+  } catch (err) {
+    // Bölgə oxunmasa səhifə yenə işləsin — sabit xəritəyə düşür. Xəta udulmur.
+    console.error('Analitika region read error:', err)
+  }
+  const regionOf = (f: string) =>
+    dbRegionOf?.get(canonBranchKey(f)) ?? BRANCH_TO_REGION[normalizeFilial(f) ?? f] ?? null
   const regionsAvailable = [...new Set(rbacFilials.map(regionOf).filter((x): x is string => !!x))]
     .sort((a, b) => REGION_ORDER.indexOf(a) - REGION_ORDER.indexOf(b))
 
