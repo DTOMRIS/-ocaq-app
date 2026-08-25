@@ -8,7 +8,8 @@ import {
   PARTIAL_LAST_DAY_NOTE,
   type ProdmixResult, type ReceiptsResult, type DayReconcile,
 } from '@/lib/analytics/parse-sales-detail'
-import { parseHourlySales } from '@/lib/analytics/parse-iiko-reports'
+import { detectReportKind } from '@/lib/analytics/parse-iiko-reports'
+import HourlyUpload from './hourly-upload'
 
 /**
  * PRODMIX (məhsul detayı) + ÇEK (ödəniş şərtləri) fayllarını yükləyir.
@@ -62,6 +63,9 @@ export default function DetailUpload() {
   const [result, setResult] = useState<{ daily: SaveResult | null; item: SaveResult | null } | null>(null)
   const [drag, setDrag] = useState(false)
   const [open, setOpen] = useState(false)
+  // iiko hesabatı (saatlıq / məhsul) bu qutuya atılsa XƏTA VERMİRİK —
+  // faylı olduğu kimi doğru axına ötürürük. Səhifədə TƏK giriş nöqtəsi qalır.
+  const [iiko, setIiko] = useState<{ file: File; kind: 'hourly' | 'product' } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function add(list: FileList | null) {
@@ -77,16 +81,39 @@ export default function DetailUpload() {
   // ── 1) Oxu və tutuşdur (DB-yə HEÇ NƏ yazılmır) ─────────────────────────────
   async function read() {
     if (!files.length) return
-    setBusy(true); setErr(null); setResult(null); setPhase('Fayllar oxunur…')
+    setBusy(true); setErr(null); setResult(null); setIiko(null); setPhase('Fayllar oxunur…')
     try {
       const XLSX = await import('xlsx')
       // Bütün fayl/vərəqlərin nəticəsi toplanır, sonra birləşdirilir (son qalib).
-      let hourlyDetected = false
+      let iikoHit: { file: File; kind: 'hourly' | 'product' } | null = null
       const prodmixParts: ProdmixResult[] = []
       const receiptsParts: ReceiptsResult[] = []
 
       for (const f of files) {
         const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
+        // ⚡ ƏVVƏLCƏ UCUZ TANIMA: iiko hesabatıdırsa PRODMIX/ÇEK parser-lərini
+        // heç işlətmirik. «DT Məhsul» 292 610 sətirdir — boş yerə iki keçid
+        // brauzeri dondururdu.
+        {
+          let hit: 'hourly' | 'product' | null = null
+          for (const sn of wb.SheetNames) {
+            const ws = wb.Sheets[sn]
+            // ⚠️ `range` RƏQƏM verilsə SheetJS onu «bu sətirdən BAŞLA» kimi
+            // başa düşür və VƏRƏQİN HAMISINI oxuyur. Obyekt veririk ki
+            // həqiqətən yalnız ilk 30 sətir oxunsun — 292 610 sətirlik faylda
+            // fərq brauzerin donması ilə anlıq cavab arasındadır.
+            const ref = ws['!ref']
+            if (!ref) continue
+            const full = XLSX.utils.decode_range(ref)
+            const head = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+              header: 1, raw: true, defval: null,
+              range: { s: { r: full.s.r, c: full.s.c }, e: { r: Math.min(full.s.r + 29, full.e.r), c: full.e.c } },
+            }) as unknown[][]
+            const k = detectReportKind(head)
+            if (k) { hit = k; break }
+          }
+          if (hit) { iikoHit = { file: f, kind: hit }; continue }
+        }
         for (const sn of wb.SheetNames) {
           // `raw: true` — MÜHÜM. `raw: false` tarix formatlı hücrəni FORMATLAYIR
           // ('01.08.2026'), halbuki parser-lər xam serial-a (46235) qarşı yazılıb.
@@ -105,20 +132,23 @@ export default function DetailUpload() {
           // 9-u yoxa çıxardı. Artıq HAMISI toplanır və sonra birləşdirilir.
           const p = parseProdmix(rows); if (p.lines.length) prodmixParts.push(p)
           const r = parseReceipts(rows); if (r.days.length) receiptsParts.push(r)
-          // Yanlış qutu tələsi: səhifədə İKİ yükləmə qutusu var. Saatlıq pivot
-          // buraya atılsa parser onu tanımır və istifadəçi «başlıqlar səhvdir»
-          // sanır. Ona görə tanıyırıq və DOĞRU QUTUNU göstəririk.
-          if (!p.lines.length && !r.days.length && parseHourlySales(rows).rows.length) hourlyDetected = true
         }
       }
       const prodmix = mergeProdmix(prodmixParts)
       const receipts = mergeReceipts(receiptsParts)
 
-      if (!prodmix && !receipts && hourlyDetected) {
+      // iiko hesabatı tanındı → XƏTA YOX, faylı doğru axına ötürürük.
+      if (!prodmix && !receipts && iikoHit) {
+        setIiko(iikoHit); setPhase('')
+        return
+      }
+      // QARIŞIQ SEÇİM: eyni anda həm PRODMIX/ÇEK, həm iiko hesabatı atılıb.
+      // iiko faylı ayrı axına gedir — SƏSSİZ ATILMASIN, açıq deyilir.
+      if (iikoHit) {
         throw new Error(
-          'Bu, SAATLIQ satış hesabatıdır («Bağlama saatı» sütunu var) — bu qutu deyil. ' +
-          'Aşağıdakı «🕐 Saatlıq satış» qutusuna atın. Bu qutu PRODMIX (məhsul detayı) ' +
-          'və ÇEK (ödəniş şərtləri) faylları üçündür.',
+          `«${iikoHit.file.name}» iiko ${iikoHit.kind === 'product' ? 'MƏHSUL' : 'SAATLIQ'} hesabatıdır və ` +
+          'PRODMIX/ÇEK faylları ilə BİRLİKDƏ oxuna bilmir (fərqli axınlar). ' +
+          'Onu ayrıca atın — sistem özü tanıyacaq.',
         )
       }
 
@@ -244,14 +274,28 @@ export default function DetailUpload() {
   const badDays = parsed?.recon?.days.filter(d => !d.ok) ?? []
   const rowCount = (r ? r.days.length : 0) + (p ? p.lines.length : 0)
 
+  // iiko hesabatı tanındıqda bu qutu YERİNİ VERİR — istifadəçi ikinci dəfə
+  // fayl seçmir, ikinci qutu axtarmır. TƏK GİRİŞ NÖQTƏSİ.
+  if (iiko) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: '#f1f8f2', border: '1px solid #cfe6d3', color: '#1f5130', borderRadius: 10, padding: '10px 12px', fontSize: 12.5 }}>
+          <b>«{iiko.file.name}»</b> — {iiko.kind === 'product' ? 'MƏHSUL' : 'SAATLIQ SATIŞ'} hesabatı tanındı,
+          aşağıda açıldı. <button onClick={() => { setIiko(null); reset() }} style={{ background: 'none', border: 'none', color: '#1f5130', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, padding: 0 }}>ləğv et</button>
+        </div>
+        <HourlyUpload presetFile={iiko.file} />
+      </div>
+    )
+  }
+
   if (!open) {
     return (
       <div style={{ ...card, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 20 }}>📦</span>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>Günlük detay yüklə — məhsul (PRODMIX) + çek</div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>iiko faylını yüklə — saatlıq · məhsul · PRODMIX · ÇEK</div>
           <div style={{ color: '#8b8378', fontSize: 12, marginTop: 2 }}>
-            Ortalama çek, müştəri sayı və menyu analizi bu fayllardan gəlir. Hər gün atıla bilər — üzərinə yazılır.
+            Hansı hesabat olduğunu sistem ÖZÜ tanıyır. Hər gün atıla bilər — üzərinə yazılır, cəm şişmir.
           </div>
         </div>
         <button onClick={() => setOpen(true)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #d8d2c6', background: '#faf8f4', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
@@ -285,7 +329,7 @@ export default function DetailUpload() {
             <div style={{ fontSize: 30 }}>📦</div>
             <div style={{ fontWeight: 700, fontSize: 14.5, marginTop: 6 }}>{busy ? phase || 'Oxunur…' : 'Faylları bura sürüklə'}</div>
             <div style={{ color: '#8b8378', fontSize: 12, marginTop: 4 }}>
-              .xlsx · məhsul detayı (Uçot günü · Məhsul) · ödəniş şərtləri (Qəbzin nömrəsi · Ödəniş növü)
+              .xlsx · iiko hesabatları · «Satış ay və gün» · «DT Məhsul» · PRODMIX · ÇEK — fayl özü tanınır
             </div>
             <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb" multiple hidden onChange={e => add(e.target.files)} />
           </div>

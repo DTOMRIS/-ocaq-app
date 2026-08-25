@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   parseHourlySales, hourlyToDailyFacts,
@@ -64,10 +64,15 @@ type DatedResult = {
 /** Bir çağırışda göndərilən sətir sayı. 24 günlük fayl 43 074 sətirdir. */
 const CHUNK = 4000
 
-export default function HourlyUpload() {
+/**
+ * `presetFile` — yuxarıdakı TƏK yükləmə qutusu iiko hesabatını tanıyıb bura
+ * ötürəndə dolur. Onda komponent özü açılır və faylı OXUYUR: istifadəçi ikinci
+ * dəfə fayl seçmək məcburiyyətində qalmır (iki qutu tələsi tam bitir).
+ */
+export default function HourlyUpload({ presetFile = null }: { presetFile?: File | null } = {}) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [file, setFile] = useState<File | null>(presetFile)
   const [rep, setRep] = useState<HourlySalesReport | null>(null)
   // Bir qutu İKİ hesabatı tanıyır: «Satış ay və gün» (saatlıq) və
   // «DT Məhsul sayı və qiyməti» (menyu). Səhv qutu problemi qalmır.
@@ -80,7 +85,17 @@ export default function HourlyUpload() {
   const [result, setResult] = useState<SaveResult | null>(null)
   const [dated, setDated] = useState<DatedResult | null>(null)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!presetFile)
+  // Yuxarıdakı qutudan gələn fayl AVTOMATİK oxunur — eyni fayl üçün bir dəfə.
+  const autoRead = useRef<File | null>(null)
+
+  useEffect(() => {
+    if (!presetFile || autoRead.current === presetFile) return
+    autoRead.current = presetFile
+    setFile(presetFile); setOpen(true)
+    setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null); setErr(null)
+    void readFile(presetFile)
+  }, [presetFile])
 
   function reset() {
     setFile(null); setRep(null); setProd(null); setErr(null); setResult(null); setDated(null); setProdDone(null); setProgress(null); setPhase('')
@@ -88,13 +103,14 @@ export default function HourlyUpload() {
     if (inputRef.current) inputRef.current.value = ''
   }
 
-  async function read() {
-    if (!file) return
+  async function read() { if (file) await readFile(file) }
+
+  async function readFile(f: File) {
     setBusy(true); setErr(null); setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null)
     try {
       setPhase('Fayl oxunur…')
       const XLSX = await import('xlsx')
-      const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' })
+      const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
       // Pivot tək vərəqdədir; yenə də bütün vərəqlərə baxırıq — başlıq tapılan
       // birincisi götürülür ki vərəq adı dəyişsə axın sınmasın.
       // 🔴 ƏVVƏLCƏ UCUZ TANIMA, SONRA TƏK PARSER.

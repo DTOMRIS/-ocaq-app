@@ -4,7 +4,6 @@ import { useState, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
 import DetailUpload from './detail-upload'
-import HourlyUpload from './hourly-upload'
 import { computeAttainment, attainmentByRegion } from '@/lib/analytics/target-attainment'
 import { canonBranchKey } from '@/lib/analytics/filial-map'
 
@@ -312,21 +311,10 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           `analytics_daily_fact` / `analytics_item_fact`-a upsert olunur.
           Ortalama çek, müştəri sayı və menyu analizinin mənbəyi budur.
           Panel verisi olsun-olmasın həmişə görünür (aşağıdaki bloklara toxunmur). */}
-      {/* İKİ QUTU BİR BAŞLIQ ALTINDA. Əvvəl ayrı-ayrı dururdular və saatlıq fayl
-          səhv qutuya atıldı. İndi hansı faylın hara getdiyi BİR SƏTİRDƏ yazılır;
-          səhv qutuya atılsa parser tanıyıb doğru qutunu göstərir. */}
-      {canUpload && (
-        <div className="no-print" style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ fontWeight: 800, fontSize: 15 }}>📥 iiko faylını yüklə</div>
-            <div style={{ fontSize: 12, color: '#8b8378' }}>
-              Məhsul/çek faylı → <b>📦</b> · Saatlıq hesabat → <b>🕐</b>
-            </div>
-          </div>
-          <DetailUpload />
-          <HourlyUpload />
-        </div>
-      )}
+      {/* TƏK YÜKLƏMƏ QUTUSU. Əvvəl iki ayrı qutu vardı və istifadəçi faylı
+          davamlı səhv qutuya atırdı. İndi bir qutu var: fayl tanınır və
+          lazım olan axın onun ALTINDA açılır (`detail-upload.tsx` → iiko). */}
+      {canUpload && <div className="no-print" style={{ marginBottom: 16 }}><DetailUpload /></div>}
 
       {!d && !canUpload && (
         <div style={{ ...card, padding: '44px 24px', textAlign: 'center', color: '#8b8378', fontSize: 13.5 }}>

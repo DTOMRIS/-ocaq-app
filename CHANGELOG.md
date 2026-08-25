@@ -6,6 +6,25 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — 🔴 İKİ QUTU BİTDİ: səhifədə TƏK yükləmə nöqtəsi var
+- İstifadəçi «DT Məhsul» faylını üstdəki PRODMIX/ÇEK qutusuna atdı və
+  «Nə PRODMIX nə də ÇEK cədvəli tapılmadı» xətası aldı; aşağıdakı 🕐 qutusuna
+  isə fayl seçmədiyi üçün «oxu» boz qalırdı. Səhv istifadəçidə deyil —
+  **iki qutu qoymaq səhv idi**.
+- İndi **bir qutu var**. Üstdəki qutu faylı tanıyır və lazım olan axını ÖZ
+  ALTINDA açır; fayl ikinci dəfə seçilmir (`presetFile` ilə ötürülür və
+  avtomatik oxunur). Ayrı 🕐 qutusu panel-dən çıxarıldı.
+- iiko hesabatı bu qutuya atılanda artıq **xəta verilmir** — tanınır və
+  yönləndirilir. Qarışıq seçimdə (PRODMIX + iiko birlikdə) iiko faylı
+  SƏSSİZ ATILMIR, açıq xəbərdarlıq verilir.
+
+### Fixed — `range: 0` bütün vərəqi oxuyurdu (donma səbəbi)
+- Ucuz tanıma üçün `sheet_to_json(..., { range: 0 })` yazılmışdı. SheetJS-də
+  RƏQƏM `range` «bu sətirdən BAŞLA» deməkdir — yəni 292 610 sətrin HAMISI
+  oxunurdu. Obyekt `range` ilə əvəz olundu (`{s,e}`), həqiqətən yalnız ilk
+  30 sətir oxunur.
+
+
 ### Added — MENYU ANALİZİ bağlandı: «DT Məhsul sayı və qiyməti»
 - Üç namizəd fayl müqayisə edildi; qazanan: `Ticarət müəssisəsi | Məhsul |
   Uçot günü | Bağlama saatı → Məhsulların sayı + Endirimli məbləğ`.
