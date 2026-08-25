@@ -153,6 +153,30 @@ function ymdToISO(y: number, m: number, d: number): string | null {
 export function excelSerialToISO(serial: unknown): string | null {
   if (serial == null) return null
 
+  // 0) `Date` OBYEKTİ.
+  //
+  // 🔴 NİYƏ LAZIMDIR: hansı kitabxananın faylı oxuduğuna görə tarix hücrəsi
+  // FƏRQLİ TİPDƏ gəlir:
+  //   • SheetJS (`raw: true`, brauzerdə) → XAM SERİAL (46258) ✔ aşağıdaki 1)
+  //   • exceljs (server route-ları)      → `Date` obyekti
+  // Əvvəl `Date` heç bir naxışa uyğun gəlmirdi (`String(date)` = «Sun Aug 24
+  // 2026 …») və `null` qaytarılırdı. Nəticə SƏSSİZ SIFIR olurdu: məhsul
+  // parser-i `if (!date) continue` ilə BÜTÜN sətirləri atırdı — 9 555 sətirlik
+  // fayl «0 məhsul» kimi görünürdü, səbəb heç yerdə yazılmırdı.
+  // Ölçüldü: eyni fayl SheetJS yolu ilə 66 593,79 ₼, exceljs yolu ilə 0,00 ₼.
+  // `parse-daily.ts` bunu artıq düzgün edirdi — burada isə əskik idi.
+  //
+  // ⚠️ YERLİ (UTC deyil) sahələr işlədilir: exceljs tarixi lokal gecə yarısı
+  // kimi qurur, `toISOString()` isə saat qurşağına görə GÜNÜ BİR GERİ ATA
+  // bilər. `parse-daily.ts:65` ilə eyni yanaşma.
+  if (serial instanceof Date) {
+    if (Number.isNaN(serial.getTime())) return null
+    const y = serial.getFullYear()
+    const m = String(serial.getMonth() + 1).padStart(2, '0')
+    const d = String(serial.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
   // 1) Xam serial (number, və ya tam rəqəmdən ibarət sətir)
   if (typeof serial === 'number' || /^\d+(\.\d+)?$/.test(String(serial).trim())) {
     const n = typeof serial === 'number' ? serial : Number(String(serial).trim())

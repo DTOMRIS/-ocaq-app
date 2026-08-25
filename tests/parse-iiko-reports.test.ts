@@ -738,3 +738,63 @@ test('tanınmayan DİL üçün mesaj faylın öz başlıqlarını göstərir', (
   assert.match(msg, /Подразделение/, 'faylın öz başlıqları mesajda olmalıdır')
   assert.match(msg, /Türkçe/, 'dəstəklənən dillər sadalanmalıdır')
 })
+
+// ── TARİX TİPİ: SƏSSİZ SIFIR TƏLƏSİ ─────────────────────────────────────────
+//
+// Hansı kitabxananın faylı oxuduğuna görə tarix hücrəsi FƏRQLİ TİPDƏ gəlir:
+//   • SheetJS (`raw: true`, brauzer)  → xam serial (46258)
+//   • exceljs (server route-ları)     → `Date` obyekti
+// `Date` dəstəklənmədiyi üçün 9 555 sətirlik real fayl exceljs yolu ilə
+// **0,00 ₼** verirdi (SheetJS yolu ilə 66 593,79 ₼) və səbəb heç yerdə
+// yazılmırdı. Bu bloklar hər iki tipi və XƏTANIN GÖRÜNMƏSİNİ qoruyur.
+
+/** 46258 = 24.08.2026 — `Date` variantı (yerli gecə yarısı, exceljs kimi). */
+const TR_DAY_AS_DATE = new Date(2026, 7, 24)
+
+function trProductRows(day: unknown): unknown[][] {
+  return [
+    ['DT Məhsul sayı və qiyməti'],
+    [null, null, null, null, null, 'Genel Toplam'],
+    ['Şube', 'Ürün', 'Muhasebe günü', 'Kapanış saati', 'Ürün miktarı',
+      'Brüt Satışlar (indirim sonrası), m.', 'İndirim öncesi ortalama satış fiyatı, m.'],
+    ['5 Mərtəbə', 'Ayran', day, '00', 1, 10, 2],
+    [null, 'Americano', day, '13', 1, 4, 4],
+    ['Genel Toplam', null, null, null, null, 14, 3],
+  ]
+}
+
+test('tarix `Date` obyekti kimi gəlsə də oxunur (exceljs yolu)', () => {
+  const serial = parseProductDaily(trProductRows(46258))
+  const dated = parseProductDaily(trProductRows(TR_DAY_AS_DATE))
+  assert.equal(Number(serial.totals.amount.toFixed(2)), 14, 'serial yolu işləməlidir')
+  assert.equal(Number(dated.totals.amount.toFixed(2)), 14, '`Date` yolu da EYNİ nəticəni verməlidir')
+  assert.deepEqual(dated.rows.map(r => r.date), ['2026-08-24', '2026-08-24'],
+    '`Date` yerli sahələrdən oxunmalıdır — saat qurşağı günü geri atmamalıdır')
+  assert.deepEqual(dated.warnings.filter(w => w.startsWith('⚠')), [], 'xəbərdarlıq olmamalıdır')
+})
+
+test('oxunmayan tarix SƏSSİZCƏ atılmır — səbəb və dəyər deyilir', () => {
+  // 🔴 REAL HADİSƏ: bütün sətirlər atıldı, nəticə «0 məhsul» oldu, səbəb
+  // heç yerdə yazılmadı. İndi dəyər OLDUĞU KİMİ göstərilir.
+  const rep = parseProductDaily(trProductRows('24 Ağustos 2026'))
+  assert.equal(rep.totals.amount, 0, 'oxunmayan tarixli sətirlər yazılmır (uydurulmur)')
+  const w = rep.warnings.find(x => x.includes('tarixə çevrilə bilmədi'))
+  assert.ok(w, 'səbəb xəbərdarlıq kimi verilməlidir')
+  assert.match(w!, /24 Ağustos 2026/, 'oxunmayan dəyər olduğu kimi göstərilməlidir')
+  assert.match(w!, /46258/, 'qəbul olunan format nümunəsi göstərilməlidir')
+})
+
+test('saatlıq: gün sütunu var amma heç bir tarix oxunmursa SƏSSİZ qalmır', () => {
+  const rows: unknown[][] = [
+    ...TR_HOURLY_HEAD.map(r => [...r]),
+    ['5 Mərtəbə', 'Nağd', '24 Ağustos 2026', '00', 20, 2, 10],
+    [null, null, null, '02', 13.2, 1, 13.2],
+    ['Genel Toplam', null, null, null, 33.2, 3, 11.07],
+  ]
+  const rep = parseHourlySales(rows)
+  assert.equal(rep.hasDayColumn, true)
+  assert.equal(rep.canWriteDaily, false, 'gün bilinmirsə günlük yazılmamalıdır')
+  const w = rep.warnings.find(x => x.includes('HEÇ BİR sətrin tarixi oxunmadı'))
+  assert.ok(w, 'səbəb açıq deyilməlidir — əvvəl tamamilə səssiz idi')
+  assert.match(w!, /24 Ağustos 2026/, 'oxunmayan dəyər göstərilməlidir')
+})

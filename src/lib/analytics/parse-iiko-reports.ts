@@ -422,13 +422,19 @@ export function parseDeletions(rows: unknown[][], outlierMin = DELETION_OUTLIER_
   const [cDay, cStore, cReason, cRcpt, cItem, cAmt] = h.idx
   const cComment = optIndex(rows, h.row, [V.comment])
 
-  let fDay = '', fStore = '', fReason = '', fRcpt = '', fComment = ''
+  // ⚠️ `fDay` XAM SAXLANILIR (`unknown`), `String()`-ə ÇEVRİLMİR. Səbəb: fayl
+  // oxuyucusuna görə tarix hücrəsi `Date` obyekti kimi gələ bilər (exceljs) və
+  // `String(Date)` = «Sun Aug 24 2026 …» heç bir tarix naxışına uyğun gəlmir →
+  // bütün sətirlər SƏSSİZCƏ atılırdı. `excelSerialToISO` xam dəyəri özü ayırd
+  // edir (serial · Date · dd.mm.yyyy · ISO).
+  let fDay: unknown = null
+  let fStore = '', fReason = '', fRcpt = '', fComment = ''
   const out: DeletionRow[] = []
   let skipped = 0, badDate = 0
   for (let r = h.row + 1; r < rows.length; r++) {
     const row = rows[r] ?? []
     if (isSubtotal(row[cStore]) || isSubtotal(row[cReason]) || isSubtotal(row[cItem]) || isSubtotal(row[cDay])) { skipped++; continue }
-    if (row[cDay]) fDay = String(row[cDay]).trim()
+    if (row[cDay]) fDay = row[cDay]
     if (row[cStore]) fStore = String(row[cStore]).trim()
     if (row[cReason]) fReason = String(row[cReason]).trim()
     if (row[cRcpt]) fRcpt = String(row[cRcpt]).trim()
@@ -607,7 +613,13 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
     )
   }
 
-  let fDay = '', fStore = '', fPay = ''
+  // ⚠️ `fDay` XAM SAXLANILIR (`unknown`), `String()`-ə ÇEVRİLMİR. Səbəb: fayl
+  // oxuyucusuna görə tarix hücrəsi `Date` obyekti kimi gələ bilər (exceljs) və
+  // `String(Date)` = «Sun Aug 24 2026 …» heç bir tarix naxışına uyğun gəlmir →
+  // bütün sətirlər SƏSSİZCƏ atılırdı. `excelSerialToISO` xam dəyəri özü ayırd
+  // edir (serial · Date · dd.mm.yyyy · ISO).
+  let fDay: unknown = null
+  let fStore = '', fPay = ''
   // Saat da pivot qrupudur — yalnız qrupun ilk sətrində yazılır. Yuxarı
   // səviyyə (gün/filial/ödəniş növü) dəyişəndə SIFIRLANIR ki köhnə saat
   // yeni qrupa sızmasın.
@@ -659,7 +671,7 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
     // Digər ara cəmlər (filial / ödəniş növü / məhsul / çılpaq « Total») atılır.
     if (totalCols.length) { skipped++; continue }
 
-    if (hasDayColumn && row[cDay]) { fDay = String(row[cDay]).trim(); lastHour = null }
+    if (hasDayColumn && row[cDay]) { fDay = row[cDay]; lastHour = null }
     if (row[cStore]) { fStore = String(row[cStore]).trim(); lastHour = null }
     if (row[cPay]) { fPay = String(row[cPay]).trim(); lastHour = null }
 
@@ -738,6 +750,20 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
   if (!merged.length) warnings.push('Heç bir sətir oxunmadı')
   if (excluded) warnings.push(`${excluded} sətir EXCLUDE filialına aiddir`)
   if (badHour) warnings.push(`${badHour} sətrin «Bağlama saatı» dəyəri oxunmadı`)
+  // 🔴 GÜN SÜTUNU VAR, LAKİN HEÇ BİR TARİX OXUNMADI → `canWriteDaily` səssizcə
+  // `false` olurdu və data GÜNLÜK cədvələ heç vaxt yazılmırdı. Ekranda isə ciro
+  // DÜZGÜN görünürdü, ona görə problem gizli qalırdı: «yüklədim, saatlıq ekran
+  // boş». Artıq səbəb və oxunmayan dəyər açıq deyilir.
+  if (hasDayColumn && merged.length && merged.every(x => x.date === null)) {
+    const raw = merged.length ? fDay : null
+    const sample = raw instanceof Date
+      ? `Date obyekti (${raw.toISOString().slice(0, 10)})`
+      : `«${String(raw)}»`
+    warnings.push(
+      '⚠ «Uçot günü» sütunu var, lakin HEÇ BİR sətrin tarixi oxunmadı — data GÜNLÜK cədvələ YAZILMIR. ' +
+      `Son oxunmayan dəyər: ${sample}. Qəbul olunan formatlar: xam serial (46258) · dd.mm.yyyy · YYYY-MM-DD · Date.`,
+    )
+  }
   if (cItem >= 0) {
     warnings.push('Bu hesabatdakı «Məhsulların sayı» ölçü (dimension) kimi qurulub, say kimi deyil — məhsul ƏDƏDİ buradan OXUNMUR, «Satiş Hesabati Mehsullar Uzre» faylından götürülür.')
   }
@@ -1012,8 +1038,16 @@ export function parseProductDaily(rows: unknown[][]): ProductDailyReport {
     )
   }
 
-  let fDay = '', fStore = '', fItem = ''
+  // ⚠️ `fDay` XAM SAXLANILIR (`unknown`), `String()`-ə ÇEVRİLMİR. Səbəb: fayl
+  // oxuyucusuna görə tarix hücrəsi `Date` obyekti kimi gələ bilər (exceljs) və
+  // `String(Date)` = «Sun Aug 24 2026 …» heç bir tarix naxışına uyğun gəlmir →
+  // bütün sətirlər SƏSSİZCƏ atılırdı. `excelSerialToISO` xam dəyəri özü ayırd
+  // edir (serial · Date · dd.mm.yyyy · ISO).
+  let fDay: unknown = null
+  let fStore = '', fItem = ''
   let skipped = 0, excluded = 0, grandTotal: number | null = null
+  let badDate = 0
+  let badDateSample: unknown = null
   // Saat YIĞILIR → açar (gün|filial|məhsul).
   const agg = new Map<string, ProductDailyRow>()
 
@@ -1026,11 +1060,17 @@ export function parseProductDaily(rows: unknown[][]): ProductDailyReport {
 
     if (row[cStore]) fStore = String(row[cStore]).trim()
     if (row[cItem]) fItem = String(row[cItem]).trim()
-    if (hasDayColumn && row[cDay]) fDay = String(row[cDay]).trim()
+    if (hasDayColumn && row[cDay]) fDay = row[cDay]
     if (!fStore || !fItem) continue
 
     const date = hasDayColumn ? excelSerialToISO(fDay) : period.singleDay
-    if (!date) continue
+    // 🔴 SƏSSİZ SIFIR TƏLƏSİ: əvvəl burada sadəcə `continue` vardı. Tarix
+    // oxunmasa BÜTÜN sətirlər atılırdı və nəticə «0 məhsul» olurdu — səbəb
+    // heç yerdə yazılmırdı (yalnız ümumi «Heç bir sətir oxunmadı»).
+    // Real hadisə: 9 555 sətirlik fayl exceljs yolu ilə 0,00 ₼ verdi, çünki
+    // tarix `Date` obyekti idi. İndi ilk oxunmayan dəyər SAXLANILIR və aşağıda
+    // istifadəçiyə OLDUĞU KİMİ göstərilir.
+    if (!date) { if (badDate === 0) badDateSample = fDay; badDate++; continue }
 
     const filial = normalizeFilial(fStore) ?? fStore
     if (EXCLUDE.has(filial)) { excluded++; continue }
@@ -1061,6 +1101,18 @@ export function parseProductDaily(rows: unknown[][]): ProductDailyReport {
   const amount = out.reduce((s, r) => s + r.amount, 0)
   if (!out.length) warnings.push('Heç bir sətir oxunmadı')
   if (excluded) warnings.push(`${excluded} sətir EXCLUDE filialına aiddir`)
+  // TARİX OXUNMADI — SƏBƏBİ ADI İLƏ DEYİLİR.
+  // «0 məhsul» görüb səbəbi bilməmək qəbuledilməzdir: dəyər olduğu kimi
+  // göstərilir ki formatın nə olduğu dərhal anlaşılsın.
+  if (badDate) {
+    const sample = badDateSample instanceof Date
+      ? `Date obyekti (${badDateSample.toISOString().slice(0, 10)})`
+      : `«${String(badDateSample)}»`
+    warnings.push(
+      `⚠ ${badDate} sətrin «Uçot günü» dəyəri tarixə çevrilə bilmədi — bu sətirlər ATILDI. ` +
+      `İlk oxunmayan dəyər: ${sample}. Qəbul olunan formatlar: xam serial (46258) · dd.mm.yyyy · YYYY-MM-DD · Date.`,
+    )
+  }
   if (grandTotal !== null && grandTotal !== 0) {
     const d = Math.abs(amount - grandTotal) / Math.abs(grandTotal)
     if (d > 0.005) {

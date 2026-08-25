@@ -32,6 +32,30 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 - Tanınmayan dil çıxsa mesaj artıq səbəbi (DİL) deyir və **faylın öz başlıq
   sətrini göstərir** ki dərhal lüğətə əlavə edilsin.
 
+### Fixed — tarix `Date` obyekti kimi gələndə BÜTÜN sətirlər səssizcə atılırdı
+- Tarix hücrəsi **hansı kitabxananın oxuduğuna görə fərqli tipdə** gəlir:
+  SheetJS (`raw: true`, brauzer) → xam serial `46258`; exceljs (server
+  route-ları) → `Date` obyekti. `excelSerialToISO` `Date`-i tanımırdı
+  (`String(Date)` = «Sun Aug 24 2026 …»), `null` qaytarırdı və məhsul
+  parser-i `if (!date) continue` ilə **hər sətri atırdı**.
+- Ölçüldü — eyni 9 555 sətirlik real fayl: SheetJS yolu **66 593,79 ₼**,
+  exceljs yolu **0,00 ₼**. Düzəlişdən sonra **hər iki yol 66 593,79 ₼**
+  (215 məhsul · 29 filial · 1 gün · 0 xəbərdarlıq).
+- `fDay` artıq `String()`-ə çevrilmir, XAM saxlanılır — əks halda `Date`
+  parser-ə çatmadan itirdi. `parse-daily.ts` bunu onsuz da düzgün edirdi;
+  əskik olan yalnız bu modul idi.
+- ⚠️ Bu PRODUCTION-da baş vermirdi (brauzer SheetJS işlədir, serial gəlir),
+  lakin bir sətirlik konfiqurasiya fərqi bütün məhsul datasını sıfırlayardı.
+
+### Fixed — «0 sətir» artıq SƏBƏBSİZ qalmır
+- Tarix oxunmayanda əvvəl sadəcə `continue` vardı: nəticə «0 məhsul»
+  olurdu, səbəb HEÇ YERDƏ yazılmırdı. İndi ilk oxunmayan dəyər **olduğu
+  kimi** göstərilir + qəbul olunan formatlar sadalanır.
+- Saatlıq hesabatda daha da gizli idi: gün sütunu var, heç bir tarix
+  oxunmur → `canWriteDaily` səssizcə `false`, ekranda ciro DÜZGÜN görünür,
+  amma günlük cədvələ heç vaxt yazılmır («yüklədim, saatlıq ekran boş»).
+  Artıq açıq xəbərdarlıq verilir.
+
 ### Fixed — ara cəmi olmayan saat qrupu SƏSSİZCƏ İTİRDİ
 - iiko pivotu **altında tək sətir olan qrupa «Toplam» sətri yazmır**. Kod
   ara cəmlər tapılan kimi yarpaq sətirləri BÜTÜNLÜKLƏ atırdı → belə qruplar
