@@ -1072,3 +1072,55 @@ export function detectReportKind(rows: unknown[][], limit = 30): ReportKind {
   }
   return null
 }
+
+/**
+ * Tanınmayan faylda NƏYİN ÇATIŞMADIĞINI deyir.
+ *
+ * 🔴 NİYƏ: «iiko hesabatı tanınmadı» tək başına heç nə demir. Real hadisə —
+ * istifadəçi «Doğan Tomris Rapor Məhsul» faylını yüklədi; həmin faylda
+ * `Endirimli məbləğ` sütunu ÜMUMİYYƏTLƏ YOXDUR (yalnız ədəd var), ona görə
+ * ciro hesablana bilməz və fayl haqlı olaraq rədd edilir. Lakin ekranda səbəb
+ * yazılmadığı üçün istifadəçi faylın nəyi əskik olduğunu anlaya bilmədi.
+ */
+export function explainUnrecognized(rows: unknown[][], limit = 30): string {
+  const found = { store: false, money: false, item: false, qty: false, pay: false, hour: false, day: false }
+  for (let r = 0; r < Math.min(rows.length, limit); r++) {
+    const cells = (rows[r] ?? []).map(c => azFold(c))
+    if (!cells.length) continue
+    const has = (re: RegExp) => cells.some(c => re.test(c))
+    if (has(/^(ticarət müəssisəsi|store)$/)) found.store = true
+    if (has(/(endirimli məbləğ|gross sales)/)) found.money = true
+    if (has(/^(məhsul|item)$/)) found.item = true
+    if (has(/məhsullarin sayi|number of items/)) found.qty = true
+    if (has(/(ödəniş növü|payment type)/)) found.pay = true
+    if (has(/(bağlama saat|closing (hour|time))/)) found.hour = true
+    if (has(/uçot günü|accounting day/)) found.day = true
+  }
+
+  const miss: string[] = []
+  if (!found.store) miss.push('«Ticarət müəssisəsi» (filial)')
+  if (!found.money) miss.push('«Endirimli məbləğ» (PUL SÜTUNU — bu olmadan ciro hesablanmır)')
+
+  const seen = [
+    found.store && 'filial', found.pay && 'ödəniş növü', found.day && 'gün',
+    found.hour && 'saat', found.item && 'məhsul adı', found.qty && 'ədəd',
+    found.money && 'məbləğ',
+  ].filter(Boolean).join(' · ') || 'heç biri'
+
+  if (miss.length) {
+    return `Bu fayl oxuna bilmir — çatışmayan sütun: ${miss.join(', ')}. ` +
+      `Faylda tapılanlar: ${seen}. ` +
+      'Lazım olan iki hesabat: «Satış ay və gün» (filial · ödəniş növü · Uçot günü · Bağlama saatı · Endirimli məbləğ) ' +
+      'və «DT Məhsul sayı və qiyməti» (filial · Məhsul · Uçot günü · Məhsulların sayı · Endirimli məbləğ).'
+  }
+  // Pul və filial var, amma nə məhsul adı, nə də ödəniş+saat cütü tam deyil.
+  if (!found.item && !(found.pay && found.hour)) {
+    return `Bu fayl oxuna bilmir — nə «Məhsul» adı, nə də «Ödəniş növü» + «Bağlama saatı» cütü tam deyil. ` +
+      `Faylda tapılanlar: ${seen}. Saatlıq hesabat üçün ödəniş növü VƏ bağlama saatı, ` +
+      'məhsul hesabatı üçün məhsul adı VƏ məhsulların sayı lazımdır.'
+  }
+  if (found.item && !found.qty) {
+    return `Bu fayl məhsul hesabatına oxşayır, lakin «Məhsulların sayı» sütunu yoxdur. Faylda tapılanlar: ${seen}.`
+  }
+  return `Fayl tanınmadı. Faylda tapılanlar: ${seen}. Gözlənilən: «Satış ay və gün» və ya «DT Məhsul sayı və qiyməti».`
+}

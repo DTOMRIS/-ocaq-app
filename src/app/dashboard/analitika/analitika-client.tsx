@@ -31,11 +31,17 @@ type Attach = { filial: string; name: string; qty: number }
 
 /** Kasavana-Smith kvadrantı — POPULYARLIQ × CİRO PAYI. */
 type Quad = 'ulduz' | 'at' | 'tapmaca' | 'it'
-const QUAD: Record<Quad, { label: string; icon: string; color: string; bg: string; desc: string }> = {
-  ulduz:   { label: 'Ulduz',   icon: '⭐', color: '#1c7a4e', bg: '#f2fbf5', desc: 'Çox satılır, çox ciro gətirir → qoru, menyuda ön sırada saxla, endirim etmə.' },
-  at:      { label: 'At',      icon: '🐎', color: '#8a5a00', bg: '#fffaf0', desc: 'Çox satılır, ciro payı zəif → qiyməti/porsiyanı gözdən keçir, yanına yüksək marjalı əlavə sat.' },
-  tapmaca: { label: 'Tapmaca', icon: '🧩', color: '#1f5a8a', bg: '#f2f8fd', desc: 'Az satılır, ciro gətirir → görünürlüyü artır, personala təklif etdir (upsell).' },
-  it:      { label: 'İt',      icon: '🐕', color: '#8a3a3a', bg: '#fdf2f3', desc: 'Az satılır, az ciro → menyudan çıxarmağı və ya yenidən qurmağı düşün.' },
+const QUAD: Record<Quad, { label: string; classic: string; rule: string; icon: string; color: string; bg: string; desc: string }> = {
+  // ETİKET = GÖRÜLƏCƏK İŞ, klassik ad ikinci sırada.
+  //
+  // Əvvəl yalnız «Ulduz / At / Tapmaca / İt» yazılırdı (Kasavana-Smith
+  // terminologiyası). Filial müdiri «at nə deməkdir» sualında ilişirdi və
+  // qərar çıxmırdı. İndi başlıq birbaşa əməli deyir, klassik ad mötərizədə
+  // qalır ki idarə səviyyəsində termin itməsin.
+  ulduz:   { label: 'QORU',            classic: 'Ulduz',   icon: '⭐', color: '#1c7a4e', bg: '#f2fbf5', rule: 'çox satılır + çox qazandırır', desc: 'Menyuda ön sırada saxla, stoku heç vaxt boş qoyma, endirim etmə.' },
+  at:      { label: 'QİYMƏTƏ BAX',     classic: 'At',      icon: '⚠️', color: '#8a5a00', bg: '#fffaf0', rule: 'çox satılır − az qazandırır', desc: 'Qiyməti/porsiyanı gözdən keçir; yanına yüksək marjalı əlavə sat (içki, sous, kartof).' },
+  tapmaca: { label: 'TANIT',           classic: 'Tapmaca', icon: '📢', color: '#1f5a8a', bg: '#f2f8fd', rule: 'az satılır + çox qazandırır', desc: 'Görünürlüyü artır: menyuda yuxarı çək, personal təklif etsin (upsell).' },
+  it:      { label: 'ÇIXARMAĞI DÜŞÜN', classic: 'İt',      icon: '🗑', color: '#8a3a3a', bg: '#fdf2f3', rule: 'az satılır − az qazandırır', desc: 'Menyudan çıxar, ya da resepti/qiyməti yenidən qur. Mətbəxi sadələşdirir.' },
 }
 
 function Tile({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: string }) {
@@ -102,7 +108,7 @@ export default function AnalitikaClient({
     }
   }), [products, totalQty, totalAmount, cut, receipts])
 
-  // Say + CİRO PAYI birlikdə: 286 məhsulda «İt» kvadrantına 221 çeşid düşür,
+  // Say + CİRO PAYI birlikdə: 286 məhsulda «ÇIXARMAĞI DÜŞÜN» kvadrantına 221 çeşid düşür,
   // lakin onların birləşmiş ciro payı kiçikdir. Yalnız sayı göstərmək
   // yanıldıcı olur — pay da göstərilir ki uzun quyruq görünsün.
   const quadStat = useMemo(() => {
@@ -303,7 +309,7 @@ export default function AnalitikaClient({
           Eşik: orta payın %70-i ({pct(cut)}) — {int(products.length)} çeşid üzərində.
           Qeyd: klassik üsul KATEQORİYA daxilində tətbiq olunur (əsas yemək, içki, desert ayrı-ayrı);
           burada kateqoriya sütunu olmadığı üçün bütün çeşid birlikdə qiymətləndirilir, ona görə
-          «İt» kvadrantı uzun quyruğu da yığır — aşağıdaki <b>ciro payı</b> rəqəminə baxın.
+          «ÇIXARMAĞI DÜŞÜN» kvadrantı uzun quyruğu da yığır — aşağıdaki <b>ciro payı</b> rəqəminə baxın.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(215px, 1fr))', gap: 10 }}>
           {(Object.keys(QUAD) as Quad[]).map(k => {
@@ -317,10 +323,14 @@ export default function AnalitikaClient({
                   <b style={{ color: q.color, fontSize: 13.5 }}>{q.label}</b>
                   <span style={{ marginLeft: 'auto', fontWeight: 800, fontSize: 16, color: q.color }}>{quadStat[k].n}</span>
                 </div>
+                {/* QAYDA başlığın altında: «niyə bu kvadranta düşdü» sualı
+                    kartın üstündə cavablanır, sənəd axtarmağa ehtiyac qalmır. */}
+                <div style={{ fontSize: 11, color: q.color, marginTop: 2, fontWeight: 700 }}>{q.rule}</div>
                 <div style={{ fontSize: 11, color: q.color, marginTop: 2, fontWeight: 600 }}>
                   ciro payı {pct(quadStat[k].share)} · {money(quadStat[k].share * totalAmount)}
                 </div>
                 <div style={{ fontSize: 11, color: '#6b655c', marginTop: 5, lineHeight: 1.5 }}>{q.desc}</div>
+                <div style={{ fontSize: 10, color: '#a09788', marginTop: 4 }}>klassik ad: {q.classic}</div>
               </button>
             )
           })}
@@ -405,7 +415,7 @@ export default function AnalitikaClient({
                       {p.codes > 1 && <span style={{ color: '#8b8378', fontWeight: 400, fontSize: 11 }}> · {p.codes} kod</span>}
                     </td>
                     <td style={{ ...td, textAlign: 'center' }}>
-                      <span title={q.label} style={{ background: q.bg, color: q.color, border: `1px solid ${q.color}33`, borderRadius: 7, padding: '2px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      <span title={`${q.label} — ${q.rule}. ${q.desc}`} style={{ background: q.bg, color: q.color, border: `1px solid ${q.color}33`, borderRadius: 7, padding: '2px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {q.icon} {q.label}
                       </span>
                     </td>

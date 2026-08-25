@@ -8,7 +8,7 @@ import {
   PARTIAL_LAST_DAY_NOTE,
   type ProdmixResult, type ReceiptsResult, type DayReconcile,
 } from '@/lib/analytics/parse-sales-detail'
-import { detectReportKind } from '@/lib/analytics/parse-iiko-reports'
+import { detectReportKind, explainUnrecognized } from '@/lib/analytics/parse-iiko-reports'
 import HourlyUpload from './hourly-upload'
 
 /**
@@ -86,6 +86,7 @@ export default function DetailUpload() {
       const XLSX = await import('xlsx')
       // Bütün fayl/vərəqlərin nəticəsi toplanır, sonra birləşdirilir (son qalib).
       let iikoHit: { file: File; kind: 'hourly' | 'product' } | null = null
+      let firstHead: unknown[][] = []
       const prodmixParts: ProdmixResult[] = []
       const receiptsParts: ReceiptsResult[] = []
 
@@ -109,6 +110,7 @@ export default function DetailUpload() {
               header: 1, raw: true, defval: null,
               range: { s: { r: full.s.r, c: full.s.c }, e: { r: Math.min(full.s.r + 29, full.e.r), c: full.e.c } },
             }) as unknown[][]
+            if (!firstHead.length) firstHead = head
             const k = detectReportKind(head)
             if (k) { hit = k; break }
           }
@@ -153,10 +155,14 @@ export default function DetailUpload() {
       }
 
       if (!prodmix && !receipts) {
+        // SƏBƏBİ YAZ: hansı sütunun çatışmadığını göstəririk. «Tapılmadı» tək
+        // başına istifadəçiyə heç nə demir — real hadisədə fayl PUL SÜTUNU
+        // olmadığı üçün rədd edilmişdi, amma bu ekranda görünmürdü.
         throw new Error(
-          'Nə PRODMIX nə də ÇEK cədvəli tapılmadı. PRODMIX-də «Uçot günü / Ticarət müəssisəsi / ' +
-          'Məhsulun kodu / Məhsul / Məhsulların sayı / Endirimli məbləğ», ÇEK-də «Ticarət müəssisəsi / ' +
-          'Tarix / Ödəniş növü / Qəbzin nömrəsi / Endirimli məbləğ» sütunları gözlənilir.',
+          `${explainUnrecognized(firstHead)}\n\n` +
+          'Köhnə format da qəbul olunur: PRODMIX («Uçot günü / Ticarət müəssisəsi / Məhsulun kodu / ' +
+          'Məhsul / Məhsulların sayı / Endirimli məbləğ») və ÇEK («Ticarət müəssisəsi / Tarix / ' +
+          'Ödəniş növü / Qəbzin nömrəsi / Endirimli məbləğ»).',
         )
       }
 

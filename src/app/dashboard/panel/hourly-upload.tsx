@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { useRouter } from 'next/navigation'
 import {
   parseHourlySales, hourlyToDailyFacts,
-  parseProductDaily, productDailyToItemFacts, detectReportKind,
+  parseProductDaily, productDailyToItemFacts, detectReportKind, explainUnrecognized,
   type HourlySalesReport, type ProductDailyReport,
 } from '@/lib/analytics/parse-iiko-reports'
 
@@ -131,12 +131,15 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
       // yalnız DOĞRU parser işləyir — iş yarıya düşür.
       let best: HourlySalesReport | null = null
       let bestProd: ProductDailyReport | null = null
+      // Tanınmadıqda SƏBƏBİ yaza bilmək üçün ilk vərəqin başlığını saxlayırıq.
+      let firstHead: unknown[][] = []
       for (const sn of wb.SheetNames) {
         setPhase(`«${sn}» oxunur…`)
         // Brauzerin ekranı yeniləməsinə imkan ver — yoxsa «oxunur…» yazısı
         // heç görünmür və istifadəçi düymənin işləmədiyini sanır.
         await new Promise(r => setTimeout(r, 0))
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: true, defval: null }) as unknown[][]
+        if (!firstHead.length) firstHead = rows.slice(0, 30)
         const kind = detectReportKind(rows)
         if (!kind) continue
         setPhase(`«${sn}» — ${kind === 'product' ? 'məhsul' : 'saatlıq'} hesabatı (${rows.length.toLocaleString('ru-RU')} sətir)…`)
@@ -150,7 +153,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
         }
       }
       if (bestProd && (!best || bestProd.rows.length > best.rows.length)) { setProd(bestProd); setPhase(''); return }
-      if (!best) throw new Error('iiko hesabatı tanınmadı. Gözlənilən: «Satış ay və gün» (Ticarət müəssisəsi / Ödəniş növü / Bağlama saatı / Endirimli məbləğ) və ya «DT Məhsul sayı və qiyməti» (Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ).')
+      if (!best) throw new Error(explainUnrecognized(firstHead))
       setRep(best)
       // Fayl `Uçot günü` daşıyırsa və ya tək günlükdürsə tarixi ondan götür.
       if (best.period.singleDay) setCoverEnd(best.period.singleDay)

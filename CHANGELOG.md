@@ -6,6 +6,30 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — Saatlıq Satış səhifəsi KÖHNƏ rəqəmi başda göstərirdi
+- Səhifə HƏMİŞƏ `analytics_hourly_cume` (kumulyativ görüntü) ilə başlayırdı.
+  Tarixli fayl yazılsa belə yuxarıdakı böyük rəqəm köhnə qalırdı
+  (01–21.08 · 2 691 753 ₼) və istifadəçi «yüklədim, dəyişmədi» görürdü.
+- İndi mənbə sırası: **əvvəlcə `analytics_hourly_fact` (gün-gün)**, o boşdursa
+  kumulyativ görüntü. Hansı mənbənin göstərildiyi ekranda AÇIQ yazılır;
+  köhnə görüntülər aşağıda «arxiv» kimi qalır (silinmir).
+
+### Fixed — «tanınmadı» deyirdi, SƏBƏBİNİ demirdi
+- `explainUnrecognized()` əlavə olundu: hansı sütunun çatışdığını və faylda
+  nələrin tapıldığını yazır. Real fayllarla yoxlandı — «Doğan Tomris Rapor
+  Məhsul» (17 MB) və «məhsul ay və gün» faylları üçün doğru səbəb çıxır:
+  **«Endirimli məbləğ» (PUL SÜTUNU) yoxdur**, ona görə ciro hesablana bilmir.
+  Hər iki qutuda (iiko və PRODMIX/ÇEK) işləyir.
+
+### Changed — menyu kvadrantı etiketləri ƏMƏLİ oldu
+- «Ulduz / At / Tapmaca / İt» filial müdiri üçün anlaşılmırdı. Başlıq artıq
+  görüləcək İŞİ deyir, qayda altında yazılır, klassik ad mötərizədə qalır:
+  - ⭐ **QORU** (Ulduz) — çox satılır + çox qazandırır
+  - ⚠️ **QİYMƏTƏ BAX** (At) — çox satılır − az qazandırır
+  - 📢 **TANIT** (Tapmaca) — az satılır + çox qazandırır
+  - 🗑 **ÇIXARMAĞI DÜŞÜN** (İt) — az satılır − az qazandırır
+
+
 ### Fixed — 🔴 MƏHSUL DATASINDA İKİQAT SAYIM TƏHLÜKƏSİ (yazılmadan tutuldu)
 - `analytics_item_fact` unikal açarı `item_code` üzərindədir. PRODMIX faylı
   orada REAL MƏHSUL KODUNU işlədir («Məhsulun kodu»), «DT Məhsul» hesabatında

@@ -31,6 +31,8 @@ type DayRow = { date: string; net: number; guests: number; derivation: string }
 
 export default function SaatlikClient(props: {
   empty?: string
+  /** 'fact' = gün-gün data (əsas) · 'cume' = köhnə kumulyativ görüntü. */
+  source?: 'fact' | 'cume'
   snapshots: Snapshot[]
   latest?: Snapshot
   filials: string[]
@@ -105,9 +107,20 @@ export default function SaatlikClient(props: {
       )}
 
       {/* ── 1. DÖVR PROFİLİ (kumulyativ fayl) ────────────────────────────── */}
+      {/* Mənbə ekranda AÇIQ yazılır — «niyə rəqəm dəyişmədi» sualı yaranmasın. */}
+      {props.source === 'cume' && (
+        <div style={{ background: '#fdf6e9', border: '1px solid #eddcb6', color: '#6b4e12', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, lineHeight: 1.6 }}>
+          <b>Köhnə kumulyativ görüntü göstərilir</b> ({latest.start} → {latest.end}) — bu faylda gün sütunu yoxdu.
+          {' '}Gün-gün data üçün «Satış ay və gün» hesabatını yükləyin: onda bu ekran avtomatik ona keçir.
+          {' '}<Link href="/dashboard/panel" style={{ color: '#8a1f2a', fontWeight: 700 }}>Günlük Panelə keç →</Link>
+        </div>
+      )}
+
       <Section
         title="Dövr profili"
-        note={`${latest.start} → ${latest.end} · yüklənən faylın özü (kumulyativ cəm)`}
+        note={props.source === 'fact'
+          ? `${latest.start} → ${latest.end} · gün-gün data (${props.days.length} gün)`
+          : `${latest.start} → ${latest.end} · köhnə kumulyativ görüntü`}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
           <Stat k="Ciro" v={money(cumeNet)} />
@@ -177,11 +190,11 @@ export default function SaatlikClient(props: {
       >
         {props.days.length === 0 ? (
           <div style={{ background: '#fdf6e9', border: '1px solid #eddcb6', color: '#6b4e12', borderRadius: 10, padding: '12px 14px', fontSize: 12.5, lineHeight: 1.7 }}>
-            Hələ gün-gün data yoxdur — bu <b>normaldır</b>. Yüklənən ilk fayl <b>baza</b> olaraq saxlanıldı
-            ({latest.start} → {latest.end}). Sabah eyni hesabatı yenidən yükləyəndə sistem iki faylın fərqini
-            alıb <b>həmin günün</b> saatlıq datasını buraya yazacaq.
+            Hələ gün-gün data yoxdur. <b>«Satış ay və gün»</b> hesabatını yükləyin — həmin faylda
+            <b> «Uçot günü»</b> sütunu var və sətirlər birbaşa öz gününə yazılır.
             <div style={{ marginTop: 8 }}>
-              21 günün cəmini tək günə yazmırıq — o, datanı korlayardı.
+              Gün sütunu olmayan fayl yüklənibsə (köhnə format) sistem gün uydurmur — iki ardıcıl
+              faylın fərqini gözləyir.
             </div>
           </div>
         ) : (
@@ -216,7 +229,8 @@ export default function SaatlikClient(props: {
       </Section>
 
       {/* ── Yüklənmiş görüntülər ─────────────────────────────────────────── */}
-      <Section title="Yüklənmiş fayllar" note="hər sətir bir kumulyativ görüntüdür; eyni gün təkrar yüklənsə üzərinə yazılır">
+      {props.snapshots.length > 0 && (
+      <Section title="Köhnə kumulyativ görüntülər (arxiv)" note="gün sütunu olmayan fayllardan qalıb; əsas data yuxarıdadır">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ textAlign: 'left', color: '#8b8378', fontSize: 11, textTransform: 'uppercase' }}>
@@ -239,6 +253,7 @@ export default function SaatlikClient(props: {
           </tbody>
         </table>
       </Section>
+      )}
 
       <div style={{ fontSize: 11.5, color: '#8b8378', lineHeight: 1.7 }}>
         <b>Qeyd:</b> «Qonaq» çek sayı DEYİL — bir qəbz iki saata/ödəniş növünə düşəndə iki dəfə sayıla bilər
