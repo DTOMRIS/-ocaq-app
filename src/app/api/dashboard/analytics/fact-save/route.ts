@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   }
 
-  let body: { kind?: unknown; rows?: unknown; source?: unknown }
+  let body: { kind?: unknown; rows?: unknown; source?: unknown; replaceDays?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON oxunmadı' }, { status: 400 }) }
 
   const kind = body.kind === 'daily' || body.kind === 'item' ? body.kind : null
@@ -102,6 +102,9 @@ export async function POST(req: NextRequest) {
   const rejected: string[] = []
   let merged = 0
   let written = 0
+  // Məhsul faylı əvəz etdiyi günlər (varsa) — cavabda və audit-də görünür.
+  let replacedDays: string[] = []
+  let replacedRows = 0
   const dates = new Set<string>()
   const unmatched = new Set<string>()
 
@@ -164,6 +167,43 @@ export async function POST(req: NextRequest) {
         written = rows.length
       }
     } else {
+      // ── GÜN ƏVƏZLƏMƏ (yalnız `item`) ────────────────────────────────────
+      //
+      // 🔴 NİYƏ LAZIM: `analytics_item_fact` unikal açarı `item_code`
+      // üzərindədir. PRODMIX faylı ORADA REAL MƏHSUL KODUNU işlədir
+      // («Məhsulun kodu» sütunu), «DT Məhsul» hesabatında isə kod YOXDUR və
+      // açar kimi məhsulun ADI götürülür. Yəni eyni məhsul/gün/filial üçün
+      // İKİ AYRI SƏTİR yaranır və Analitika `item_name` üzrə cəmlədiyi üçün
+      // həmin günlərin məhsul cirosu İKİ DƏFƏ sayılır.
+      //
+      // Həll: yeni fayl əhatə etdiyi GÜNLƏRİN köhnə məhsul sətirlərini əvəz
+      // edir. Silinmə DAR ƏHATƏLİDİR (yalnız göndərilən günlər), yalnız
+      // super_admin çağıra bilər, audit-ə yazılır və ekranda ƏVVƏLCƏDƏN
+      // yazılır. Data faylın özündən yenidən yazıldığı üçün bərpa olunandır.
+      //
+      // `source` sütunu OXUMA FİLTRİ kimi İŞLƏDİLMİR (iyul hadisəsi) —
+      // problemi «yeni mənbəni oxu» ilə həll etmirik, köhnə sətri əvəz edirik.
+      const replaceDays = Array.isArray(body.replaceDays)
+        ? [...new Set((body.replaceDays as unknown[]).filter((d): d is string => typeof d === 'string' && ISO.test(d)))]
+        : []
+      if (replaceDays.length > 62) {
+        return NextResponse.json({ error: `Bir çağırışda maksimum 62 gün əvəz edilə bilər (gələn: ${replaceDays.length})` }, { status: 400 })
+      }
+      if (replaceDays.length) {
+        const before = await sqlClient.query(
+          `select count(*)::int as n from analytics_item_fact
+           where tenant_id = $1::uuid and business_date = any($2::date[])`,
+          [tenantId, replaceDays],
+        ) as Array<{ n: number }>
+        replacedRows = Number(before?.[0]?.n ?? 0)
+        await sqlClient.query(
+          `delete from analytics_item_fact
+           where tenant_id = $1::uuid and business_date = any($2::date[])`,
+          [tenantId, replaceDays],
+        )
+        replacedDays = replaceDays
+      }
+
       const valid = (body.rows as ItemRow[]).filter((r, i) => {
         const ok = !!r && typeof r.filial === 'string' && !!r.filial.trim()
           && typeof r.date === 'string' && ISO.test(r.date)
@@ -256,6 +296,7 @@ export async function POST(req: NextRequest) {
         entity_id: days.join(',').slice(0, 200) || 'n/a',
         metadata: JSON.stringify({
           written, merged, rejected: rejected.length, source, days,
+          replacedDays, replacedRows,
           unmatchedBranches: [...unmatched],
         }),
       })
@@ -264,6 +305,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true, written, merged, rejected: rejected.length,
       rejectedSample: rejected, days,
+      replacedDays, replacedRows,
       // Filial adı OCAQ-da yoxdur → `branch_id` boş getdi. Data itməyib, amma
       // RBAC filial filtri işləməz; istifadəçi `/admin/filiallar`-da yaratmalıdır.
       unmatchedBranches: [...unmatched],

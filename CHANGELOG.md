@@ -6,6 +6,26 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — 🔴 MƏHSUL DATASINDA İKİQAT SAYIM TƏHLÜKƏSİ (yazılmadan tutuldu)
+- `analytics_item_fact` unikal açarı `item_code` üzərindədir. PRODMIX faylı
+  orada REAL MƏHSUL KODUNU işlədir («Məhsulun kodu»), «DT Məhsul» hesabatında
+  isə kod YOXDUR və açar kimi məhsulun ADI götürülür. Nəticə: eyni
+  məhsul/gün/filial üçün İKİ AYRI SƏTİR, Analitika isə `item_name` üzrə
+  cəmlədiyi üçün 01–07.08-in məhsul cirosu **İKİ DƏFƏ** sayılacaqdı.
+- PGlite-də göstərildi: köhnə Ayran 200 ₼ → əvəzləmə OLMADAN **320 ₼**,
+  əvəzləmə ilə **220 ₼** (düzgün); əhatədən kənar gün (08-05) toxunulmadı.
+- Həll: `fact-save` (`kind='item'`) artıq `replaceDays` qəbul edir — yeni
+  faylın ƏHATƏ ETDİYİ günlərin köhnə məhsul sətirləri bir dəfə təmizlənir,
+  sonra yazılır. Silinmə DAR ƏHATƏLİDİR, yalnız super_admin, audit-ə yazılır,
+  və ekranda **YAZMADAN ƏVVƏL** deyilir. Saatlıq/ödəniş datasına toxunulmur.
+- `source` sütunu oxuma filtri kimi İŞLƏDİLMƏDİ (iyul hadisəsi) — problem
+  «yeni mənbəni oxu» ilə deyil, köhnə sətri əvəz etməklə həll olundu.
+
+### Fixed — «24 gün (2026-08-01 … 2026-08-10)» ziddiyyətli mətn
+- Tarix aralığı İLK və SON sətirdən götürülürdü; sətirlər tarixə görə sıralı
+  deyil. Min/max ilə əvəz olundu.
+
+
 ### Fixed — 🔴 İKİ QUTU BİTDİ: səhifədə TƏK yükləmə nöqtəsi var
 - İstifadəçi «DT Məhsul» faylını üstdəki PRODMIX/ÇEK qutusuna atdı və
   «Nə PRODMIX nə də ÇEK cədvəli tapılmadı» xətası aldı; aşağıdakı 🕐 qutusuna

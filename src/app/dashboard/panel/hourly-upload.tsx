@@ -32,6 +32,15 @@ const card: CSSProperties = { background: '#fff', border: '1px solid #e6e1d7', b
 const money = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + '₼'
 const int = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ')
 
+/** Sətirlərdəki ƏN ERKƏN … ƏN GEC tarix. Sətirlər sıralı olmaya bilər. */
+function dateRange(rows: Array<{ date: string | null }>): string {
+  const ds = rows.map(r => r.date).filter((d): d is string => !!d)
+  if (!ds.length) return '—'
+  let min = ds[0], max = ds[0]
+  for (const d of ds) { if (d < min) min = d; if (d > max) max = d }
+  return min === max ? min : `${min} … ${max}`
+}
+
 /** Yerli vaxta görə dünənin ISO tarixi (UTC sürüşməsi olmadan). */
 function yesterdayISO(): string {
   const d = new Date()
@@ -77,7 +86,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
   // Bir qutu İKİ hesabatı tanıyır: «Satış ay və gün» (saatlıq) və
   // «DT Məhsul sayı və qiyməti» (menyu). Səhv qutu problemi qalmır.
   const [prod, setProd] = useState<ProductDailyReport | null>(null)
-  const [prodDone, setProdDone] = useState<{ written: number; days: string[]; items: number; amount: number; qty: number; unmatched: string[] } | null>(null)
+  const [prodDone, setProdDone] = useState<{ written: number; days: string[]; items: number; amount: number; qty: number; unmatched: string[]; replaced: number } | null>(null)
   const [coverEnd, setCoverEnd] = useState(yesterdayISO())
   const [busy, setBusy] = useState(false)
   const [phase, setPhase] = useState('')
@@ -230,25 +239,30 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
     if (!prod) return
     const src = file?.name?.slice(0, 120) ?? null
     const facts = productDailyToItemFacts(prod.rows)
+    const days = prod.byDay.map(d => d.date)
     const unmatched = new Set<string>()
     let written = 0
+    let replaced = 0
     setProgress({ done: 0, total: facts.length })
     for (let i = 0; i < facts.length; i += CHUNK) {
       const slice = facts.slice(i, i + CHUNK)
       setPhase(`Məhsul yazılır — ${i.toLocaleString('ru-RU')}/${facts.length.toLocaleString('ru-RU')}`)
       const res = await fetch('/api/dashboard/analytics/fact-save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'item', source: src, rows: slice }),
+        // `replaceDays` YALNIZ birinci chunk-da gedir: həmin günlərin köhnə
+        // məhsul sətirləri bir dəfə təmizlənir, sonrakı chunk-lar üstünə yazır.
+        body: JSON.stringify({ kind: 'item', source: src, rows: slice, ...(i === 0 ? { replaceDays: days } : {}) }),
       })
       const j = await res.json()
       if (!res.ok) throw new Error(`Məhsul yazma: ${j?.error ?? 'xəta'}${j?.detail ? ` — ${j.detail}` : ''}`)
       written += Number(j.written ?? 0)
+      if (i === 0) replaced = Number(j.replacedRows ?? 0)
       for (const b of (j.unmatchedBranches ?? []) as string[]) unmatched.add(b)
       setProgress({ done: Math.min(i + CHUNK, facts.length), total: facts.length })
     }
     setProdDone({
-      written, days: prod.byDay.map(d => d.date), items: prod.totals.items,
-      amount: prod.totals.amount, qty: prod.totals.qty, unmatched: [...unmatched],
+      written, days, items: prod.totals.items,
+      amount: prod.totals.amount, qty: prod.totals.qty, unmatched: [...unmatched], replaced,
     })
     setProgress(null); setPhase('')
     router.refresh()
@@ -344,6 +358,14 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
                 Saatlıq ciro və ödəniş kırılımı «Satış ay və gün» faylından gəlir, bu fayl onu əvəz etmir.
               </Note>
 
+              {/* ƏVƏZLƏMƏ YAZMADAN ƏVVƏL DEYİLİR — sürpriz olmasın. */}
+              <Note tone="amber">
+                <b>Bu {prod.totals.days} günün köhnə məhsul sətirləri ƏVƏZ OLUNACAQ.</b>
+                {' '}Səbəb: PRODMIX faylı məhsul KODUNU açar kimi işlədir, bu hesabatda kod yoxdur (ad işlədilir).
+                Əvəz olunmasa eyni məhsul həmin günlərdə İKİ DƏFƏ sayılardı.
+                {' '}Saatlıq/ödəniş datasına <b>toxunulmur</b>.
+              </Note>
+
               <div style={{ background: '#faf8f4', border: '1px solid #eee9e0', borderRadius: 10, padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Ən çox ciro gətirən 5 məhsul</div>
                 {prod.byItem.slice(0, 5).map(i => (
@@ -396,7 +418,10 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
               {rep.hasDayColumn ? (
                 <Note tone="green">
                   <b>Faylda «Uçot günü» var</b> — {rep.totals.days} gün ayrı-ayrı oxundu
-                  {rep.rows.length ? ` (${rep.rows[0].date} … ${rep.rows[rep.rows.length - 1].date})` : ''}.
+                  {/* ⚠️ İLK/SON SƏTİR DEYİL, MİN/MAX. Sətirlər tarixə görə sıralı
+                      DEYİL — ilk/son sətri göstərəndə «24 gün (08-01 … 08-10)»
+                      kimi ziddiyyətli mətn çıxırdı. */}
+                  {rep.rows.length ? ` (${dateRange(rep.rows)})` : ''}.
                   Tarix soruşmağa ehtiyac yoxdur, sətirlər öz gününə yazılacaq.
                 </Note>
               ) : (
@@ -442,6 +467,11 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
             <div style={{ marginTop: 6 }}>
               {int(prodDone.items)} məhsul · {int(prodDone.qty)} ədəd · {money(prodDone.amount)} ·
               {' '}{int(prodDone.written)} sətir
+              {prodDone.replaced > 0 && (
+                <div style={{ marginTop: 4, color: '#3d6b48' }}>
+                  {int(prodDone.replaced)} köhnə məhsul sətri əvəz olundu (ikiqat sayım qarşısı alındı).
+                </div>
+              )}
             </div>
           </Note>
 
