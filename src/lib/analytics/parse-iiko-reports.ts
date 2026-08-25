@@ -1037,3 +1037,38 @@ export function productDailyToItemFacts(rows: ProductDailyRow[]): ItemFactRow[] 
     qty: r.qty, amount: r.amount, line_kind: r.lineKind,
   }))
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. UCUZ TANIMA — hansı hesabat olduğunu BAŞLIQDAN bilmək
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Vərəqin hansı hesabat olduğunu YALNIZ başlıq sətrinə baxaraq təyin edir.
+ *
+ * 🔴 NİYƏ LAZIM: əvvəl hər vərəqdə HƏR İKİ parser işlədilirdi. «DT Məhsul»
+ * faylı 292 610 sətirdir — iki tam keçid brauzeri DONDURURDU (istifadəçi
+ * «oxu düyməsinə basılmır» dedi; əslində basılırdı, sonra səhifə kilidlənirdi).
+ * Bu funksiya yalnız ilk ~30 sətrə baxır → praktiki olaraq pulsuzdur, və
+ * ondan sonra YALNIZ BİR parser işləyir.
+ *
+ * Ayırd etmə qaydası (sütun adları, `azFold`-dan sonra):
+ *   • `məhsul` sütunu VAR  → məhsul hesabatı
+ *   • `ödəniş növü` VAR    → saatlıq satış hesabatı
+ * Hər ikisi varsa məhsul üstün tutulur (menyu detayı daha dardır).
+ */
+export type ReportKind = 'hourly' | 'product' | null
+
+export function detectReportKind(rows: unknown[][], limit = 30): ReportKind {
+  for (let r = 0; r < Math.min(rows.length, limit); r++) {
+    const cells = (rows[r] ?? []).map(c => azFold(c))
+    if (!cells.length) continue
+    const has = (re: RegExp) => cells.some(c => re.test(c))
+    const store = has(/^(ticarət müəssisəsi|store)$/)
+    if (!store) continue
+    const money = has(/(endirimli məbləğ|gross sales)/)
+    if (!money) continue
+    if (has(/^(məhsul|item)$/) && has(/məhsullarin sayi|number of items/)) return 'product'
+    if (has(/(ödəniş növü|payment type)/) && has(/(bağlama saat|closing (hour|time))/)) return 'hourly'
+  }
+  return null
+}

@@ -5,7 +5,7 @@ import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   parseHourlySales, hourlyToDailyFacts,
-  parseProductDaily, productDailyToItemFacts,
+  parseProductDaily, productDailyToItemFacts, detectReportKind,
   type HourlySalesReport, type ProductDailyReport,
 } from '@/lib/analytics/parse-iiko-reports'
 
@@ -97,20 +97,33 @@ export default function HourlyUpload() {
       const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' })
       // Pivot tək vərəqdədir; yenə də bütün vərəqlərə baxırıq — başlıq tapılan
       // birincisi götürülür ki vərəq adı dəyişsə axın sınmasın.
-      // HANSI HESABAT OLDUĞUNU FAYLIN ÖZÜ DEYİR — ad/heuristika ilə təxmin
-      // etmirik, hər iki parser-i işlədirik və hansı sətir tapdıysa o götürülür.
+      // 🔴 ƏVVƏLCƏ UCUZ TANIMA, SONRA TƏK PARSER.
+      //
+      // Əvvəl hər vərəqdə HƏR İKİ parser işlədilirdi. «DT Məhsul» faylı
+      // 292 610 sətirdir — iki tam keçid brauzeri DONDURURDU və istifadəçi
+      // «oxu düyməsinə basılmır» görürdü (əslində basılırdı, sonra səhifə
+      // kilidlənirdi). İndi `detectReportKind` yalnız ilk 30 sətrə baxır və
+      // yalnız DOĞRU parser işləyir — iş yarıya düşür.
       let best: HourlySalesReport | null = null
       let bestProd: ProductDailyReport | null = null
       for (const sn of wb.SheetNames) {
         setPhase(`«${sn}» oxunur…`)
+        // Brauzerin ekranı yeniləməsinə imkan ver — yoxsa «oxunur…» yazısı
+        // heç görünmür və istifadəçi düymənin işləmədiyini sanır.
+        await new Promise(r => setTimeout(r, 0))
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: true, defval: null }) as unknown[][]
-        const h = parseHourlySales(rows)
-        if (h.rows.length && (!best || h.totals.net > best.totals.net)) best = h
-        const p = parseProductDaily(rows)
-        if (p.rows.length && (!bestProd || p.totals.amount > bestProd.totals.amount)) bestProd = p
+        const kind = detectReportKind(rows)
+        if (!kind) continue
+        setPhase(`«${sn}» — ${kind === 'product' ? 'məhsul' : 'saatlıq'} hesabatı (${rows.length.toLocaleString('ru-RU')} sətir)…`)
+        await new Promise(r => setTimeout(r, 0))
+        if (kind === 'product') {
+          const pr = parseProductDaily(rows)
+          if (pr.rows.length && (!bestProd || pr.totals.amount > bestProd.totals.amount)) bestProd = pr
+        } else {
+          const h = parseHourlySales(rows)
+          if (h.rows.length && (!best || h.totals.net > best.totals.net)) best = h
+        }
       }
-      // Məhsul hesabatında `Ödəniş növü` YOXDUR, saatlıq hesabatda `Məhsul`
-      // yoxdur — ikisi eyni faylda tapılırsa daha çox sətir tapan qalib gəlir.
       if (bestProd && (!best || bestProd.rows.length > best.rows.length)) { setProd(bestProd); setPhase(''); return }
       if (!best) throw new Error('iiko hesabatı tanınmadı. Gözlənilən: «Satış ay və gün» (Ticarət müəssisəsi / Ödəniş növü / Bağlama saatı / Endirimli məbləğ) və ya «DT Məhsul sayı və qiyməti» (Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ).')
       setRep(best)
@@ -276,10 +289,20 @@ export default function HourlyUpload() {
       {!result && !dated && !prodDone && (
         <>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb" onChange={e => { setFile(e.target.files?.[0] ?? null); setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null) }} />
+            <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb"
+              onChange={e => { setFile(e.target.files?.[0] ?? null); setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null) }} />
             <button onClick={read} disabled={!file || busy} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: !file || busy ? '#9a9488' : '#26221d', color: '#fff', fontWeight: 700, cursor: !file || busy ? 'default' : 'pointer' }}>
               {busy ? (phase || 'oxunur…') : 'oxu'}
             </button>
+            {/* Düymə boz olanda SƏBƏBİ yazılır — əvvəl səssizcə sönük dururdu
+                və «basılmır» kimi görünürdü. */}
+            {!file && !busy && <span style={{ fontSize: 12, color: '#8b8378' }}>əvvəlcə fayl seçin ↑</span>}
+            {file && !busy && (
+              <span style={{ fontSize: 12, color: '#6b655c' }}>
+                {(file.size / 1024 / 1024).toFixed(1)} MB
+                {file.size > 6 * 1024 * 1024 && <b style={{ color: '#8a6a1f' }}> · böyük fayl, oxumaq 30–60 san sürə bilər</b>}
+              </span>
+            )}
             {file && <button onClick={reset} style={{ fontSize: 12, background: 'none', border: 'none', color: '#8b8378', cursor: 'pointer', textDecoration: 'underline' }}>təmizlə</button>}
           </div>
 

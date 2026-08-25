@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   parsePeriodHeader, parseBranchSales, parseProductSales, parseDeletions, deletionRatio,
-  parseHourlySales, hourlyToDailyFacts, parseProductDaily, productDailyToItemFacts,
+  parseHourlySales, hourlyToDailyFacts, parseProductDaily, productDailyToItemFacts, detectReportKind,
 } from '../src/lib/analytics/parse-iiko-reports'
 
 // Fixture-lar REAL faylların strukturunu təkrarlayır: İngilis başlıqlar,
@@ -574,4 +574,36 @@ test('productDailyToItemFacts item_code-u addan qurur (kod yoxdur)', () => {
   assert.equal(f.length, r.rows.length)
   assert.equal(f[0].item_code, f[0].item_name)
   assert.ok(f.every(x => x.date && x.filial && x.item_code && x.line_kind))
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. detectReportKind — ucuz tanıma (brauzeri dondurmamaq üçün)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('detectReportKind saatlıq hesabatı tanıyır', () => {
+  assert.equal(detectReportKind(HOURLY_HEAD), 'hourly')
+})
+
+test('detectReportKind məhsul hesabatını tanıyır', () => {
+  assert.equal(detectReportKind([['DT'], ['x'], ['y'], [null], PDH]), 'product')
+})
+
+test('detectReportKind hər ikisi olsa MƏHSULU seçir (detay daha dardır)', () => {
+  const both = ['Ticarət müəssisəsi', 'Ödəniş növü', 'Məhsul', 'Bağlama saatı',
+    'Məhsulların sayı', 'Endirimli məbləğ, m.']
+  assert.equal(detectReportKind([['x'], both]), 'product')
+})
+
+test('detectReportKind tanımadığı faylda null qaytarır (təxmin etmir)', () => {
+  // «məhsul ay və gün» — məhsul ADI yoxdur, ona görə məhsul hesabatı DEYİL;
+  // `Bağlama saatı` var, amma ölçü yalnız ədəddir → saatlıq da deyil.
+  assert.equal(detectReportKind([['x'], ['Ticarət müəssisəsi', 'Ödəniş növü', 'Uçot günü', 'Bağlama saatı', 'Məhsulların sayı', 'Qonaqların sayı']]), null)
+  assert.equal(detectReportKind([['boş'], ['fayl']]), null)
+})
+
+test('detectReportKind yalnız ilk sətirlərə baxır — böyük fayl üçün ucuzdur', () => {
+  const big: unknown[][] = [...HOURLY_HEAD, ...Array.from({ length: 50 }, () => ['x'])]
+  assert.equal(detectReportKind(big, 8), 'hourly', 'başlıq limit daxilindədir')
+  // Başlıq limitdən sonradırsa tapılmır — səssiz yanlış nəticə YOX, null.
+  assert.equal(detectReportKind([...Array.from({ length: 40 }, () => ['x']), ...HOURLY_HEAD], 5), null)
 })
