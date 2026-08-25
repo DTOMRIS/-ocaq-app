@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   parseHourlySales, hourlyToDailyFacts,
   parseProductDaily, productDailyToItemFacts, detectReportKind, explainUnrecognized,
+  parseDeletions, type DeletionReport,
   type HourlySalesReport, type ProductDailyReport,
 } from '@/lib/analytics/parse-iiko-reports'
 
@@ -86,6 +87,8 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
   // Bir qutu İKİ hesabatı tanıyır: «Satış ay və gün» (saatlıq) və
   // «DT Məhsul sayı və qiyməti» (menyu). Səhv qutu problemi qalmır.
   const [prod, setProd] = useState<ProductDailyReport | null>(null)
+  const [del, setDel] = useState<DeletionReport | null>(null)
+  const [delDone, setDelDone] = useState<{ written: number; days: string[]; amount: number; replaced: number; unmatched: string[] } | null>(null)
   const [prodDone, setProdDone] = useState<{ written: number; days: string[]; items: number; amount: number; qty: number; unmatched: string[]; replaced: number } | null>(null)
   const [coverEnd, setCoverEnd] = useState(yesterdayISO())
   const [busy, setBusy] = useState(false)
@@ -102,12 +105,12 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
     if (!presetFile || autoRead.current === presetFile) return
     autoRead.current = presetFile
     setFile(presetFile); setOpen(true)
-    setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null); setErr(null)
+    setRep(null); setProd(null); setDel(null); setResult(null); setDated(null); setProdDone(null); setDelDone(null); setErr(null)
     void readFile(presetFile)
   }, [presetFile])
 
   function reset() {
-    setFile(null); setRep(null); setProd(null); setErr(null); setResult(null); setDated(null); setProdDone(null); setProgress(null); setPhase('')
+    setFile(null); setRep(null); setProd(null); setDel(null); setErr(null); setResult(null); setDated(null); setProdDone(null); setDelDone(null); setProgress(null); setPhase('')
     setCoverEnd(yesterdayISO())
     if (inputRef.current) inputRef.current.value = ''
   }
@@ -115,7 +118,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
   async function read() { if (file) await readFile(file) }
 
   async function readFile(f: File) {
-    setBusy(true); setErr(null); setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null)
+    setBusy(true); setErr(null); setRep(null); setProd(null); setDel(null); setResult(null); setDated(null); setProdDone(null); setDelDone(null)
     try {
       setPhase('Fayl oxunur…')
       const XLSX = await import('xlsx')
@@ -131,6 +134,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
       // yalnız DOĞRU parser işləyir — iş yarıya düşür.
       let best: HourlySalesReport | null = null
       let bestProd: ProductDailyReport | null = null
+      let bestDel: DeletionReport | null = null
       // Tanınmadıqda SƏBƏBİ yaza bilmək üçün ilk vərəqin başlığını saxlayırıq.
       let firstHead: unknown[][] = []
       for (const sn of wb.SheetNames) {
@@ -144,7 +148,10 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
         if (!kind) continue
         setPhase(`«${sn}» — ${kind === 'product' ? 'məhsul' : 'saatlıq'} hesabatı (${rows.length.toLocaleString('ru-RU')} sətir)…`)
         await new Promise(r => setTimeout(r, 0))
-        if (kind === 'product') {
+        if (kind === 'deletion') {
+          const dr = parseDeletions(rows)
+          if (dr.rows.length && (!bestDel || dr.totals.amount > bestDel.totals.amount)) bestDel = dr
+        } else if (kind === 'product') {
           const pr = parseProductDaily(rows)
           if (pr.rows.length && (!bestProd || pr.totals.amount > bestProd.totals.amount)) bestProd = pr
         } else {
@@ -152,6 +159,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
           if (h.rows.length && (!best || h.totals.net > best.totals.net)) best = h
         }
       }
+      if (bestDel) { setDel(bestDel); setPhase(''); return }
       if (bestProd && (!best || bestProd.rows.length > best.rows.length)) { setProd(bestProd); setPhase(''); return }
       if (!best) throw new Error(explainUnrecognized(firstHead))
       setRep(best)
@@ -164,6 +172,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
   }
 
   async function save() {
+    if (del && del.rows.length) { setBusy(true); setErr(null); setPhase('Yazılır…'); try { await saveDeletion() } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } return }
     if (prod && prod.rows.length) { setBusy(true); setErr(null); setPhase('Yazılır…'); try { await saveProduct() } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } return }
     if (!rep || !rep.rows.length) return
     setBusy(true); setErr(null); setPhase('Yazılır…')
@@ -271,6 +280,42 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
     router.refresh()
   }
 
+  /**
+   * Silinmə hesabatı → `analytics_deletion_fact` (gün əvəzləmə ilə).
+   * Unikal açar YOXDUR: eyni qəbzdə eyni məhsul iki dəfə silinə bilər və
+   * açar onları birləşdirib sayı azaldardı (kasa nəzarətində riski gizlədər).
+   */
+  async function saveDeletion() {
+    if (!del) return
+    const src = file?.name?.slice(0, 120) ?? null
+    const all = del.rows.map(r => ({
+      date: r.date, filial: r.filial, item: r.item, amount: r.amount,
+      receipt: r.receipt, reason: r.reason, comment: r.comment, writtenOff: r.writtenOff,
+    }))
+    const days = [...new Set(all.map(r => r.date))].sort()
+    const unmatched = new Set<string>()
+    let written = 0, replaced = 0
+    setProgress({ done: 0, total: all.length })
+    for (let i = 0; i < all.length; i += CHUNK) {
+      const slice = all.slice(i, i + CHUNK)
+      setPhase(`Silinmə yazılır — ${i.toLocaleString('ru-RU')}/${all.length.toLocaleString('ru-RU')}`)
+      const res = await fetch('/api/dashboard/analytics/deletion-save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        // `replaceDays` YALNIZ birinci chunk-da — günlər bir dəfə təmizlənir.
+        body: JSON.stringify({ source: src, rows: slice, ...(i === 0 ? { replaceDays: days } : {}) }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(`Silinmə yazma: ${j?.error ?? 'xəta'}${j?.detail ? ` — ${j.detail}` : ''}`)
+      written += Number(j.written ?? 0)
+      if (i === 0) replaced = Number(j.replacedRows ?? 0)
+      for (const x of (j.unmatchedBranches ?? []) as string[]) unmatched.add(x)
+      setProgress({ done: Math.min(i + CHUNK, all.length), total: all.length })
+    }
+    setDelDone({ written, days, amount: del.totals.amount, replaced, unmatched: [...unmatched] })
+    setProgress(null); setPhase('')
+    router.refresh()
+  }
+
   /** Tarixsiz (kumulyativ) fayl: görüntü + fərq. Köhnə format üçün saxlanılır. */
   async function saveCumulative() {
     if (!rep) return
@@ -319,11 +364,11 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
 
       {err && <Note tone="red"><b>Xəta:</b> {err}</Note>}
 
-      {!result && !dated && !prodDone && (
+      {!result && !dated && !prodDone && !delDone && (
         <>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb"
-              onChange={e => { setFile(e.target.files?.[0] ?? null); setRep(null); setProd(null); setResult(null); setDated(null); setProdDone(null) }} />
+              onChange={e => { setFile(e.target.files?.[0] ?? null); setRep(null); setProd(null); setDel(null); setResult(null); setDated(null); setProdDone(null); setDelDone(null) }} />
             <button onClick={read} disabled={!file || busy} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: !file || busy ? '#9a9488' : '#26221d', color: '#fff', fontWeight: 700, cursor: !file || busy ? 'default' : 'pointer' }}>
               {busy ? (phase || 'oxunur…') : 'oxu'}
             </button>
@@ -338,6 +383,51 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
             )}
             {file && <button onClick={reset} style={{ fontSize: 12, background: 'none', border: 'none', color: '#8b8378', cursor: 'pointer', textDecoration: 'underline' }}>təmizlə</button>}
           </div>
+
+          {del && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10 }}>
+                <Mini k="Silinmə" v={money(del.totals.amount)} />
+                <Mini k="Sətir" v={int(del.totals.count)} />
+                <Mini k="Qəbz" v={int(del.totals.receipts)} />
+                <Mini k="Gün" v={int(del.totals.days)} />
+                <Mini k="Filial" v={int(del.totals.branches)} />
+              </div>
+
+              <Note tone="green">
+                <b>Bu, SİLİNMƏ hesabatıdır</b> — kasa nəzarəti. Yazıldıqdan sonra
+                <i> 🗑 Silinmə Nəzarəti</i> ekranında filial-filial nisbət və trend görünəcək.
+              </Note>
+
+              {del.outliers.length > 0 && (
+                <Note tone="amber">
+                  <b>{del.outliers.length} anomaliya</b> (tək silinmə ≥ 200 ₼) — bunlar çox vaxt
+                  OĞURLUQ DEYİL, səhv girişdir. Ekranda ayrıca sayılır ki filial nisbətini şişirtməsin.
+                  {' '}Ən böyüyü: {del.outliers[0].item} — {money(del.outliers[0].amount)} ({del.outliers[0].filial})
+                </Note>
+              )}
+
+              <Note tone="amber">
+                <b>Bu {del.totals.days} günün köhnə silinmə sətirləri ƏVƏZ OLUNACAQ.</b>
+                {' '}Səbəb: eyni qəbzdə eyni məhsul iki dəfə silinə bilər — unikal açar qoysaydıq
+                onları birləşdirib sayı AZ göstərərdi. Digər datalara toxunulmur.
+              </Note>
+
+              {del.warnings.map((w, i) => <Note key={i} tone={w.startsWith('⚠') ? 'amber' : 'grey'}>{w}</Note>)}
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={reset} disabled={busy} style={{ fontSize: 12, background: 'none', border: 'none', color: '#8b8378', cursor: 'pointer', textDecoration: 'underline' }}>ləğv et</button>
+                {progress && (
+                  <span style={{ fontSize: 12, color: '#6b655c' }}>
+                    {progress.done.toLocaleString('ru-RU')} / {progress.total.toLocaleString('ru-RU')} sətir
+                  </span>
+                )}
+                <button onClick={save} disabled={busy} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                  {busy ? (phase || 'yazılır…') : 'yaz'}
+                </button>
+              </div>
+            </>
+          )}
 
           {prod && (
             <>
@@ -459,6 +549,36 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
             </>
           )}
         </>
+      )}
+
+      {/* ── SİLİNMƏ FAYLININ NƏTİCƏSİ ───────────────────────────────────── */}
+      {delDone && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Note tone="green">
+            <b>Silinmə datası yazıldı — {delDone.days.length} gün</b>
+            {delDone.days.length ? ` (${delDone.days[0]} … ${delDone.days[delDone.days.length - 1]})` : ''}
+            <div style={{ marginTop: 6 }}>
+              {int(delDone.written)} sətir · {money(delDone.amount)}
+              {delDone.replaced > 0 && ` · ${int(delDone.replaced)} köhnə sətir əvəz olundu`}
+            </div>
+          </Note>
+
+          {delDone.unmatched.length > 0 && (
+            <Note tone="amber">
+              <b>OCAQ-da tapılmayan filial:</b> {delDone.unmatched.join(', ')} — data yazıldı,
+              filial bağlantısı boşdur.
+            </Note>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href="/dashboard/silinme" style={{ padding: '9px 18px', borderRadius: 10, background: '#26221d', color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>
+              🗑 Silinmə Nəzarətinə bax →
+            </Link>
+            <button onClick={reset} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #d8d2c6', background: '#faf8f4', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              yeni fayl
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── MƏHSUL FAYLININ NƏTİCƏSİ ────────────────────────────────────── */}

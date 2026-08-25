@@ -1056,7 +1056,7 @@ export function productDailyToItemFacts(rows: ProductDailyRow[]): ItemFactRow[] 
  *   • `ödəniş növü` VAR    → saatlıq satış hesabatı
  * Hər ikisi varsa məhsul üstün tutulur (menyu detayı daha dardır).
  */
-export type ReportKind = 'hourly' | 'product' | null
+export type ReportKind = 'hourly' | 'product' | 'deletion' | null
 
 export function detectReportKind(rows: unknown[][], limit = 30): ReportKind {
   for (let r = 0; r < Math.min(rows.length, limit); r++) {
@@ -1067,6 +1067,9 @@ export function detectReportKind(rows: unknown[][], limit = 30): ReportKind {
     if (!store) continue
     const money = has(/(endirimli məbləğ|gross sales)/)
     if (!money) continue
+    // SİLİNMƏ hesabatı ƏVVƏLCƏ yoxlanılır: onda da `Store` + `Gross Sales` var,
+    // fərqləndirici sütun «Item deleted» / «Qəbzin nömrəsi»dir.
+    if (has(/item deleted$|silinmə səbəbi/) && has(/receipt no|qəbzin nömrəsi/)) return 'deletion'
     if (has(/^(məhsul|item)$/) && has(/məhsullarin sayi|number of items/)) return 'product'
     if (has(/(ödəniş növü|payment type)/) && has(/(bağlama saat|closing (hour|time))/)) return 'hourly'
   }

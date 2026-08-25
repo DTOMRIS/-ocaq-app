@@ -6,6 +6,42 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Added — 🗑 SİLİNMƏ NƏZARƏTİ ekranı (parser 3 gün boş qalmışdı)
+- `parseDeletions` 22.08-də yazılıb testlənmişdi, **heç bir ekrana bağlı
+  deyildi** — faylı açıb baxmaqla qalırdı, tarix boyu izləmə yox idi.
+- Yeni cədvəl `analytics_deletion_fact` (migration **0014**, add-only),
+  endpoint `/api/dashboard/analytics/deletion-save`, ekran `/dashboard/silinme`,
+  sidebar-da «🗑 Silinmə Nəzarəti».
+- **UNİKAL AÇAR QOYULMADI**: eyni qəbzdə eyni məhsul iki dəfə silinə bilər;
+  açar onları birləşdirib silinmə sayını AZ göstərərdi — kasa nəzarətində
+  bu, riski gizlədən səhvdir. Əvəzinə «gün əvəzləmə» işlədilir.
+- Ekran HƏR İKİ rəqəmi göstərir: **xam** və **anomaliyasız** (tək silinmə
+  ≥ 200 ₼ ayrılır). Səbəb: 22.08-də bir filialın xam nisbəti %76,38 çıxmışdı,
+  səbəb 2 səhv giriş idi; anomaliyasız %1,95. Xam rəqəm gizlədilmir, lakin
+  ittiham ona görə qurulmur.
+- Real fayl + REAL Postgres (PGlite) ilə uçdan-uca: **13 073 sətir ·
+  123 343,00 ₼ · 22 gün · 29 filial · 18 anomaliya**, təkrar yükləmədə şişmədi.
+- ⚠️ TAPINTI: silinmələrin **%94–98-ində şərh YOXDUR** — ekranda ayrıca
+  sütun kimi göstərilir (nəzarət boşluğu göstəricisi).
+
+### Added — Kasa/Banka mutabakatı artıq SAXLANILIR
+- Hesablama brauzerdə aparılır və ekranda göstərilirdi, **heç yerə
+  yazılmırdı** — səhifə bağlananda itirdi, keçmiş yığılmırdı, «bu filial hər
+  ay bankaya əskik verir» sualı cavabsız qalırdı.
+- Yeni cədvəl `kasa_banka_recon` (migration **0014**) + endpoint
+  `/api/dashboard/kasa-banka/save`. Açar DÖVRDÜR (banka çıxarışı gün-gün
+  deyil); eyni dövr təkrar yüklənsə üzərinə yazılır, cəm şişmir.
+- Ekrana dövr seçimi (standart: ayın 1-i → bu gün) və «bazaya yaz» düyməsi
+  əlavə olundu.
+
+### Fixed — öz hesabatımdakı SƏHV: dashboard mənbəyi
+- «Dashboard hələ `daily_sales`-dən oxuyur» yazmışdım. **Yanlış idi** —
+  `dashboard/page.tsx` fakt cədvəlində data varsa ONU işlədir
+  (`monthSales = monthReceiptAmount`, `salesSource = 'fact'`), `daily_sales`
+  yalnız ehtiyatdır. İlk sorğuya baxıb sonrakı override-ı görməmişdim.
+  Düzəldiləcək bir şey yoxdur.
+
+
 ### Fixed — 🔴 `/admin/filiallar`-dakı BÖLGƏ TƏYİNATI heç yerdə görünmürdü
 - İstifadəçi «Aeroport»u Ramin bəyə təyin etdi, panel almadı. Səbəb: axın
   TƏRS qurulmuşdu —

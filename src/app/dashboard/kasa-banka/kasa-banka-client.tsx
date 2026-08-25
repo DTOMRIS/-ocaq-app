@@ -48,6 +48,14 @@ export default function KasaBankaClient() {
   const [err, setErr] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Banka çıxarışı DÖVR üzrədir — hesablama nəticəsi bu dövrə yazılır.
+  // Standart: cari ayın 1-i → bu gün. İstifadəçi dəyişə bilər.
+  const today = new Date()
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const [pStart, setPStart] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)))
+  const [pEnd, setPEnd] = useState(iso(today))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState<{ written: number; unmatched: string[] } | null>(null)
 
   function add(list: FileList | null) { if (list) { setFiles(p => [...p, ...Array.from(list)]); setErr(null) } }
 
@@ -81,8 +89,38 @@ export default function KasaBankaClient() {
       }
       if (!tanindi.length) throw new Error('Heç bir fayl tanınmadı. Unibank REP, ATB, Kapital POS və ya satış detayı gözlənilir.')
       setRes({ ...reconcile(cardB, unibank, atb, kapital), tanindi, atlanan })
+      setSaved(null)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
+  }
+
+  /**
+   * Nəticəni bazaya yazır. ƏVVƏL YOXDU: hesablama yalnız ekranda qalırdı,
+   * səhifə bağlananda itirdi və keçmiş yığılmırdı — «bu filial hər ay əskik
+   * verir» sualı cavabsız qalırdı.
+   */
+  async function save() {
+    if (!res || !res.rows.length) return
+    setSaving(true); setErr(null)
+    try {
+      const r = await fetch('/api/dashboard/kasa-banka/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          periodStart: pStart, periodEnd: pEnd,
+          source: files.map(f => f.name).join(', ').slice(0, 120) || null,
+          rows: res.rows.map(x => ({
+            filial: x.filial, cardSales: x.kartSatis, unibank: x.unibank,
+            atb: x.atb, kapital: x.kapital, bankTotal: x.bankaCemi,
+            diff: x.qalan, status: x.status,
+          })),
+        }),
+      })
+      const j = await r.json()
+      // Xəta UDULMUR — serverin teşhis məlumatı göstərilir.
+      if (!r.ok) throw new Error(`${j?.error ?? 'Yazma xətası'}${j?.detail ? ` — ${j.detail}` : ''}`)
+      setSaved({ written: Number(j.written ?? 0), unmatched: (j.unmatchedBranches ?? []) as string[] })
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
+    finally { setSaving(false) }
   }
 
   const flagged = res?.rows.filter(x => x.status === 'over' || x.status === 'missing') ?? []
@@ -119,6 +157,29 @@ export default function KasaBankaClient() {
       )}
 
       {err && <div style={{ ...card, borderColor: '#f0c9cf', background: '#fdf2f3', padding: '12px 14px', margin: '14px 0', color: '#c8102e', fontSize: 13 }}>⚠ {err}</div>}
+
+      {res && (
+        <div style={{ ...card, padding: 13, marginBottom: 14, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700 }}>Dövr:</span>
+          <input type="date" value={pStart} onChange={e => { setPStart(e.target.value); setSaved(null) }}
+            style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid #d8d2c6', fontSize: 13 }} />
+          <span style={{ color: '#8b8378' }}>→</span>
+          <input type="date" value={pEnd} onChange={e => { setPEnd(e.target.value); setSaved(null) }}
+            style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid #d8d2c6', fontSize: 13 }} />
+          <span style={{ fontSize: 11.5, color: '#8b8378' }}>banka çıxarışının əhatə etdiyi aralıq</span>
+          {saved ? (
+            <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#1f5130', fontWeight: 700 }}>
+              ✓ yazıldı — {saved.written} filial
+              {saved.unmatched.length > 0 && ` · tapılmayan: ${saved.unmatched.join(', ')}`}
+            </span>
+          ) : (
+            <button onClick={save} disabled={saving || !pStart || !pEnd}
+              style={{ marginLeft: 'auto', padding: '8px 18px', borderRadius: 10, border: 'none', background: saving ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, fontSize: 13, cursor: saving ? 'wait' : 'pointer' }}>
+              {saving ? 'yazılır…' : 'bazaya yaz'}
+            </button>
+          )}
+        </div>
+      )}
 
       {res && (
         <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>

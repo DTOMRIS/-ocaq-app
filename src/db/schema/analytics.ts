@@ -157,3 +157,56 @@ export const analytics_hourly_fact = pgTable('analytics_hourly_fact', {
   index('ahf_branch_idx').on(t.tenant_id, t.branch_id, t.business_date),
   index('ahf_hour_idx').on(t.tenant_id, t.hour, t.business_date),
 ])
+
+// ─── SİLİNMƏ (kasa nəzarəti) ────────────────────────────────────────────────
+//
+// «Silinme hesabati» faylından. UNİKAL AÇAR YOXDUR — eyni qəbzdə eyni məhsul
+// iki dəfə silinə bilər və unikal açar onları birləşdirib sayı azaldardı.
+// Yükləmə «gün əvəzləmə» ilə işləyir (bax `deletion-save` route).
+export const analytics_deletion_fact = pgTable('analytics_deletion_fact', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  tenant_id:     uuid('tenant_id').notNull().references(() => tenants.id),
+  branch_id:     uuid('branch_id').references(() => branches.id),
+  filial:        text('filial').notNull(),
+  business_date: date('business_date').notNull(),
+  receipt:       text('receipt'),
+  item:          text('item').notNull(),
+  reason:        text('reason'),
+  comment:       text('comment'),
+  amount:        numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  // true = anbardan da silinib (real itki) · false = səhv vurulub, hazırlanmayıb
+  written_off:   boolean('written_off').notNull().default(false),
+  source:        text('source'),
+  updated_at:    timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  index('adel_date_idx').on(t.tenant_id, t.business_date),
+  index('adel_branch_idx').on(t.tenant_id, t.branch_id, t.business_date),
+  index('adel_filial_idx').on(t.tenant_id, t.filial, t.business_date),
+])
+
+// ─── KASA/BANKA MUTABAKATI ──────────────────────────────────────────────────
+//
+// Banka çıxarışı DÖVR üzrə gəlir, ona görə açar dövrdür. Eyni dövr təkrar
+// yüklənsə üzərinə yazılır. Əvvəl bu hesablama yalnız brauzerdə qalırdı və
+// səhifə bağlananda itirdi — keçmiş yığılmırdı.
+export const kasa_banka_recon = pgTable('kasa_banka_recon', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  tenant_id:    uuid('tenant_id').notNull().references(() => tenants.id),
+  branch_id:    uuid('branch_id').references(() => branches.id),
+  filial:       text('filial').notNull(),
+  period_start: date('period_start').notNull(),
+  period_end:   date('period_end').notNull(),
+  card_sales:   numeric('card_sales', { precision: 14, scale: 2 }).notNull().default('0'),
+  unibank:      numeric('unibank', { precision: 14, scale: 2 }).notNull().default('0'),
+  atb:          numeric('atb', { precision: 14, scale: 2 }).notNull().default('0'),
+  kapital:      numeric('kapital', { precision: 14, scale: 2 }).notNull().default('0'),
+  bank_total:   numeric('bank_total', { precision: 14, scale: 2 }).notNull().default('0'),
+  // kart satışı − bankaya düşən. MÜSBƏT = bankaya düşməyib (araşdırılmalı).
+  diff:         numeric('diff', { precision: 14, scale: 2 }).notNull().default('0'),
+  status:       text('status').notNull(),
+  source:       text('source'),
+  updated_at:   timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('kbr_uq').on(t.tenant_id, t.period_start, t.period_end, t.filial),
+  index('kbr_period_idx').on(t.tenant_id, t.period_end),
+])
