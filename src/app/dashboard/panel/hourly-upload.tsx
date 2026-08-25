@@ -146,7 +146,12 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
         if (!firstHead.length) firstHead = rows.slice(0, 30)
         const kind = detectReportKind(rows)
         if (!kind) continue
-        setPhase(`«${sn}» — ${kind === 'product' ? 'məhsul' : 'saatlıq'} hesabatı (${rows.length.toLocaleString('ru-RU')} sətir)…`)
+        // Obyektlə: yeni hesabat növü əlavə olunanda TypeScript əskik açarı
+        // göstərir. Üçlü şərtdə `'deletion'` səssizcə «saatlıq» yazılırdı.
+        const kindLabel: Record<NonNullable<typeof kind>, string> = {
+          hourly: 'saatlıq', product: 'məhsul', deletion: 'silinmə',
+        }
+        setPhase(`«${sn}» — ${kindLabel[kind]} hesabatı (${rows.length.toLocaleString('ru-RU')} sətir)…`)
         await new Promise(r => setTimeout(r, 0))
         if (kind === 'deletion') {
           const dr = parseDeletions(rows)

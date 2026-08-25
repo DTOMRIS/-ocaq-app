@@ -8,7 +8,7 @@ import {
   PARTIAL_LAST_DAY_NOTE,
   type ProdmixResult, type ReceiptsResult, type DayReconcile,
 } from '@/lib/analytics/parse-sales-detail'
-import { detectReportKind, explainUnrecognized } from '@/lib/analytics/parse-iiko-reports'
+import { detectReportKind, explainUnrecognized, type ReportKind } from '@/lib/analytics/parse-iiko-reports'
 import HourlyUpload from './hourly-upload'
 
 /**
@@ -40,6 +40,27 @@ const card: CSSProperties = { background: '#fff', border: '1px solid #e6e1d7', b
 const money = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + '₼'
 const int = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ')
 
+/**
+ * Tanınan iiko hesabat növü — `null` çıxarılmış hal (yəni «tanındı»).
+ *
+ * `ReportKind` mənbədə `'hourly' | 'product' | 'deletion' | null`-dur. Burada
+ * `null`-u kənarlaşdırırıq, amma SİYAHINI TƏKRAR YAZMIRIQ: parser-ə yeni növ
+ * əlavə olunanda bu fayl özü uyğunlaşsın, tip uyğunsuzluğu build-i sındırmasın.
+ */
+type IikoKind = NonNullable<ReportKind>
+
+/**
+ * Ekranda göstərilən ad. Obyekt olduğu üçün YENİ NÖV ƏLAVƏ EDİLƏNDƏ TypeScript
+ * burada əskik açarı GÖSTƏRİR. Əvvəl üçlü şərt (`kind === 'product' ? … : …`)
+ * vardı və `'deletion'` səssizcə «SAATLIQ» kimi yazılırdı — istifadəçiyə yalan
+ * ad göstərən sinif səhv budur.
+ */
+const KIND_LABEL: Record<IikoKind, string> = {
+  hourly: 'SAATLIQ SATIŞ',
+  product: 'MƏHSUL',
+  deletion: 'SİLİNMƏ',
+}
+
 type SaveResult = {
   ok: true; written: number; merged: number; rejected: number
   rejectedSample: string[]; days: string[]; unmatchedBranches: string[]
@@ -63,9 +84,14 @@ export default function DetailUpload() {
   const [result, setResult] = useState<{ daily: SaveResult | null; item: SaveResult | null } | null>(null)
   const [drag, setDrag] = useState(false)
   const [open, setOpen] = useState(false)
-  // iiko hesabatı (saatlıq / məhsul) bu qutuya atılsa XƏTA VERMİRİK —
+  // iiko hesabatı (saatlıq / məhsul / silinmə) bu qutuya atılsa XƏTA VERMİRİK —
   // faylı olduğu kimi doğru axına ötürürük. Səhifədə TƏK giriş nöqtəsi qalır.
-  const [iiko, setIiko] = useState<{ file: File; kind: 'hourly' | 'product' } | null>(null)
+  //
+  // ⚠️ TİP `IikoKind`-dən GƏLİR, ƏL İLƏ SADALANMIR. Əvvəl burada `'hourly' |
+  // 'product'` yazılmışdı; `detectReportKind`-ə `'deletion'` əlavə olunanda bu
+  // sətir yenilənmədi və BUILD SINDI (TS2322). Növ mənbədən törədilsə, parser-ə
+  // yeni hesabat növü əlavə edilməsi bu faylı avtomatik uyğunlaşdırır.
+  const [iiko, setIiko] = useState<{ file: File; kind: IikoKind } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function add(list: FileList | null) {
@@ -85,7 +111,7 @@ export default function DetailUpload() {
     try {
       const XLSX = await import('xlsx')
       // Bütün fayl/vərəqlərin nəticəsi toplanır, sonra birləşdirilir (son qalib).
-      let iikoHit: { file: File; kind: 'hourly' | 'product' } | null = null
+      let iikoHit: { file: File; kind: IikoKind } | null = null
       let firstHead: unknown[][] = []
       const prodmixParts: ProdmixResult[] = []
       const receiptsParts: ReceiptsResult[] = []
@@ -96,7 +122,7 @@ export default function DetailUpload() {
         // heç işlətmirik. «DT Məhsul» 292 610 sətirdir — boş yerə iki keçid
         // brauzeri dondururdu.
         {
-          let hit: 'hourly' | 'product' | null = null
+          let hit: IikoKind | null = null
           for (const sn of wb.SheetNames) {
             const ws = wb.Sheets[sn]
             // ⚠️ `range` RƏQƏM verilsə SheetJS onu «bu sətirdən BAŞLA» kimi
@@ -148,7 +174,7 @@ export default function DetailUpload() {
       // iiko faylı ayrı axına gedir — SƏSSİZ ATILMASIN, açıq deyilir.
       if (iikoHit) {
         throw new Error(
-          `«${iikoHit.file.name}» iiko ${iikoHit.kind === 'product' ? 'MƏHSUL' : 'SAATLIQ'} hesabatıdır və ` +
+          `«${iikoHit.file.name}» iiko ${KIND_LABEL[iikoHit.kind]} hesabatıdır və ` +
           'PRODMIX/ÇEK faylları ilə BİRLİKDƏ oxuna bilmir (fərqli axınlar). ' +
           'Onu ayrıca atın — sistem özü tanıyacaq.',
         )
@@ -286,7 +312,7 @@ export default function DetailUpload() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ background: '#f1f8f2', border: '1px solid #cfe6d3', color: '#1f5130', borderRadius: 10, padding: '10px 12px', fontSize: 12.5 }}>
-          <b>«{iiko.file.name}»</b> — {iiko.kind === 'product' ? 'MƏHSUL' : 'SAATLIQ SATIŞ'} hesabatı tanındı,
+          <b>«{iiko.file.name}»</b> — {KIND_LABEL[iiko.kind]} hesabatı tanındı,
           aşağıda açıldı. <button onClick={() => { setIiko(null); reset() }} style={{ background: 'none', border: 'none', color: '#1f5130', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, padding: 0 }}>ləğv et</button>
         </div>
         <HourlyUpload presetFile={iiko.file} />

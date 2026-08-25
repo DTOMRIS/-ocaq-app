@@ -6,6 +6,24 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — `38036eb` deploy-u SINIQ idi (Production + Preview «Error»)
+- **Səbəb:** `detectReportKind` funksiyasına `'deletion'` növü əlavə olundu,
+  lakin `detail-upload.tsx`-də tanınan növün tipi hələ də ƏL İLƏ
+  `'hourly' | 'product'` yazılmışdı → `next build` TypeScript yoxlamasında
+  **TS2322** ilə dayandı. Kod brauzerdə işləyirdi, build isə keçmirdi.
+- **Düzəliş:** tip artıq mənbədən törədilir (`type IikoKind =
+  NonNullable<ReportKind>`) — parser-ə yeni hesabat növü əlavə olunanda bu fayl
+  özü uyğunlaşır, siyahı iki yerdə saxlanmır.
+- **Yan tapıntı:** ekran adı üçlü şərtlə seçilirdi
+  (`kind === 'product' ? 'MƏHSUL' : 'SAATLIQ'`) — silinmə hesabatı
+  istifadəçiyə **«SAATLIQ» kimi yalan adla** göstərilirdi. Hər iki faylda
+  (`detail-upload`, `hourly-upload`) `Record<IikoKind, string>` xəritəsi ilə
+  əvəz olundu: yeni növ əlavə olunanda TypeScript əskik adı GÖSTƏRİR.
+- **Doğrulama:** `tsc --noEmit` təmiz, `npm test` 183/183, `next build`
+  uğurlu (`/dashboard/silinme` route siyahısında görünür).
+- **Dərs:** bu dəyişiklik `next build` işlədilmədən push olunmuşdu. Build
+  yalnız TypeScript-i tam yoxlayan yerdir — `npm run check` push-dan əvvəl.
+
 ### Added — 🗑 SİLİNMƏ NƏZARƏTİ ekranı (parser 3 gün boş qalmışdı)
 - `parseDeletions` 22.08-də yazılıb testlənmişdi, **heç bir ekrana bağlı
   deyildi** — faylı açıb baxmaqla qalırdı, tarix boyu izləmə yox idi.
