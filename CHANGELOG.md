@@ -6,6 +6,44 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — iiko dili TÜRKÇE-yə keçdi, bütün hesabatlar oxunmaz oldu
+- **Hadisə (25.08.2026):** üç fayl da «Bu fayl oxuna bilmir … Faylda
+  tapılanlar: **heç biri**» verdi. Sistemdə pozulan yox idi — iiko interfeys
+  dili dəyişmişdi və sütun adları artıq Türkçe gəlirdi:
+  `Şube · Ödeme türü · Muhasebe günü · Kapanış saati · Ürün · Ürün miktarı ·
+  Brüt Satışlar (indirim sonrası) · Müşteri sayısı`.
+- **⚠️ ƏN TƏHLÜKƏLİSİ «Toplam» İDİ.** Ara cəm süzgəci yalnız `Total`
+  axtarırdı; türkçe faylda ara cəm sətirləri **VERİ SAYILARDI** və ciro
+  **İKİQAT** çıxardı. Fayl heç oxunmadığı üçün bu partlamadı — amma yalnız
+  sütun adlarını əlavə etsəydik, səssiz ikiqat sayım alardıq.
+- **Kök səbəb:** eyni sütun naxışları **5 yerə əl ilə kopyalanmışdı**
+  (`parseHourlySales`, `parseProductDaily`, `parseDeletions`,
+  `detectReportKind`, `explainUnrecognized`). Artıq hamısı TƏK LÜĞƏTDƏN
+  (`V`) oxuyur — yeni dil əlavə etmək bir sətirdir.
+- **Doğrulama (real fayllar, 24–25.08.2026):**
+
+  | Fayl | Oxunan | Faylın «Genel Toplam»-ı | Fərq |
+  |---|---|---|---|
+  | Rapor Total (22 854 sətir) | 117 985,77 ₼ · 6 122 qonaq · 30 filial | 117 985,77 ₼ | **0,00** |
+  | Rapor Satış (2 094 sətir) | 117 985,77 ₼ · 6 122 qonaq · 30 filial | 117 985,77 ₼ | **0,00** |
+  | DT Məhsul (9 555 sətir) | 66 593,79 ₼ · 215 məhsul · 29 filial | 66 593,79 ₼ | **0,00** |
+
+  İki müstəqil quruluşlu fayl eyni rəqəmi verir — bir-birini yoxlayır.
+- Tanınmayan dil çıxsa mesaj artıq səbəbi (DİL) deyir və **faylın öz başlıq
+  sətrini göstərir** ki dərhal lüğətə əlavə edilsin.
+
+### Fixed — ara cəmi olmayan saat qrupu SƏSSİZCƏ İTİRDİ
+- iiko pivotu **altında tək sətir olan qrupa «Toplam» sətri yazmır**. Kod
+  ara cəmlər tapılan kimi yarpaq sətirləri BÜTÜNLÜKLƏ atırdı → belə qruplar
+  yoxa çıxırdı.
+- Ölçüldü (24.08.2026): **3 qrup, 2,60 ₼** itmişdi (117 983,17 ↔ 117 985,77).
+  Faiz kiçik olduğu üçün %0,5-lik nəzarət həddinə də düşmürdü — **tamamilə
+  görünməz** idi. Ay boyunca yığılırdı.
+- İndi birləşdirilir: ara cəm varsa ondan, yoxdursa yarpaqdan. Açar eyni
+  olduğu üçün təkrar sayım riski yoxdur.
+- Hər iki düzəliş regresyon testi ilə kilidləndi — düzəlişi geri alanda
+  müvafiq test DÜŞÜR (yoxlandı). Test sayı 183 → **190**.
+
 ### Fixed — `38036eb` deploy-u SINIQ idi (Production + Preview «Error»)
 - **Səbəb:** `detectReportKind` funksiyasına `'deletion'` növü əlavə olundu,
   lakin `detail-upload.tsx`-də tanınan növün tipi hələ də ƏL İLƏ

@@ -43,10 +43,76 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Sətir ara cəmdirmi? Qrup dəyəri « Total» ilə bitirsə — bəli. */
+// ─────────────────────────────────────────────────────────────────────────────
+// SÜTUN LÜĞƏTİ — TƏK HƏQİQƏT MƏNBƏYİ (AZ · EN · TR)
+//
+// 🔴 NİYƏ MƏRKƏZLƏŞDİRİLDİ: eyni sütun naxışları 5 yerə (parseHourlySales,
+// parseProductDaily, parseDeletions, detectReportKind, explainUnrecognized)
+// ƏL İLƏ KOPYALANMIŞDI. Nəticə: bir yerə dil əlavə edəndə digərləri geridə
+// qalırdı və fayl «tanınmadı» olurdu. Artıq hamısı BURADAN oxuyur — yeni dil
+// əlavə etmək bir sətirdir.
+//
+// 🔴 25.08.2026 HADİSƏSİ: iiko interfeys dili TÜRKÇE-yə keçdi və BÜTÜN
+// hesabatlar oxunmaz oldu («Faylda tapılanlar: heç biri»). Quruluş eynidir,
+// yalnız sözlər dəyişib:
+//   Şube · Ödeme türü · Muhasebe günü · Kapanış saati · Ürün · Ürün miktarı ·
+//   Brüt Satışlar (indirim sonrası) · Müşteri sayısı · Toplam · Genel Toplam
+//
+// ⚠️ ƏN TƏHLÜKƏLİSİ «Toplam» İDİ: ara cəm süzgəci yalnız «Total» axtarırdı.
+// Türkçe faylda ara cəm sətirləri VERİ SAYILARDI və ciro İKİQAT çıxardı —
+// AZ faylında bir dəfə yaşadığımız hadisənin eynisi. Ona görə ara cəm
+// naxışları da bu lüğətdədir.
+//
+// ⚠️ NAXIŞLAR `azFold`-DAN SONRAKI MƏTNƏ YAZILIR. `azFold` ı/İ/I/i → «i»
+// çevirir və kiçildir, DİGƏR diakritiklərə (ş ğ ü ö ç ə) TOXUNMUR:
+//   «Kapanış saati» → `kapaniş saati`      (ı→i, ş qalır)
+//   «Ürün miktarı»  → `ürün miktari`
+//   «Müşteri sayısı»→ `müşteri sayisi`
+//   «Ürünle birlikte satıldı» → `ürünle birlikte satildi`
+// Bu qaydanı unutmaq sütunu «yoxdur» edir (iki dəfə oldu: `satılıb`, `sayı`).
+// `[şs]` yazılan yerlərdə ASCII-yə düşmüş variant da qəbul olunur.
+const V = {
+  /** Filial sütunu — DƏQİQ uyğunluq (başqa sütun adının içinə düşməsin). */
+  store: /^(ticarət müəssisəsi|store|[şs]ube)$/,
+  payType: /(ödəniş növü|payment type|ödeme türü)/,
+  hour: /(bağlama saat|closing (hour|time)|kapani[şs] saat)/,
+  /**
+   * PUL SÜTUNU (endirimdən SONRAKI məbləğ).
+   * TR-də «Brüt Satışlar (indirim sonrası), m.» — faylda bir dənədir.
+   * «İndirim öncesi ortalama satış fiyatı» ORTA QİYMƏTDİR və bu naxışa
+   * uyğun gəlmir (`brüt sati[şs]lar` yoxdur) — qarışma riski yoxdur.
+   */
+  money: /(endirimli məbləğ|gross sales|brüt sati[şs]lar)/,
+  guests: /(qonaqlar|^guests$|mü[şs]teri sayisi)/,
+  day: /(uçot günü|accounting day|muhasebe günü)/,
+  /** Məhsul sütunu — DƏQİQ uyğunluq: «Ürün» ≠ «Ürün miktarı». */
+  item: /^(məhsul|item|ürün)$/,
+  qty: /(məhsullarin sayi|number of items|ürün miktari)/,
+  /** Saatdan DƏRİN pivot səviyyəsi (qonaq sayını təkrarlayan sütun). */
+  soldWith: /(məhsul ilə satilib|sold with|ürünle birlikte satildi)/,
+  // Silinmə hesabatı. ⚠️ TR variantları HƏLƏ REAL FAYLLA DOĞRULANMADI —
+  // türkçe silinmə faylı əlimizə çatmadı. Səhv olsalar SESSİZ YANLIŞ DEYİL:
+  // hesabat sadəcə tanınmır və istifadəçiyə açıq səbəb yazılır.
+  delReason: /(item deleted$|silinmə səbəbi|ürün silindi$|silme nedeni)/,
+  receipt: /(receipt no|qəbzin nömrəsi|fi[şs] no|çek numarasi)/,
+  comment: /(item deletion comment|comment|silme yorumu|yorum)/,
+} as const
+
+/**
+ * ARA CƏM / YEKUN SÖZLƏRİ — dilə görə dəyişir, bir yerdə saxlanılır.
+ *   AZ/EN: `Total`, `Grand Total`
+ *   TR:    `Toplam`, `Genel Toplam`
+ */
+const TOTAL_WORD = /total|toplam/i
+/** Sətrin sonundaki ara cəm sözü — hücrədən təmizləmək üçün. */
+const TRAILING_TOTAL = /\s*(total|toplam)$/i
+/** Pivotun yekun sətri — cəmə ƏLAVƏ EDİLMİR, nəzarət rəqəmi kimi saxlanılır. */
+const GRAND_TOTAL = /^(grand total|genel toplam)$/i
+
+/** Sətir ara cəmdirmi? Qrup dəyəri « Total»/« Toplam» ilə bitirsə — bəli. */
 const isSubtotal = (v: unknown): boolean => {
   const s = String(v ?? '').trim()
-  return s.length > 6 && /\stotal$/i.test(s)
+  return s.length > 6 && /\s(total|toplam)$/i.test(s)
 }
 
 /**
@@ -62,7 +128,7 @@ const isSubtotal = (v: unknown): boolean => {
  */
 const isGroupTotalCell = (v: unknown): boolean => {
   const s = String(v ?? '').trim()
-  return s.length > 0 && /^total$|\stotal$/i.test(s)
+  return s.length > 0 && /^(total|toplam)$|\s(total|toplam)$/i.test(s)
 }
 
 /** Başlıq sətrini tapır: bütün tələb olunan naxışlar eyni sətirdə olmalıdır. */
@@ -165,7 +231,7 @@ export type BranchReport = {
 export function parseBranchSales(rows: unknown[][]): BranchReport {
   const period = parsePeriodHeader(rows)
   const warnings: string[] = []
-  const h = findHeader(rows, [/^store$/, /payment group/, /payment type/, /gross sales.*after discount/, /^bills$/])
+  const h = findHeader(rows, [V.store, /payment group/, V.payType, /gross sales.*after discount|brüt sati[şs]lar.*indirim sonrasi/, /^bills$|fi[şs] sayisi/])
   if (!h) {
     return {
       period, rows: [], skippedSubtotals: 0,
@@ -252,7 +318,7 @@ export function parseProductSales(rows: unknown[][]): ProductReport {
   const period = parsePeriodHeader(rows)
   const warnings: string[] = []
   // `Number of items` başlığında BOM ola bilər — `azFold` təmizləyir.
-  const h = findHeader(rows, [/^store$/, /^item$/, /number of items/, /gross sales/])
+  const h = findHeader(rows, [V.store, V.item, V.qty, V.money])
   if (!h) {
     return {
       period, rows: [], skippedSubtotals: 0,
@@ -344,7 +410,7 @@ export const DELETION_OUTLIER_MIN = 200
 export function parseDeletions(rows: unknown[][], outlierMin = DELETION_OUTLIER_MIN): DeletionReport {
   const period = parsePeriodHeader(rows)
   const warnings: string[] = []
-  const h = findHeader(rows, [/accounting day/, /^store$/, /item deleted$/, /receipt no/, /^item$/, /gross sales/])
+  const h = findHeader(rows, [V.day, V.store, V.delReason, V.receipt, V.item, V.money])
   if (!h) {
     return {
       period, rows: [], outliers: [], noCommentPct: 0,
@@ -354,7 +420,7 @@ export function parseDeletions(rows: unknown[][], outlierMin = DELETION_OUTLIER_
     }
   }
   const [cDay, cStore, cReason, cRcpt, cItem, cAmt] = h.idx
-  const cComment = optIndex(rows, h.row, [/item deletion comment/, /comment/])
+  const cComment = optIndex(rows, h.row, [V.comment])
 
   let fDay = '', fStore = '', fReason = '', fRcpt = '', fComment = ''
   const out: DeletionRow[] = []
@@ -505,16 +571,11 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
 
   // Başlıqlar Azərbaycanca; İngilis variantı da qəbul olunur ki hesabat dili
   // dəyişsə parser sınmasın. `azFold` ı→i çevirdiyi üçün `saatı`→`saati`.
-  const h = findHeader(rows, [
-    /^(ticarət müəssisəsi|store)$/,
-    /(ödəniş növü|payment type)/,
-    /(bağlama saat|closing (hour|time))/,
-    /(endirimli məbləğ|gross sales)/,
-  ])
+  const h = findHeader(rows, [V.store, V.payType, V.hour, V.money])
   if (!h) {
     return {
       period, ...EMPTY_HOURLY,
-      warnings: ['Saatlıq hesabatın başlıqları tapılmadı (Ticarət müəssisəsi / Ödəniş növü / Bağlama saatı / Endirimli məbləğ gözlənilir)'],
+      warnings: ['Saatlıq hesabatın başlıqları tapılmadı (Ticarət müəssisəsi / Ödəniş növü / Bağlama saatı / Endirimli məbləğ — TR: Şube / Ödeme türü / Kapanış saati / Brüt Satışlar gözlənilir)'],
     }
   }
   const [cStore, cPay, cHour, cNet] = h.idx
@@ -523,9 +584,9 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
   // `sayı` → `sayi`. Bunu unutmaq sütunu «tapılmadı» edir (bir dəfə oldu:
   // məhsul sütunu tapılmayınca « Total» sətirləri süzülmədi və ciro İKİQAT
   // çıxdı — «Grand Total» nəzarəti tutdu).
-  const cGuests = optIndex(rows, h.row, [/qonaqlar/, /^guests$/])
-  const cDay = optIndex(rows, h.row, [/uçot günü/, /accounting day/])
-  const cItem = optIndex(rows, h.row, [/məhsul ilə satilib/, /sold with/])
+  const cGuests = optIndex(rows, h.row, [V.guests])
+  const cDay = optIndex(rows, h.row, [V.day])
+  const cItem = optIndex(rows, h.row, [V.soldWith])
 
   // Ölçü (qrup) sütunları — ölçmə sütunundan SOLDA olanların hamısı.
   // Ara cəm yoxlaması hamısına tətbiq olunur ki, başlığı tanınmayan bir qrup
@@ -566,7 +627,7 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
     const row = rows[r] ?? []
 
     // «Grand Total» sətri — nəzarət rəqəmi kimi saxlanılır, cəmə əlavə edilmir.
-    if (/^grand total$/i.test(String(row[cStore] ?? '').trim())) {
+    if (GRAND_TOTAL.test(String(row[cStore] ?? '').trim())) {
       grandTotal = num(row[cNet])
       skipped++
       continue
@@ -580,7 +641,7 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
     // faylın öz «Grand Total»-ı isə 129 130. Pivotun öz ara cəmi düzgün
     // (unikal) sayır, ona görə ölçü rəqəmləri oradan götürülür.
     if (totalCols.length === 1 && totalCols[0] === cHour) {
-      const hv = parseHour(String(row[cHour]).trim().replace(/\s*total$/i, ''))
+      const hv = parseHour(String(row[cHour]).trim().replace(TRAILING_TOTAL, ''))
       if (hv !== null && fStore && fPay) {
         const filial = normalizeFilial(fStore) ?? fStore
         if (!EXCLUDE.has(filial)) {
@@ -624,8 +685,24 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
   }
 
   // Pivotun ara cəmləri varsa ONLAR əsasdır (qonaq sayı yalnız orada düzgündür).
+  //
+  // 🔴 25.08.2026 — ARA CƏMİ OLMAYAN QRUPLAR SƏSSİZCƏ İTİRDİ.
+  // iiko pivotu ALTINDA TƏK SƏTİR OLAN qrupa «Toplam» sətri YAZMIR. Əvvəl kod
+  // `sub` dolu olan kimi `leaf`-i BÜTÜNLÜKLƏ ATIRDI → belə qruplar yoxa çıxırdı.
+  // Ölçüldü (24.08.2026, türkçe «Rapor Total»): 3 qrup, 2,60 ₼ itmişdi
+  // (117 983,17 ↔ faylın «Genel Toplam»-ı 117 985,77). Faiz kiçik olduğu üçün
+  // %0,5-lik xəbərdarlıq həddinə də düşmürdü — yəni TAMAMİLƏ GÖRÜNMƏZ idi.
+  //
+  // İndi BİRLƏŞDİRİLİR: ara cəm varsa ondan, YOXDURSA yarpaqdan.
+  // Təkrar sayım riski yoxdur — açar eynidir (`date|filial|payType|hour`), ona
+  // görə yalnız `sub`-da OLMAYAN açarlar əlavə olunur. Tək sətirli qrupda
+  // yarpaq onsuz da təkrarsızdır, qonaq sayı da düzgündür.
   const usedSubtotals = sub.size > 0
-  const merged = usedSubtotals ? [...sub.values()] : [...leaf.values()]
+  const filled: HourlySalesRow[] = []
+  if (usedSubtotals) {
+    for (const [k, v] of leaf) if (!sub.has(k)) filled.push(v)
+  }
+  const merged = usedSubtotals ? [...sub.values(), ...filled] : [...leaf.values()]
   // TƏKRAR SAYIM YALNIZ SAATDAN DAHA DƏRİN SƏVİYYƏ VARSA OLUR.
   //
   // «Doğan Tomris Rapor»-da ən dərin səviyyə `Məhsul ilə satılıb` idi → eyni
@@ -681,6 +758,16 @@ export function parseHourlySales(rows: unknown[][]): HourlySalesReport {
     const d = Math.abs(net - leafNet) / Math.max(Math.abs(net), 1)
     if (d > 0.005) {
       warnings.push(`⚠ Ara cəmlərdən gələn ciro (${net.toFixed(2)} ₼) ilə sətirlərdən yığılan ciro (${leafNet.toFixed(2)} ₼) %${(d * 100).toFixed(2)} fərqlidir — fayl quruluşu gözlənildiyi kimi deyil.`)
+    }
+  }
+  // Ara cəmi olmayan qruplar yarpaqdan tamamlandı. Normal haldır (tək sətirli
+  // qrup), ona görə hər yükləmədə xəbərdarlıq VERİLMİR — yoxsa xəbərdarlıqlar
+  // fon səsinə çevrilir. Yalnız pay BÖYÜKSƏ (faylın quruluşu gözlənildiyi kimi
+  // deyil) deyilir.
+  if (filled.length) {
+    const filledNet = filled.reduce((s, x) => s + x.net, 0)
+    if (net > 0 && filledNet / net > 0.01) {
+      warnings.push(`${filled.length} saat qrupunda pivotun «Toplam» sətri yoxdur, məbləğ sətirlərdən yığıldı (${filledNet.toFixed(2)} ₼ = cəmin %${(filledNet / net * 100).toFixed(1)}-i). Pay böyükdür — hesabatın ara cəmlərlə endirildiyini yoxlayın.`)
     }
   }
   if (grandTotal !== null && grandTotal !== 0) {
@@ -896,26 +983,18 @@ export type ProductDailyReport = {
 export function parseProductDaily(rows: unknown[][]): ProductDailyReport {
   const period = parsePeriodHeader(rows)
   const warnings: string[] = []
-  const h = findHeader(rows, [
-    /^(ticarət müəssisəsi|store)$/,
-    /^(məhsul|item)$/,
-    // ⚠️ `azFold` BÜTÜN ı/İ/I hərflərini «i»-yə çevirir — «Məhsulların sayı»
-    // → «məhsullarin sayi» (ların → larin!). Naxış bunu nəzərə almalıdır.
-    // Bu tələyə İKİNCİ dəfə düşdük (birincisi `satılıb` → `satilib`).
-    /məhsullarin sayi|number of items/,
-    /(endirimli məbləğ|gross sales)/,
-  ])
+  const h = findHeader(rows, [V.store, V.item, V.qty, V.money])
   if (!h) {
     return {
       period, rows: [], byItem: [], byDay: [],
       totals: { qty: 0, amount: 0, items: 0, branches: 0, days: 0 },
       hasDayColumn: false, canWriteDaily: false, grandTotal: null, skippedSubtotals: 0,
-      warnings: ['Məhsul hesabatının başlıqları tapılmadı (Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ gözlənilir)'],
+      warnings: ['Məhsul hesabatının başlıqları tapılmadı (Ticarət müəssisəsi / Məhsul / Məhsulların sayı / Endirimli məbləğ — TR: Şube / Ürün / Ürün miktarı / Brüt Satışlar gözlənilir)'],
     }
   }
   const [cStore, cItem, cQty, cNet] = h.idx
-  const cDay = optIndex(rows, h.row, [/uçot günü/, /accounting day/])
-  const cHour = optIndex(rows, h.row, [/(bağlama saat|closing (hour|time))/])
+  const cDay = optIndex(rows, h.row, [V.day])
+  const cHour = optIndex(rows, h.row, [V.hour])
   const hasDayColumn = cDay >= 0
 
   // Ölçü sütunları — ölçmə sütunlarından SOLDA olanların hamısı. Ara cəm
@@ -940,7 +1019,7 @@ export function parseProductDaily(rows: unknown[][]): ProductDailyReport {
 
   for (let r = h.row + 1; r < rows.length; r++) {
     const row = rows[r] ?? []
-    if (/^grand total$/i.test(String(row[cStore] ?? '').trim())) {
+    if (GRAND_TOTAL.test(String(row[cStore] ?? '').trim())) {
       grandTotal = num(row[cNet]); skipped++; continue
     }
     if (groupCols.some(c => isGroupTotalCell(row[c]))) { skipped++; continue }
@@ -1063,15 +1142,13 @@ export function detectReportKind(rows: unknown[][], limit = 30): ReportKind {
     const cells = (rows[r] ?? []).map(c => azFold(c))
     if (!cells.length) continue
     const has = (re: RegExp) => cells.some(c => re.test(c))
-    const store = has(/^(ticarət müəssisəsi|store)$/)
-    if (!store) continue
-    const money = has(/(endirimli məbləğ|gross sales)/)
-    if (!money) continue
+    if (!has(V.store)) continue
+    if (!has(V.money)) continue
     // SİLİNMƏ hesabatı ƏVVƏLCƏ yoxlanılır: onda da `Store` + `Gross Sales` var,
     // fərqləndirici sütun «Item deleted» / «Qəbzin nömrəsi»dir.
-    if (has(/item deleted$|silinmə səbəbi/) && has(/receipt no|qəbzin nömrəsi/)) return 'deletion'
-    if (has(/^(məhsul|item)$/) && has(/məhsullarin sayi|number of items/)) return 'product'
-    if (has(/(ödəniş növü|payment type)/) && has(/(bağlama saat|closing (hour|time))/)) return 'hourly'
+    if (has(V.delReason) && has(V.receipt)) return 'deletion'
+    if (has(V.item) && has(V.qty)) return 'product'
+    if (has(V.payType) && has(V.hour)) return 'hourly'
   }
   return null
 }
@@ -1091,13 +1168,13 @@ export function explainUnrecognized(rows: unknown[][], limit = 30): string {
     const cells = (rows[r] ?? []).map(c => azFold(c))
     if (!cells.length) continue
     const has = (re: RegExp) => cells.some(c => re.test(c))
-    if (has(/^(ticarət müəssisəsi|store)$/)) found.store = true
-    if (has(/(endirimli məbləğ|gross sales)/)) found.money = true
-    if (has(/^(məhsul|item)$/)) found.item = true
-    if (has(/məhsullarin sayi|number of items/)) found.qty = true
-    if (has(/(ödəniş növü|payment type)/)) found.pay = true
-    if (has(/(bağlama saat|closing (hour|time))/)) found.hour = true
-    if (has(/uçot günü|accounting day/)) found.day = true
+    if (has(V.store)) found.store = true
+    if (has(V.money)) found.money = true
+    if (has(V.item)) found.item = true
+    if (has(V.qty)) found.qty = true
+    if (has(V.payType)) found.pay = true
+    if (has(V.hour)) found.hour = true
+    if (has(V.day)) found.day = true
   }
 
   const miss: string[] = []
@@ -1110,11 +1187,28 @@ export function explainUnrecognized(rows: unknown[][], limit = 30): string {
     found.money && 'məbləğ',
   ].filter(Boolean).join(' · ') || 'heç biri'
 
+  // 🔴 HEÇ BİR SÜTUN TANINMADI → ehtimal ki HESABATIN DİLİ dəyişib.
+  //
+  // 25.08.2026-da iiko interfeysi Türkçe-yə keçdi və bütün fayllar «tapılanlar:
+  // heç biri» verdi. O vaxt mesaj yalnız AZ sütun adlarını sayırdı, ona görə
+  // istifadəçi səbəbi (DİL) anlaya bilmədi və «yenə başa döndük» dedi.
+  // Artıq AZ/EN/TR dəstəklənir; başqa dil çıxsa faylın ÖZ BAŞLIQ SƏTRİ
+  // göstərilir ki dərhal əlavə edilə bilsin — təxmin etməyə ehtiyac qalmasın.
+  if (!found.store && !found.money && !found.pay && !found.item) {
+    const headRow = rows.slice(0, limit).find(r => (r ?? []).filter(c => String(c ?? '').trim()).length >= 4)
+    const names = (headRow ?? []).map(c => String(c ?? '').trim()).filter(Boolean).slice(0, 12).join(' · ')
+    return 'Bu faylın SÜTUN ADLARI tanınmadı — ehtimal ki iiko hesabatının DİLİ dəyişib. ' +
+      'Dəstəklənən dillər: Azərbaycan, İngilis, Türkçe. ' +
+      (names ? `Faylda görünən başlıqlar: ${names}. ` : '') +
+      'Bu sətri olduğu kimi göndər — lüğətə əlavə olunacaq (parse-iiko-reports.ts → V).'
+  }
+
   if (miss.length) {
     return `Bu fayl oxuna bilmir — çatışmayan sütun: ${miss.join(', ')}. ` +
       `Faylda tapılanlar: ${seen}. ` +
       'Lazım olan iki hesabat: «Satış ay və gün» (filial · ödəniş növü · Uçot günü · Bağlama saatı · Endirimli məbləğ) ' +
-      'və «DT Məhsul sayı və qiyməti» (filial · Məhsul · Uçot günü · Məhsulların sayı · Endirimli məbləğ).'
+      'və «DT Məhsul sayı və qiyməti» (filial · Məhsul · Uçot günü · Məhsulların sayı · Endirimli məbləğ). ' +
+      'Türkçe hesabatda eyni sütunlar: Şube · Ödeme türü · Muhasebe günü · Kapanış saati · Ürün · Ürün miktarı · Brüt Satışlar (indirim sonrası).'
   }
   // Pul və filial var, amma nə məhsul adı, nə də ödəniş+saat cütü tam deyil.
   if (!found.item && !(found.pay && found.hour)) {

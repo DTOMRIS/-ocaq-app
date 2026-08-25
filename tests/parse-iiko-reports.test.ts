@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   parsePeriodHeader, parseBranchSales, parseProductSales, parseDeletions, deletionRatio,
   parseHourlySales, hourlyToDailyFacts, parseProductDaily, productDailyToItemFacts, detectReportKind,
+  explainUnrecognized,
 } from '../src/lib/analytics/parse-iiko-reports'
 
 // Fixture-lar REAL faylların strukturunu təkrarlayır: İngilis başlıqlar,
@@ -606,4 +607,134 @@ test('detectReportKind yalnız ilk sətirlərə baxır — böyük fayl üçün 
   assert.equal(detectReportKind(big, 8), 'hourly', 'başlıq limit daxilindədir')
   // Başlıq limitdən sonradırsa tapılmır — səssiz yanlış nəticə YOX, null.
   assert.equal(detectReportKind([...Array.from({ length: 40 }, () => ['x']), ...HOURLY_HEAD], 5), null)
+})
+
+// ── TÜRKÇE HESABATLAR (25.08.2026 hadisəsi) ─────────────────────────────────
+//
+// iiko interfeys dili Türkçe-yə keçdi və BÜTÜN fayllar oxunmaz oldu:
+// «Bu fayl oxuna bilmir … Faylda tapılanlar: heç biri». Quruluş dəyişməmişdi,
+// yalnız sütun ADLARI. Bu bloklar həmin dilin bir daha sınmamasını qoruyur.
+//
+// Naxışlar real fayllardan götürülüb (Doğan Tomris Rapor Total / Satış,
+// DT Məhsul sayı və qiyməti — 24–25.08.2026).
+
+const TR_HOURLY_HEAD: unknown[][] = [
+  ['Doğan Tomris Rapor Satış'],
+  ['Restoran adı: Shaurma №1'],
+  ['Tarih: 24.08.2026'],
+  [null, null, null, null, 'Genel Toplam'],
+  ['Şube', 'Ödeme türü', 'Muhasebe günü', 'Kapanış saati',
+    'Brüt Satışlar (indirim sonrası), m.', 'Müşteri sayısı', 'Müşteri başına ortalama gelir, m.'],
+]
+
+/** 46258 = 24.08.2026 (real fayldakı serial). */
+const TR_DAY = 46258
+
+function trHourlyFixture(): unknown[][] {
+  return [
+    ...TR_HOURLY_HEAD.map(r => [...r]),
+    ['5 Mərtəbə', 'BOLT SATIŞ Bank', TR_DAY, '00', 20, 2, 10],
+    [null, null, null, '02', 13.2, 1, 13.2],
+    // Ödəniş növü ara cəmi — SÜZÜLMƏLİDİR, yoxsa ciro ikiqat.
+    [null, 'BOLT SATIŞ Bank Toplam', null, null, 33.2, 3, 11.07],
+    [null, 'Nağd', TR_DAY, '13', 50, 5, 10],
+    [null, 'Nağd Toplam', null, null, 50, 5, 10],
+    ['5 Mərtəbə Toplam', null, null, null, 83.2, 8, 10.4],
+    ['Zığ', 'Kapital Bank', TR_DAY, '19', 16.8, 2, 8.4],
+    [null, 'Kapital Bank Toplam', null, null, 16.8, 2, 8.4],
+    ['Zığ Toplam', null, null, null, 16.8, 2, 8.4],
+    ['Genel Toplam', null, null, null, 100, 10, 10],
+  ]
+}
+
+test('TR: detectReportKind türkçe saatlıq hesabatı tanıyır', () => {
+  assert.equal(detectReportKind(trHourlyFixture()), 'hourly')
+})
+
+test('TR: türkçe «Toplam» ara cəmi süzülür — süzülməsə ciro İKİQAT olur', () => {
+  const rep = parseHourlySales(trHourlyFixture())
+  // Süzülməsəydi 100 yerinə 200 çıxardı (hər qrup cəmi ikinci dəfə sayılardı).
+  assert.equal(Number(rep.totals.net.toFixed(2)), 100, 'ciro «Genel Toplam» ilə eyni olmalıdır')
+  assert.equal(rep.grandTotal, 100, '«Genel Toplam» sətri nəzarət rəqəmi kimi oxunmalıdır')
+  assert.deepEqual(rep.warnings.filter(w => w.startsWith('⚠')), [], 'nəzarət xəbərdarlığı olmamalıdır')
+})
+
+test('TR: türkçe sütun adları düzgün xəritələnir (filial · gün · saat · qonaq)', () => {
+  const rep = parseHourlySales(trHourlyFixture())
+  assert.equal(rep.totals.branches, 2, '«Şube» → filial')
+  assert.equal(rep.totals.guests, 10, '«Müşteri sayısı» → qonaq')
+  assert.equal(rep.canWriteDaily, true, '«Muhasebe günü» → gün, günlük yazıla bilər')
+  assert.deepEqual([...new Set(rep.rows.map(r => r.date))], ['2026-08-24'], 'serial 46258 → 24.08.2026')
+  assert.deepEqual(rep.rows.filter(r => r.filial === '5 Mərtəbə').map(r => r.hour).sort((a, b) => a - b), [0, 2, 13],
+    '«Kapanış saati» → saat')
+})
+
+test('TR: türkçe məhsul hesabatı tanınır və oxunur', () => {
+  const rows: unknown[][] = [
+    ['DT Məhsul sayı və qiyməti'],
+    ['Tarih: 25.08.2026'],
+    [null, null, null, null, null, 'Genel Toplam'],
+    ['Şube', 'Ürün', 'Muhasebe günü', 'Kapanış saati', 'Ürün miktarı',
+      'Brüt Satışlar (indirim sonrası), m.', 'İndirim öncesi ortalama satış fiyatı, m.'],
+    ['5 Mərtəbə', 'Ayran', TR_DAY, '00', 1, 10, 2],
+    [null, null, null, '01', 2, 12, 2],
+    [null, null, null, '00 Toplam', null, 22, 2],
+    [null, 'Americano', TR_DAY, '13', 1, 4, 4],
+    [null, null, '24.08.2026 Toplam', null, null, 4, 4],
+    ['5 Mərtəbə Toplam', null, null, null, null, 26, 2],
+    ['Genel Toplam', null, null, null, null, 26, 2],
+  ]
+  assert.equal(detectReportKind(rows), 'product', '«Ürün» + «Ürün miktarı» → məhsul hesabatı')
+  const rep = parseProductDaily(rows)
+  assert.equal(Number(rep.totals.amount.toFixed(2)), 26, 'ciro «Genel Toplam» ilə eyni')
+  assert.equal(rep.totals.items, 2)
+  assert.equal(rep.canWriteDaily, true)
+  // «Ürün» ≠ «Ürün miktarı»: dəqiq uyğunluq olmasa məhsul sütunu SƏHV seçilərdi.
+  assert.deepEqual(rep.byItem.map(i => i.item).sort(), ['Americano', 'Ayran'])
+})
+
+test('TR: «Ürün miktarı» məhsul ADI sütunu kimi seçilmir', () => {
+  // Saatlıq «Rapor Total» faylında `Ürünle birlikte satıldı` + `Ürün miktarı`
+  // var, MƏHSUL ADI sütunu (`Ürün`) YOXDUR → bu SAATLIQ hesabatdır.
+  // Naxışlar boş olsa məhsul hesabatı kimi tanınıb səhv parser işləyərdi.
+  const head = ['Şube', 'Ödeme türü', 'Muhasebe günü', 'Kapanış saati',
+    'Ürünle birlikte satıldı', 'Ürün miktarı',
+    'Brüt Satışlar (indirim sonrası), m.', 'Müşteri sayısı']
+  assert.equal(detectReportKind([['Doğan Tomris Rapor Total'], head]), 'hourly')
+})
+
+test('ara cəmi OLMAYAN saat qrupu itmir (pivot tək sətirli qrupa «Toplam» yazmır)', () => {
+  // 🔴 REAL HADİSƏ (24.08.2026): 3 saat qrupunun altında tək sətir vardı, iiko
+  // onlara «Toplam» sətri yazmamışdı. Kod `sub` dolu olan kimi `leaf`-i
+  // BÜTÜNLÜKLƏ atırdı → 2,60 ₼ SƏSSİZCƏ itmişdi (%0,5 həddinə də düşmürdü).
+  const rows: unknown[][] = [
+    ...TR_HOURLY_HEAD.map(r => [...r]),
+    // saat 00 — ara cəmi VAR (iki sətir)
+    ['5 Mərtəbə', 'Nağd', TR_DAY, '00', 10, 1, 10],
+    [null, null, null, null, 20, 1, 20],
+    [null, null, null, '00 Toplam', 30, 2, 15],
+    // saat 18 — TƏK sətir, ara cəm YOXDUR. İtməməlidir.
+    [null, null, null, '18', 0.2, 1, 0.2],
+    [null, 'Nağd Toplam', null, null, 30.2, 3, 10.07],
+    ['5 Mərtəbə Toplam', null, null, null, 30.2, 3, 10.07],
+    ['Genel Toplam', null, null, null, 30.2, 3, 10.07],
+  ]
+  const rep = parseHourlySales(rows)
+  assert.equal(Number(rep.totals.net.toFixed(2)), 30.2, 'ara cəmsiz saat da cəmə daxil olmalıdır')
+  assert.ok(rep.rows.some(r => r.hour === 18 && Number(r.net.toFixed(2)) === 0.2), 'saat 18 sətri qalmalıdır')
+  assert.deepEqual(rep.warnings.filter(w => w.startsWith('⚠')), [], 'artıq fərq yoxdur — nəzarət xəbərdarlığı olmamalıdır')
+})
+
+test('tanınmayan DİL üçün mesaj faylın öz başlıqlarını göstərir', () => {
+  // Rus dilli hesabat çıxsa: «tapılanlar: heç biri» kifayət etmir — istifadəçi
+  // səbəbi (DİL) anlamalı və başlıq sətrini göndərə bilməlidir.
+  const ru: unknown[][] = [
+    ['Отчет'],
+    ['Подразделение', 'Тип оплаты', 'Учетный день', 'Час закрытия', 'Сумма со скидкой', 'Количество гостей'],
+  ]
+  assert.equal(detectReportKind(ru), null, 'təxmin etmir')
+  const msg = explainUnrecognized(ru)
+  assert.match(msg, /DİLİ dəyişib/, 'səbəb DİL kimi göstərilməlidir')
+  assert.match(msg, /Подразделение/, 'faylın öz başlıqları mesajda olmalıdır')
+  assert.match(msg, /Türkçe/, 'dəstəklənən dillər sadalanmalıdır')
 })
