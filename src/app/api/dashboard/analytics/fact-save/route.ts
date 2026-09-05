@@ -74,11 +74,72 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   }
 
-  let body: { kind?: unknown; rows?: unknown; source?: unknown; replaceDays?: unknown }
+  let body: {
+    kind?: unknown; rows?: unknown; source?: unknown; replaceDays?: unknown
+    sweepDays?: unknown; sweepFrom?: unknown
+  }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON oxunmadı' }, { status: 400 }) }
 
   const kind = body.kind === 'daily' || body.kind === 'item' ? body.kind : null
   if (!kind) return NextResponse.json({ error: "kind 'daily' və ya 'item' olmalıdır" }, { status: 400 })
+
+  // ── SÜPÜRMƏ (sweep) — YÜKLƏMƏNİN SONUNDA ÇAĞIRILIR ────────────────────────
+  //
+  // 🔴 NİYƏ BELƏ: əvvəl `replaceDays` BİRİNCİ chunk-da günləri SİLİRDİ, sonra
+  // qalan sətirlər 18 AYRI HTTP çağırışı ilə yazılırdı. Bunlar bir tranzaksiya
+  // DEYİL. Aylıq fayl (31 gün · 68 794 sətir · 18 çağırış) yüklənərkən ortada
+  // bir çağırış sınsa, ay SİLİNMİŞ, yalnız bir hissəsi yazılmış qalırdı.
+  //
+  // İndi ARDICILLIQ TƏRSİNƏDİR:
+  //   1. Birinci chunk `replaceDays` göndərir → server YALNIZ `now()` qaytarır,
+  //      HEÇ NƏ SİLMİR.
+  //   2. Bütün chunk-lar upsert edir (`updated_at = now()` hər dəfə təzələnir).
+  //   3. Sonda bu süpürmə çağırılır: həmin günlərdə `updated_at < sweepFrom`
+  //      olan sətirlər — yəni BU YÜKLƏMƏDƏ TƏZƏLƏNMƏYƏNLƏR — silinir.
+  //
+  // Nəticə: yükləmə yarıda qırılsa HEÇ NƏ SİLİNMİR. Köhnə data yerində qalır,
+  // yeni gələn sətirlər üstünə yazılır. Ən pis hal «qarışıq deyil, natamam»dır
+  // və faylı təkrar atmaqla düzəlir.
+  if (Array.isArray(body.sweepDays)) {
+    if (kind !== 'item') {
+      return NextResponse.json({ error: 'sweepDays yalnız kind=item üçündür' }, { status: 400 })
+    }
+    const sweepDays = [...new Set((body.sweepDays as unknown[])
+      .filter((d): d is string => typeof d === 'string' && ISO.test(d)))]
+    const sweepFrom = typeof body.sweepFrom === 'string' ? body.sweepFrom : null
+    if (!sweepDays.length || !sweepFrom || Number.isNaN(Date.parse(sweepFrom))) {
+      return NextResponse.json({ error: 'sweepDays (ISO tarixlər) və sweepFrom (timestamp) tələb olunur' }, { status: 400 })
+    }
+    if (sweepDays.length > 62) {
+      return NextResponse.json({ error: `Maksimum 62 gün süpürülə bilər (gələn: ${sweepDays.length})` }, { status: 400 })
+    }
+    const tid = session.user.tenant_id
+    const q = await sqlClient.query(
+      `delete from analytics_item_fact
+       where tenant_id = $1::uuid
+         and business_date = any($2::date[])
+         and updated_at < $3::timestamp
+       returning 1`,
+      [tid, sweepDays, sweepFrom],
+    ) as unknown[]
+    const sweptRows = Array.isArray(q) ? q.length : 0
+    try {
+      await db.insert(audit_logs).values({
+        tenant_id: tid, user_id: session.user.id,
+        action: 'analytics.fact.item.sweep', entity: 'analytics',
+        entity_id: sweepDays.join(',').slice(0, 200),
+        metadata: JSON.stringify({ sweepDays, sweepFrom, sweptRows }),
+      })
+    } catch (e) {
+      // Audit yazıla bilmədi — susdurmuruq, cavabda görünür.
+      return NextResponse.json({
+        ok: true, sweptRows, sweepDays,
+        auditError: e instanceof Error ? e.message : String(e),
+      }, { status: 200 })
+    }
+    return NextResponse.json({ ok: true, sweptRows, sweepDays }, { status: 200 })
+  }
+
   if (!Array.isArray(body.rows)) return NextResponse.json({ error: 'rows massiv olmalıdır' }, { status: 400 })
   if (body.rows.length === 0) return NextResponse.json({ ok: true, written: 0, merged: 0, rejected: 0, days: [] }, { status: 200 })
   if (body.rows.length > MAX_ROWS) {
@@ -105,6 +166,8 @@ export async function POST(req: NextRequest) {
   // Məhsul faylı əvəz etdiyi günlər (varsa) — cavabda və audit-də görünür.
   let replacedDays: string[] = []
   let replacedRows = 0
+  // Süpürmə həddi — birinci chunk-da alınır, klient sona saxlayır.
+  let sweepFrom: string | null = null
   const dates = new Set<string>()
   const unmatched = new Set<string>()
 
@@ -190,17 +253,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Bir çağırışda maksimum 62 gün əvəz edilə bilər (gələn: ${replaceDays.length})` }, { status: 400 })
       }
       if (replaceDays.length) {
+        // ⚠️ BURADA ARTIQ SİLMƏ YOXDUR (bax yuxarıdakı «SÜPÜRMƏ» şərhi).
+        //
+        // Əvvəl bu blok günləri DƏRHAL silirdi. Sonrakı sətirlər isə ayrı-ayrı
+        // HTTP çağırışları ilə gəlirdi — biri sınsa ay yarımçıq qalırdı.
+        // İndi yalnız serverin `now()` dəyəri qaytarılır; klient bütün chunk-lar
+        // bitəndən SONRA `sweepDays` ilə qayıdır və köhnə qalıqları təmizləyir.
+        //
+        // `now()` INSERT-dən ƏVVƏL alınır: bu çağırışın öz sətirləri sonra
+        // yazılacağı üçün onların `updated_at`-ı bu dəyərdən BÖYÜK olur və
+        // süpürmədə silinmir.
+        const nowQ = await sqlClient.query('select now() as t', []) as Array<{ t: unknown }>
+        sweepFrom = nowQ?.[0]?.t ? new Date(String(nowQ[0].t)).toISOString() : null
         const before = await sqlClient.query(
           `select count(*)::int as n from analytics_item_fact
            where tenant_id = $1::uuid and business_date = any($2::date[])`,
           [tenantId, replaceDays],
         ) as Array<{ n: number }>
-        replacedRows = Number(before?.[0]?.n ?? 0)
-        await sqlClient.query(
-          `delete from analytics_item_fact
-           where tenant_id = $1::uuid and business_date = any($2::date[])`,
-          [tenantId, replaceDays],
-        )
+        replacedRows = Number(before?.[0]?.n ?? 0)   // yalnız MƏLUMAT — silinmədi
         replacedDays = replaceDays
       }
 
@@ -306,6 +376,10 @@ export async function POST(req: NextRequest) {
       ok: true, written, merged, rejected: rejected.length,
       rejectedSample: rejected, days,
       replacedDays, replacedRows,
+      // Süpürmə həddi — klient bütün chunk-lar bitəndən sonra bunu geri
+      // göndərir (`sweepDays` + `sweepFrom`) və köhnə qalıqlar TƏMİZLƏNİR.
+      // Klient bunu göndərməsə heç nə silinmir — təhlükəsiz tərəfə düşür.
+      sweepFrom,
       // Filial adı OCAQ-da yoxdur → `branch_id` boş getdi. Data itməyib, amma
       // RBAC filial filtri işləməz; istifadəçi `/admin/filiallar`-da yaratmalıdır.
       unmatchedBranches: [...unmatched],

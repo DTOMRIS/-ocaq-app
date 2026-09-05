@@ -6,6 +6,36 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — yükləmə yarıda qırılsa AY SİLİNMİŞ qalırdı (data itkisi)
+- **Səbəb:** `replaceDays` BİRİNCİ chunk-da günləri DƏRHAL silirdi, sətirlər
+  isə ayrı-ayrı HTTP çağırışları ilə gəlirdi — **bunlar bir tranzaksiya
+  deyil**. Aylıq məhsul faylı (31 gün · 68 794 sətir · **18 çağırış**)
+  yüklənərkən ortada bir çağırış sınsa, ay **silinmiş, yalnız bir hissəsi
+  yazılmış** qalırdı. Ekranda səbəb görünmürdü.
+- **Düzəliş — ardıcıllıq tərsinə çevrildi:**
+  1. birinci chunk yalnız serverin `now()`-unu alır (`sweepFrom`), **heç nə
+     silmir**;
+  2. bütün chunk-lar yazılır (`updated_at = now()` hər dəfə təzələnir);
+  3. **ən sonda** `sweepDays` çağırışı həmin günlərdə `updated_at < sweepFrom`
+     olan — yəni bu yükləmədə təzələnməyən — sətirləri silir.
+- Yükləmə yarıda qırılsa süpürmə **heç vaxt çağırılmır** → köhnə data toxunulmaz
+  qalır. Ən pis hal «natamam», əvvəlki kimi «silinmiş» deyil.
+- Eyni düzəliş `analytics_deletion_fact` üçün də tətbiq olundu. Orada unikal
+  açar **yoxdur** (eyni qəbzdə eyni məhsul iki dəfə silinə bilər), ona görə
+  mübadilə açıq yazıldı: qırılma halında həmin günlər müvəqqəti **şişik**
+  görünür — bu, səssiz itkidən yaxşıdır, çünki **görünür** və faylı təkrar
+  atmaqla **özü düzəlir**.
+- **Doğrulama — REAL PostgreSQL 16** (PGlite proxy tərəfindən bloklandı, 403 —
+  yan yol axtarılmadı; sistemdə quraşdırılmış Postgres işlədildi):
+
+  | Ssenari | Nəticə |
+  |---|---|
+  | Yükləmə chunk 2-də sındı | köhnə sətirlər **yerində** — heç nə silinmədi ✅ |
+  | Tam yükləmə | köhnə qalıq süpürüldü, yeni dəyərlər yerində ✅ |
+  | Eyni fayl təkrar | cəm **şişmədi** (idempotent) ✅ |
+  | Silinmə: təkrar sətir (R1/Ayran ×2) | **qorundu** — unikal açar məntiqinə toxunulmadı ✅ |
+
+
 ### Fixed — iki iiko faylı birlikdə atılanda BİRİ SƏSSİZCƏ İTİRDİ
 - **Hadisə (05.09.2026):** «Rapor Satış avqust» + «DT Məhsul avqust» birlikdə
   atıldı, yalnız biri yükləndi. Səbəb `detail-upload.tsx`-də idi:

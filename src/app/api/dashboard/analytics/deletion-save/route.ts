@@ -37,8 +37,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'İcazəniz yoxdur' }, { status: 403 })
   }
 
-  let body: { rows?: unknown; source?: unknown; replaceDays?: unknown }
+  let body: {
+    rows?: unknown; source?: unknown; replaceDays?: unknown
+    sweepDays?: unknown; sweepFrom?: unknown
+  }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON oxunmadı' }, { status: 400 }) }
+
+  // ── SÜPÜRMƏ — bütün chunk-lar yazıldıqdan SONRA çağırılır ──────────────────
+  // Həmin günlərdə BU YÜKLƏMƏDƏ yazılmayan (köhnə) sətirlər silinir.
+  // Yükləmə yarıda qırılsa bura heç vaxt gəlinmir → köhnə data toxunulmur.
+  if (Array.isArray(body.sweepDays)) {
+    const sweepDays = [...new Set((body.sweepDays as unknown[])
+      .filter((d): d is string => typeof d === 'string' && ISO.test(d)))]
+    const sweepFrom = typeof body.sweepFrom === 'string' ? body.sweepFrom : null
+    if (!sweepDays.length || !sweepFrom || Number.isNaN(Date.parse(sweepFrom))) {
+      return NextResponse.json({ error: 'sweepDays (ISO tarixlər) və sweepFrom (timestamp) tələb olunur' }, { status: 400 })
+    }
+    if (sweepDays.length > 62) {
+      return NextResponse.json({ error: `Maksimum 62 gün süpürülə bilər (gələn: ${sweepDays.length})` }, { status: 400 })
+    }
+    const tid = session.user.tenant_id
+    const q = await sqlClient.query(
+      `delete from analytics_deletion_fact
+       where tenant_id = $1::uuid
+         and business_date = any($2::date[])
+         and updated_at < $3::timestamp
+       returning 1`,
+      [tid, sweepDays, sweepFrom],
+    ) as unknown[]
+    const sweptRows = Array.isArray(q) ? q.length : 0
+    try {
+      await db.insert(audit_logs).values({
+        tenant_id: tid, user_id: session.user.id,
+        action: 'analytics.deletion.sweep', entity: 'analytics',
+        entity_id: sweepDays.length ? `${sweepDays[0]}..${sweepDays[sweepDays.length - 1]}` : 'n/a',
+        metadata: JSON.stringify({ sweepDays, sweepFrom, sweptRows }),
+      })
+    } catch (auditError) { console.error('Audit log write error:', auditError) }
+    return NextResponse.json({ ok: true, sweptRows, sweepDays }, { status: 200 })
+  }
+
   if (!Array.isArray(body.rows)) return NextResponse.json({ error: 'rows massiv olmalıdır' }, { status: 400 })
   if (body.rows.length > MAX_ROWS) {
     return NextResponse.json({ error: `Maksimum ${MAX_ROWS} sətir (gələn: ${body.rows.length})` }, { status: 413 })
@@ -75,18 +113,32 @@ export async function POST(req: NextRequest) {
 
   try {
     let replacedRows = 0
+    let sweepFrom: string | null = null
     if (replaceDays.length) {
+      // 🔴 SİLMƏ ARTIQ BURADA DEYİL — SONDA (`sweepDays` çağırışında).
+      //
+      // Əvvəl bu blok günləri DƏRHAL silirdi, sətirlər isə ayrı-ayrı HTTP
+      // çağırışları ilə gəlirdi. Ortada biri sınsa gün SİLİNMİŞ, yalnız bir
+      // hissəsi yazılmış qalırdı — SƏSSİZ DATA İTKİSİ.
+      //
+      // ⚠️ BU CƏDVƏLDƏ UNİKAL AÇAR YOXDUR (eyni qəbzdə eyni məhsul iki dəfə
+      // silinə bilər — migration 0014 şərhi), ona görə upsert mümkün deyil,
+      // yalnız insert var. Süpürmə həddi buna görə DAHA DA vacibdir: köhnə
+      // sətirlər yeni sətirlərdən `updated_at` ilə ayrılır.
+      //
+      // MÜBADİLƏ (açıq yazılır): yükləmə yarıda qırılsa köhnə sətirlər YERİNDƏ
+      // QALIR və yeni yazılanlar onların ÜSTÜNƏ əlavə olunur → həmin günlər
+      // müvəqqəti ŞİŞİK görünür. Bu, əvvəlki davranışdan (səssiz İTKİ) daha
+      // yaxşıdır: şişmə GÖRÜNÜR və faylı təkrar atmaqla ÖZÜ DÜZƏLİR, itki isə
+      // nə görünürdü, nə də özü düzəlirdi.
+      const nowQ = await sqlClient.query('select now() as t', []) as Array<{ t: unknown }>
+      sweepFrom = nowQ?.[0]?.t ? new Date(String(nowQ[0].t)).toISOString() : null
       const before = await sqlClient.query(
         `select count(*)::int as n from analytics_deletion_fact
          where tenant_id = $1::uuid and business_date = any($2::date[])`,
         [tenantId, replaceDays],
       ) as Array<{ n: number }>
-      replacedRows = Number(before?.[0]?.n ?? 0)
-      await sqlClient.query(
-        `delete from analytics_deletion_fact
-         where tenant_id = $1::uuid and business_date = any($2::date[])`,
-        [tenantId, replaceDays],
-      )
+      replacedRows = Number(before?.[0]?.n ?? 0)   // yalnız MƏLUMAT — silinmədi
     }
 
     if (rows.length) {
@@ -130,7 +182,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       written: rows.length, rejected: rejected.length, rejectedSample: rejected,
-      days, replacedDays: replaceDays, replacedRows,
+      days, replacedDays: replaceDays, replacedRows, sweepFrom,
       amount: Number(rows.reduce((s, r) => s + Number(r.amount), 0).toFixed(2)),
       unmatchedBranches: [...unmatched],
     }, { status: 200 })

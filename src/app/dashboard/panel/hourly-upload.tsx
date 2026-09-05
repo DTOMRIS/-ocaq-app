@@ -260,26 +260,55 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
     const unmatched = new Set<string>()
     let written = 0
     let replaced = 0
+    // 🔴 SİLMƏ ARTIQ ƏVVƏLDƏ DEYİL, SONDADIR.
+    //
+    // Əvvəl birinci chunk həmin günləri DƏRHAL silirdi, sonra sətirlər 18 ayrı
+    // HTTP çağırışı ilə yazılırdı. Bunlar bir tranzaksiya deyil — ortada bir
+    // çağırış sınsa AY SİLİNMİŞ, yalnız bir hissəsi yazılmış qalırdı.
+    //
+    // İndi: birinci chunk yalnız `sweepFrom` (serverin `now()`-u) alır; bütün
+    // chunk-lar yazılır; ƏN SONDA həmin günlərdə TƏZƏLƏNMƏYƏN sətirlər silinir.
+    // Yükləmə yarıda qırılsa süpürmə HEÇ VAXT çağırılmır → heç nə silinmir.
+    let sweepFrom: string | null = null
     setProgress({ done: 0, total: facts.length })
     for (let i = 0; i < facts.length; i += CHUNK) {
       const slice = facts.slice(i, i + CHUNK)
       setPhase(`Məhsul yazılır — ${i.toLocaleString('ru-RU')}/${facts.length.toLocaleString('ru-RU')}`)
       const res = await fetch('/api/dashboard/analytics/fact-save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        // `replaceDays` YALNIZ birinci chunk-da gedir: həmin günlərin köhnə
-        // məhsul sətirləri bir dəfə təmizlənir, sonrakı chunk-lar üstünə yazır.
+        // `replaceDays` YALNIZ birinci chunk-da gedir və ARTIQ SİLMİR —
+        // yalnız süpürmə həddini (`sweepFrom`) qaytarır.
         body: JSON.stringify({ kind: 'item', source: src, rows: slice, ...(i === 0 ? { replaceDays: days } : {}) }),
       })
       const j = await res.json()
       if (!res.ok) throw new Error(`Məhsul yazma: ${j?.error ?? 'xəta'}${j?.detail ? ` — ${j.detail}` : ''}`)
       written += Number(j.written ?? 0)
-      if (i === 0) replaced = Number(j.replacedRows ?? 0)
+      if (i === 0) {
+        replaced = Number(j.replacedRows ?? 0)
+        sweepFrom = typeof j.sweepFrom === 'string' ? j.sweepFrom : null
+      }
       for (const b of (j.unmatchedBranches ?? []) as string[]) unmatched.add(b)
       setProgress({ done: Math.min(i + CHUNK, facts.length), total: facts.length })
     }
+
+    // ── SÜPÜRMƏ: yalnız BÜTÜN chunk-lar uğurla yazıldıqdan sonra ─────────────
+    // Bu nöqtəyə çatmaq üçün yuxarıdakı dövrə tam bitməlidir; hər hansı chunk
+    // `throw` etsə buraya heç vaxt gəlinmir və köhnə data toxunulmaz qalır.
+    let swept = 0
+    if (sweepFrom && days.length) {
+      setPhase('Köhnə sətirlər təmizlənir…')
+      const res = await fetch('/api/dashboard/analytics/fact-save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'item', sweepDays: days, sweepFrom }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(`Təmizləmə: ${j?.error ?? 'xəta'}${j?.detail ? ` — ${j.detail}` : ''}`)
+      swept = Number(j.sweptRows ?? 0)
+    }
     setProdDone({
       written, days, items: prod.totals.items,
-      amount: prod.totals.amount, qty: prod.totals.qty, unmatched: [...unmatched], replaced,
+      amount: prod.totals.amount, qty: prod.totals.qty, unmatched: [...unmatched],
+      replaced: swept,   // FAKTİKİ silinən sətir sayı (süpürmədən)
     })
     setProgress(null); setPhase('')
     router.refresh()
@@ -300,6 +329,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
     const days = [...new Set(all.map(r => r.date))].sort()
     const unmatched = new Set<string>()
     let written = 0, replaced = 0
+    let sweepFrom: string | null = null
     setProgress({ done: 0, total: all.length })
     for (let i = 0; i < all.length; i += CHUNK) {
       const slice = all.slice(i, i + CHUNK)
@@ -312,11 +342,27 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
       const j = await res.json()
       if (!res.ok) throw new Error(`Silinmə yazma: ${j?.error ?? 'xəta'}${j?.detail ? ` — ${j.detail}` : ''}`)
       written += Number(j.written ?? 0)
-      if (i === 0) replaced = Number(j.replacedRows ?? 0)
+      if (i === 0) {
+        replaced = Number(j.replacedRows ?? 0)
+        sweepFrom = typeof j.sweepFrom === 'string' ? j.sweepFrom : null
+      }
       for (const x of (j.unmatchedBranches ?? []) as string[]) unmatched.add(x)
       setProgress({ done: Math.min(i + CHUNK, all.length), total: all.length })
     }
-    setDelDone({ written, days, amount: del.totals.amount, replaced, unmatched: [...unmatched] })
+
+    // SÜPÜRMƏ — yalnız bütün chunk-lar keçdikdən sonra (bax `saveProduct` şərhi).
+    let swept = 0
+    if (sweepFrom && days.length) {
+      setPhase('Köhnə sətirlər təmizlənir…')
+      const res = await fetch('/api/dashboard/analytics/deletion-save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sweepDays: days, sweepFrom }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(`Təmizləmə: ${j?.error ?? 'xəta'}${j?.detail ? ` — ${j.detail}` : ''}`)
+      swept = Number(j.sweptRows ?? 0)
+    }
+    setDelDone({ written, days, amount: del.totals.amount, replaced: swept, unmatched: [...unmatched] })
     setProgress(null); setPhase('')
     router.refresh()
   }
