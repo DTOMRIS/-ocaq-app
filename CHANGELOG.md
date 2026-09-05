@@ -6,6 +6,33 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — panel başlığındakı «yüklənib» tarixi SƏHV MƏNBƏDƏN gəlirdi
+- **Hadisə (05.09.2026):** ekranda «PRODMIX/ÇEK datası · 11.08.2026 yüklənib»
+  yazırdı və heç vaxt dəyişmirdi. İstifadəçi yeni fayl yükləyib tarixin
+  dəyişmədiyini görüb «düzəlmir» dedi.
+- **Səbəb:** panel datanı `analytics_daily_fact`-dan qurur, TARİXİ isə
+  `analytics_ingest` **blob-undan** alırdı. Blob yalnız aylıq panel faylı
+  yüklənəndə yenilənir — iiko satış faylı fakt cədvəlini doldurur, bloba
+  TOXUNMUR. Nəticədə rəqəmlər doğru, **tarix yalan** idi.
+- **Düzəliş:** mənbə fakt cədvəlidirsə tarix də ONDAN gəlir
+  (`max(updated_at)`). Əlavə olaraq başlıqda **ƏHATƏ** göstərilir
+  (`31 gün (01–31.08)`) — «24 gün» tək başına hansı günlərin çatışdığını
+  demirdi.
+- **Uçdan-uca yoxlama (real avqust faylı, 62 279 sətir):** parse →
+  `hourly-save` → `hourlyToDailyFacts` → `fact-save` → `factsToPanel`
+  zəncirində ciro və çek sayı **dəyişmir**:
+
+  | Addım | Nəticə |
+  |---|---|
+  | parse | 56 845 sətir · 3 833 665,55 ₼ · 31 gün |
+  | günlük fakta çevirmə | 3 833 665,55 ₼ · 188 578 çek · fərq **0,00** |
+  | panelin quracağı | **31 gün · 3 833 665,55 ₼ · ort.çek 20,33 ₼** |
+  | çağırış limitləri | 15/2/18 çağırış — hamısı MAX_ROWS altında ✅ |
+
+  Yəni boru hattında tıxanma YOXDUR; ekranda köhnə rəqəmin qalması datanın
+  cədvələ heç yazılmamasındandır (bax `1b5c66d` — səssiz fayl itkisi).
+
+
 ### Fixed — yükləmə yarıda qırılsa AY SİLİNMİŞ qalırdı (data itkisi)
 - **Səbəb:** `replaceDays` BİRİNCİ chunk-da günləri DƏRHAL silirdi, sətirlər
   isə ayrı-ayrı HTTP çağırışları ilə gəlirdi — **bunlar bir tranzaksiya

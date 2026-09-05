@@ -101,6 +101,9 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
   // ONDAN qurulur. Blob yolu SİLİNMİR — köhnə aylar (fakt yüklənməmiş dövrlər)
   // yenə görünür.
   let factSource = false
+  // Fakt cədvəlinin ÖZ tarixi və əhatəsi — başlıqdakı «yüklənib» buradan gəlir.
+  let factSavedAt: string | null = null
+  let factCover: { from: string; to: string } | null = null
   try {
     const fr = await sqlClient.query(
       `select filial, business_date::text as business_date, payment_type,
@@ -137,6 +140,38 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
       // Plan/YoY blob-dan gəlməyə davam edir (fakt cədvəlində plan yoxdur).
       initial = { daily: built, plan: initial?.plan ?? null, yoy: initial?.yoy }
       factSource = true
+
+      // 🔴 05.09.2026 — «YÜKLƏNİB» TARİXİ SƏHV MƏNBƏDƏN GƏLİRDİ.
+      //
+      // Panel datanı `analytics_daily_fact`-dan qurur, lakin başlıqdakı tarix
+      // `analytics_ingest` BLOB-unun tarixi idi. Blob yalnız aylıq panel faylı
+      // yüklənəndə yenilənir — iiko satış faylı yüklənsə fakt cədvəli dolur,
+      // blob İSƏ TOXUNULMUR. Nəticədə başlıq həmişə «11.08.2026 yüklənib»
+      // qalırdı və istifadəçi «yüklədim, dəyişmədi» görürdü. Rəqəmlər doğru
+      // idi, TARİX yalan idi.
+      //
+      // İndi mənbə ilə tarix EYNİ yerdən gəlir: fakt cədvəlinin öz
+      // `max(updated_at)`-ı. Əlavə olaraq ƏHATƏ (ilk…son gün) göstərilir —
+      // «24 gün» tək başına hansı günlərin çatışdığını demirdi.
+      const per = (built as { period?: string }).period ?? null
+      try {
+        const cq = await sqlClient.query(
+          `select max(updated_at) as up,
+                  min(business_date)::text as d0,
+                  max(business_date)::text as d1
+           from analytics_daily_fact
+           where tenant_id = $1 ${per ? `and to_char(business_date,'YYYY-MM') = $2` : ''}`,
+          per ? [tenantId, per] : [tenantId],
+        )
+        const c = ((Array.isArray(cq) ? cq : (cq as { rows?: unknown[] }).rows ?? []) as Array<{
+          up: unknown; d0: unknown; d1: unknown
+        }>)[0]
+        if (c?.up) factSavedAt = new Date(String(c.up)).toLocaleDateString('az')
+        if (c?.d0 && c?.d1) factCover = { from: String(c.d0), to: String(c.d1) }
+      } catch (err) {
+        // Tarix oxunmasa panel işləməyə davam edir — xəta udulmur.
+        console.error('Panel fact coverage read error:', err)
+      }
     }
   } catch (err) {
     // Cədvəl yoxdursa (migration 0010 tətbiq olunmayıb) blob yolu işləyir.
@@ -256,8 +291,12 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
       initial={initial}
       targets={targets}
       canUpload={session.user.role === 'super_admin'}
-      savedAt={latest?.gen ? new Date(latest.gen).toLocaleDateString('az') : null}
+      // Mənbə fakt cədvəlidirsə tarix də ONDAN gəlir (bax yuxarıdakı şərh).
+      savedAt={factSource
+        ? factSavedAt
+        : latest?.gen ? new Date(latest.gen).toLocaleDateString('az') : null}
       factSource={factSource}
+      factCover={factCover}
       // `key` VACİBDİR: PanelClient state-ini `useState(initial...)` ilə qurur
       // (`panel-client.tsx:63-65`). `useState` başlanğıc dəyəri YALNIZ ilk
       // mount-da işlədir. Dövr dəyişdirildikdə `router.push` client-side

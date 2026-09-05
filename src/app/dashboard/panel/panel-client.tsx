@@ -63,12 +63,14 @@ function Chart({ d }: { d: Daily }) {
 
 type IngestRow = { period: string; engine: string; status: string; created: string; readable: boolean }
 
-export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [], factSource = false, buildSha = 'local' }: {
+export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [], factSource = false, buildSha = 'local', factCover = null }: {
   initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null; inventory?: IngestRow[]
   /** Panel datası fakt cədvəlindən quruldu (blob-dan deyil) — mənbə göstərilir. */
   factSource?: boolean
   /** Canlıda işləyən build-in commit SHA-sı (qısa). «Köhnə paket» tələsi üçün. */
   buildSha?: string
+  /** Fakt cədvəlinin ƏHATƏSİ (ilk…son gün). «24 gün» hansı günlər olduğunu demir. */
+  factCover?: { from: string; to: string } | null
 }) {
   const router = useRouter()
   const [files, setFiles] = useState<File[]>([])
@@ -352,7 +354,11 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 12, color: '#8b8378', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
             <span>
-              Dövr {d.period} · {d.gun} gün {plan ? '· plan ✓' : ''}
+              Dövr {d.period} · {d.gun} gün{/* ƏHATƏ AÇIQ YAZILIR: «24 gün» hansı
+                günlərin çatışmadığını demirdi — istifadəçi yeni fayl yükləyib
+                rəqəmin dəyişmədiyini görəndə səbəbi anlaya bilmirdi. */}
+              {factCover && <span style={{ color: '#6b6357' }}> ({factCover.from.slice(8)}–{factCover.to.slice(8)}.{factCover.to.slice(5, 7)})</span>}
+              {' '}{plan ? '· plan ✓' : ''}
               {/* MƏNBƏ GÖRÜNSÜN — iyulda datanın «yoxa çıxması» oxucunun hansı
                   mənbəyə baxdığı bilinmədiyi üçün gec anlaşıldı. */}
               {factSource && <b style={{ color: '#1c7a4e' }}> · PRODMIX/ÇEK datası</b>}
