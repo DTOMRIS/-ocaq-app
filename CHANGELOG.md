@@ -6,6 +6,31 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### Fixed — iki iiko faylı birlikdə atılanda BİRİ SƏSSİZCƏ İTİRDİ
+- **Hadisə (05.09.2026):** «Rapor Satış avqust» + «DT Məhsul avqust» birlikdə
+  atıldı, yalnız biri yükləndi. Səbəb `detail-upload.tsx`-də idi:
+
+  ```ts
+  if (hit) { iikoHit = { file: f, kind: hit }; continue }   // ← hər faylda ÜZƏRİNƏ yazır
+  ```
+
+  `iikoHit` TƏK dəyər idi və hər tanınan faylda üzərinə yazılırdı → **yalnız
+  SONUNCU fayl** işlənirdi, əvvəlkilər **heç bir xəbərdarlıq olmadan** düşürdü.
+- Bu, 10.08.2026-da PRODMIX qolunda düzəldilmiş səhvin **güzgü əksidir**
+  (`if (!prodmix)` ilə sonrakı fayllar atılırdı). Eyni sinif səhv iiko qolunda
+  qalmışdı.
+- **Düzəliş:** `iikoList` — hamısı yığılır, heç biri atılmır. Tək fayl varsa
+  davranış dəyişmir (avtomatik açılır); bir neçə fayl varsa hamısı siyahı kimi
+  göstərilir, istifadəçi birini seçir, yüklənən «✓» ilə işarələnir.
+- Parser-lərdə problem YOX idi — hər iki avqust faylı faylın öz «Grand Total»
+  sətri ilə **0,00 ₼ fərqlə** oxunur:
+
+  | Fayl | Xam sətir | Oxunan | Fərq |
+  |---|---|---|---|
+  | Rapor Satış avqust | 62 279 | 3 833 665,55 ₼ · 188 578 qonaq · 31 gün · 30 filial | **0,00** |
+  | DT Məhsul avqust (14 MB) | 389 678 | 2 866 138,44 ₼ · 279 məhsul · 31 gün · 29 filial | **0,00** |
+
+
 ### Fixed — iiko dili TÜRKÇE-yə keçdi, bütün hesabatlar oxunmaz oldu
 - **Hadisə (25.08.2026):** üç fayl da «Bu fayl oxuna bilmir … Faylda
   tapılanlar: **heç biri**» verdi. Sistemdə pozulan yox idi — iiko interfeys

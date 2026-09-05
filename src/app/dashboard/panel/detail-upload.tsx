@@ -91,7 +91,15 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
   // 'product'` yazılmışdı; `detectReportKind`-ə `'deletion'` əlavə olunanda bu
   // sətir yenilənmədi və BUILD SINDI (TS2322). Növ mənbədən törədilsə, parser-ə
   // yeni hesabat növü əlavə edilməsi bu faylı avtomatik uyğunlaşdırır.
-  const [iiko, setIiko] = useState<{ file: File; kind: IikoKind } | null>(null)
+  //
+  // 🔴 05.09.2026 — SİYAHIDIR, TƏK DƏYƏR DEYİL. Əvvəl `iikoHit` hər faylda
+  // ÜZƏRİNƏ YAZILIRDI, ona görə iki iiko faylı birlikdə atılanda YALNIZ
+  // SONUNCUSU işlənir, digəri HEÇ BİR XƏBƏRDARLIQ OLMADAN itirdi
+  // («ekledim, əlavə olunmadı»). Bu, 10.08.2026-da PRODMIX tərəfində
+  // düzəldilmiş səhvin GÜZGÜ ƏKSİDİR — iiko qolunda qalmışdı.
+  const [iikoList, setIikoList] = useState<Array<{ file: File; kind: IikoKind }>>([])
+  const [iikoPick, setIikoPick] = useState<number | null>(null)
+  const [iikoDone, setIikoDone] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   function add(list: FileList | null) {
@@ -107,11 +115,13 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
   // ── 1) Oxu və tutuşdur (DB-yə HEÇ NƏ yazılmır) ─────────────────────────────
   async function read() {
     if (!files.length) return
-    setBusy(true); setErr(null); setResult(null); setIiko(null); setPhase('Fayllar oxunur…')
+    setBusy(true); setErr(null); setResult(null)
+    setIikoList([]); setIikoPick(null); setIikoDone([]); setPhase('Fayllar oxunur…')
     try {
       const XLSX = await import('xlsx')
       // Bütün fayl/vərəqlərin nəticəsi toplanır, sonra birləşdirilir (son qalib).
-      let iikoHit: { file: File; kind: IikoKind } | null = null
+      // HAMISI yığılır — heç biri atılmır (bax `iikoList` şərhi).
+      const iikoHits: Array<{ file: File; kind: IikoKind }> = []
       let firstHead: unknown[][] = []
       const prodmixParts: ProdmixResult[] = []
       const receiptsParts: ReceiptsResult[] = []
@@ -140,7 +150,7 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
             const k = detectReportKind(head)
             if (k) { hit = k; break }
           }
-          if (hit) { iikoHit = { file: f, kind: hit }; continue }
+          if (hit) { iikoHits.push({ file: f, kind: hit }); continue }
         }
         for (const sn of wb.SheetNames) {
           // `raw: true` — MÜHÜM. `raw: false` tarix formatlı hücrəni FORMATLAYIR
@@ -166,15 +176,19 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
       const receipts = mergeReceipts(receiptsParts)
 
       // iiko hesabatı tanındı → XƏTA YOX, faylı doğru axına ötürürük.
-      if (!prodmix && !receipts && iikoHit) {
-        setIiko(iikoHit); setPhase('')
+      // Bir neçə fayl varsa HAMISI saxlanılır; istifadəçi birini seçir, digəri
+      // ekranda qalır (siyahıdan silinmir) — səssiz itki YOXDUR.
+      if (!prodmix && !receipts && iikoHits.length) {
+        setIikoList(iikoHits)
+        setIikoPick(iikoHits.length === 1 ? 0 : null)   // tək fayl → avtomatik açılır
+        setPhase('')
         return
       }
       // QARIŞIQ SEÇİM: eyni anda həm PRODMIX/ÇEK, həm iiko hesabatı atılıb.
       // iiko faylı ayrı axına gedir — SƏSSİZ ATILMASIN, açıq deyilir.
-      if (iikoHit) {
+      if (iikoHits.length) {
         throw new Error(
-          `«${iikoHit.file.name}» iiko ${KIND_LABEL[iikoHit.kind]} hesabatıdır və ` +
+          `«${iikoHits.map(x => x.file.name).join('», «')}» iiko ${KIND_LABEL[iikoHits[0].kind]} hesabatıdır və ` +
           'PRODMIX/ÇEK faylları ilə BİRLİKDƏ oxuna bilmir (fərqli axınlar). ' +
           'Onu ayrıca atın — sistem özü tanıyacaq.',
         )
@@ -311,14 +325,67 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
 
   // iiko hesabatı tanındıqda bu qutu YERİNİ VERİR — istifadəçi ikinci dəfə
   // fayl seçmir, ikinci qutu axtarmır. TƏK GİRİŞ NÖQTƏSİ.
-  if (iiko) {
+  if (iikoList.length) {
+    const picked = iikoPick != null ? iikoList[iikoPick] : null
+    const link: CSSProperties = {
+      background: 'none', border: 'none', color: '#1f5130', textDecoration: 'underline',
+      cursor: 'pointer', fontSize: 12.5, padding: 0,
+    }
+    const cancel = () => { setIikoList([]); setIikoPick(null); setIikoDone([]); reset() }
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ background: '#f1f8f2', border: '1px solid #cfe6d3', color: '#1f5130', borderRadius: 10, padding: '10px 12px', fontSize: 12.5 }}>
-          <b>«{iiko.file.name}»</b> — {KIND_LABEL[iiko.kind]} hesabatı tanındı,
-          aşağıda açıldı. <button onClick={() => { setIiko(null); reset() }} style={{ background: 'none', border: 'none', color: '#1f5130', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, padding: 0 }}>ləğv et</button>
+          {iikoList.length === 1 ? (
+            <>
+              <b>«{iikoList[0].file.name}»</b> — {KIND_LABEL[iikoList[0].kind]} hesabatı tanındı,
+              aşağıda açıldı. <button onClick={cancel} style={link}>ləğv et</button>
+            </>
+          ) : (
+            <>
+              {/* BİR NEÇƏ FAYL: hamısı görünür, heç biri atılmır. Hər biri
+                  AYRICA yüklənir — yüklənən fayl «✓ yükləndi» kimi işarələnir
+                  ki, hansının qaldığı yadda saxlanmasın. */}
+              <b>{iikoList.length} iiko hesabatı tanındı.</b> Hər biri ayrıca yüklənir —
+              birini seçin, bitəndən sonra digərinə keçin.
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                {iikoList.map((x, i) => {
+                  const done = iikoDone.includes(x.file.name)
+                  const active = i === iikoPick
+                  return (
+                    <button
+                      key={x.file.name + i}
+                      onClick={() => {
+                        if (picked && !done) setIikoDone(d => [...d, picked.file.name])
+                        setIikoPick(i)
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left',
+                        background: active ? '#dff0e3' : '#fff',
+                        border: `1px solid ${active ? '#8dc39b' : '#cfe6d3'}`,
+                        borderRadius: 8, padding: '7px 10px', cursor: 'pointer',
+                        fontSize: 12.5, color: '#1f5130', fontWeight: active ? 700 : 400,
+                      }}
+                    >
+                      <span>{done ? '✓' : active ? '▶' : '•'}</span>
+                      <span style={{ flex: 1 }}>{x.file.name}</span>
+                      <span style={{ opacity: 0.75 }}>{KIND_LABEL[x.kind]}</span>
+                      <span style={{ opacity: 0.6 }}>{(x.file.size / 1024 / 1024).toFixed(1)} MB</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ marginTop: 8 }}><button onClick={cancel} style={link}>hamısını ləğv et</button></div>
+            </>
+          )}
         </div>
-        <HourlyUpload presetFile={iiko.file} />
+        {/* `key` VACİBDİR: fayl dəyişəndə HourlyUpload state-i (oxunmuş data,
+            nəticə, progress) TƏZƏDƏN qurulmalıdır — əks halda əvvəlki faylın
+            nəticəsi yeni faylın adı altında görünərdi. */}
+        {picked
+          ? <HourlyUpload key={picked.file.name} presetFile={picked.file} />
+          : <div style={{ ...card, padding: '13px 16px', fontSize: 12.5, color: '#6b6357' }}>
+              Yuxarıdan bir fayl seçin.
+            </div>}
       </div>
     )
   }
