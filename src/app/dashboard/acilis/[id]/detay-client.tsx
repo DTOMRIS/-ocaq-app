@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Fayllar from './fayllar'
 
 export type Layihe = {
   id: string; name: string; address: string | null; zone: string | null; format: string
@@ -141,6 +142,8 @@ export default function DetayClient({ layihe, vezifeler, canManage }:
         </div>
         <p className="mt-3 text-xs text-slate-500">{GATE_SERT[layihe.gate]}</p>
       </div>
+
+      <Fayllar openingId={layihe.id} canManage={canManage} />
 
       {/* ── Departament xülasəsi ── */}
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

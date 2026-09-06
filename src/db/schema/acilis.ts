@@ -95,3 +95,31 @@ export const opening_tasks = pgTable('opening_tasks', {
   index('ot_dept_idx').on(t.tenant_id, t.dept, t.status),
   index('ot_due_idx').on(t.tenant_id, t.due_date, t.status),
 ])
+
+/**
+ * Açılışa bağlı fayllar: mimari proyekt, smeta, təklif, ölçü cədvəli, foto.
+ *
+ * NİYƏ FAYLDAN RƏQƏM ÇIXARILMIR: mimari proyekt PDF-i ÇİZGİDİR, mətn deyil.
+ * «Masa sayısı 24» rəqəmi orada yazı kimi yox, rəsm kimi durur. OCR bəzən
+ * düz oxuyur, bəzən səhv — və səhv oxuduğunu heç kim görmür, sifariş səhv
+ * gedir. Ona görə fayl SAXLANILIR və AÇILIR; rəqəmlər profil formunda ƏL İLƏ
+ * girilir (m², oturacaq sayı). Mətn qatlı cədvəl PDF-i gələrsə ayrıca oxunur.
+ */
+export const opening_files = pgTable('opening_files', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  tenant_id:  uuid('tenant_id').notNull().references(() => tenants.id),
+  opening_id: uuid('opening_id').notNull().references(() => openings.id, { onDelete: 'cascade' }),
+
+  kind:      text('kind').notNull().default('diger'),
+  // proyekt | smeta | teklif | olcu | foto | icaze | diger
+  file_name: text('file_name').notNull(),
+  r2_key:    text('r2_key').notNull(),
+  mime:      text('mime'),
+  size:      integer('size'),
+  note:      text('note'),
+
+  uploaded_by: uuid('uploaded_by').references(() => users.id),
+  created_at:  timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  index('of_open_idx').on(t.opening_id, t.kind),
+])
