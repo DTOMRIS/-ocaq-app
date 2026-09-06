@@ -59,7 +59,7 @@ test('parseYearMatrix bağlanmış ilin fakt matrisini oxuyur (il sheet adından
   assert.equal(Math.round(cem(7) * 100) / 100, 4037351.66)   // İyul 2025
 
   assert.equal(m.branches['Mərdəkan'][8], 336773.6)
-  assert.equal(m.branches['Corner'][8], 197402.15)
+  assert.equal(m.branches['Səbail 2'][8], 197402.15)   // faylda «Corner» yazır → alias
 })
 
 test('İ tələsi: «İyul» sütunu oxunur — sadə toLowerCase() ilə itirdi', () => {
@@ -95,7 +95,7 @@ test('yoyFromYearMatrix cari ayın faktı ilə birləşir; yeni/bağlanan filial
   const m = parseYearMatrix(S2025, '2025')
   const cur = [
     { filial: 'Mərdəkan', total: 335980 },
-    { filial: 'Corner', total: 129059 },
+    { filial: 'Corner', total: 129059 },          // köhnə ad — alias Səbail 2-yə bağlayır
     { filial: 'Mytcha', total: 155699 },      // avqust 2026-da açılan — 2025 qarşılığı yox
   ]
   const yo = yoyFromYearMatrix(m, '2026-08', cur)!
@@ -103,7 +103,8 @@ test('yoyFromYearMatrix cari ayın faktı ilə birləşir; yeni/bağlanan filial
   assert.equal(Math.round(yo.network.y2025 * 100) / 100, 3977166.63)
   assert.deepEqual(yo.branches['Mərdəkan'], { y2025: 336773.6, y2026: 335980 })
   assert.equal(yo.branches['Masazır'].y2026, 0)                  // bağlanan
-  assert.equal(yo.branches['Abdülkerim Alizadə'].y2025, 0)       // yeni (Mytcha aliası)
+  assert.equal(yo.branches['Səbail 3'].y2025, 0)                 // yeni (Mytcha aliası)
+  assert.equal(yo.branches['Səbail 2'].y2025, 197402.15)         // köhnə «Corner» sətri qorunub
 })
 
 test('yoyFromYearMatrix keçmiş il tələb edir — eyni/gələcək il null', () => {
