@@ -63,5 +63,6 @@ export default async function DepartamentPage() {
       a.kat.localeCompare(b.kat) || a.ad.localeCompare(b.ad))
   } catch { setirler = []; avadanliq = [] }
 
-  return <DeptClient setirler={setirler} avadanliq={avadanliq} />
+  return <DeptClient setirler={setirler} avadanliq={avadanliq}
+                     canManage={session.user.role === 'super_admin'} />
 }

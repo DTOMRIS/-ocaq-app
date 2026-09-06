@@ -123,3 +123,21 @@ export const opening_files = pgTable('opening_files', {
 }, (t) => [
   index('of_open_idx').on(t.opening_id, t.kind),
 ])
+
+/**
+ * Departament → e-poçt. Həftəlik xülasə buraya gedir.
+ *
+ * NİYƏ AYRI CƏDVƏL (istifadəçi cədvəlinə bağlı deyil): departament BİR NƏFƏR
+ * deyil — «Satın Alma» ünvanı komanda qutusu ola bilər, adam dəyişəndə e-poçt
+ * dəyişmir. İstifadəçiyə bağlasaq adam işdən çıxanda xülasə səssizcə dayanır.
+ */
+export const opening_dept_contacts = pgTable('opening_dept_contacts', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenant_id: uuid('tenant_id').notNull().references(() => tenants.id),
+  dept:      text('dept').notNull(),
+  email:     text('email').notNull(),
+  is_active: boolean('is_active').notNull().default(true),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('odc_uq').on(t.tenant_id, t.dept, t.email),
+])
