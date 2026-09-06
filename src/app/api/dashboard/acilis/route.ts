@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
       oturma: bool('has_seating', true), pizza: bool('has_pizza', true),
       catdirilma: bool('has_delivery', true), qaz: bool('has_gas'),
       generator: bool('has_generator'),
+      kofe: bool('has_coffee', true), cok_kat: bool('multi_floor'),
+      bar: bool('has_bar'), birlesme: bool('is_merge'), park_ici: bool('in_park'),
     }
     const tenantId = session.user.tenant_id
 
@@ -47,6 +49,8 @@ export async function POST(req: NextRequest) {
       has_terrace: profil.teras, has_garden: profil.bagca, has_seating: profil.oturma,
       has_pizza: profil.pizza, has_delivery: profil.catdirilma, has_gas: profil.qaz,
       has_generator: profil.generator, was_cafe: bool('was_cafe'),
+      has_coffee: profil.kofe, multi_floor: profil.cok_kat, has_bar: profil.bar,
+      is_merge: profil.birlesme, in_park: profil.park_ici,
       planned_open_date: planned,
       created_by: session.user.id,
     }).returning({ id: openings.id })

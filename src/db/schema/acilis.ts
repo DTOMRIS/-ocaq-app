@@ -39,6 +39,12 @@ export const openings = pgTable('openings', {
   has_generator: boolean('has_generator').notNull().default(false),
   // Keçmiş kafe/restoran binası → MEP retrofit riski (G3-də kritik)
   was_cafe:      boolean('was_cafe').notNull().default(false),
+  // ── 06.09.2026 lokasiyalarından çıxan tələblər ────────────────────────────
+  has_coffee:  boolean('has_coffee').notNull().default(true),    // Metropark: NO
+  multi_floor: boolean('multi_floor').notNull().default(false),  // Səbail 1, Qala
+  has_bar:     boolean('has_bar').notNull().default(false),      // Qala, Ciabatta
+  is_merge:    boolean('is_merge').notNull().default(false),     // Hüseyn Cavid 2
+  in_park:     boolean('in_park').notNull().default(false),      // Hüseyn Cavid 2
 
   // ── QAPI VƏ STATUS ────────────────────────────────────────────────────────
   planned_open_date: date('planned_open_date'),

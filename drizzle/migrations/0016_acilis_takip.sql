@@ -35,6 +35,12 @@ create table if not exists "openings" (
   "has_gas"       boolean not null default false,
   "has_generator" boolean not null default false,
   "was_cafe"      boolean not null default false,
+  -- 06.09.2026 lokasiyalarından çıxan tələblər
+  "has_coffee"    boolean not null default true,
+  "multi_floor"   boolean not null default false,
+  "has_bar"       boolean not null default false,
+  "is_merge"      boolean not null default false,
+  "in_park"       boolean not null default false,
 
   "planned_open_date" date,
   "actual_open_date"  date,
