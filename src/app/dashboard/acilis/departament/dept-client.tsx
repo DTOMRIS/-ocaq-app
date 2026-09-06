@@ -29,8 +29,22 @@ function yukle(ad: string, metn: string) {
   URL.revokeObjectURL(a.href)
 }
 
-export default function DeptClient({ setirler, avadanliq }:
-  { setirler: DeptSetir[]; avadanliq: AvadSetir[] }) {
+export default function DeptClient({ setirler, avadanliq, canManage = false }:
+  { setirler: DeptSetir[]; avadanliq: AvadSetir[]; canManage?: boolean }) {
+  const [gonderme, setGonderme] = useState<string | null>(null)
+
+  async function xulaseGonder(dryRun: boolean) {
+    setGonderme('...')
+    try {
+      const r = await fetch(`/api/dashboard/acilis/digest${dryRun ? '?dryRun=1' : ''}`, { method: 'POST' })
+      const j = await r.json()
+      if (!r.ok) { setGonderme(`Xəta: ${j.error}`); return }
+      if (j.gonderilen === 0) { setGonderme(j.qeyd ?? 'Göndəriləcək bir şey yoxdur'); return }
+      setGonderme((dryRun ? 'SINAQ — göndərilməyəcək: ' : 'Göndərildi: ') +
+        j.netice.map((n: { dept: string; alicilar: number; gecikmis: number }) =>
+          `${n.dept} (${n.alicilar} ünvan, ${n.gecikmis} gecikmiş)`).join(' · '))
+    } catch (e) { setGonderme(e instanceof Error ? e.message : 'Xəta') }
+  }
   const [dept, setDept] = useState('')
   const [acilis, setAcilis] = useState('')
   const [yalnizAcik, setYalnizAcik] = useState(true)
@@ -137,7 +151,24 @@ export default function DeptClient({ setirler, avadanliq }:
                 className="ml-auto px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-medium hover:bg-slate-50">
           ⭳ Excel-ə yüklə
         </button>
+        {canManage && (
+          <>
+            <button onClick={() => xulaseGonder(true)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-medium hover:bg-slate-50">
+              ✉ Sınaq
+            </button>
+            <button onClick={() => xulaseGonder(false)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-semibold">
+              ✉ Xülasə göndər
+            </button>
+          </>
+        )}
       </div>
+      {gonderme && (
+        <p className="mt-2 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+          {gonderme}
+        </p>
+      )}
 
       {gorunus === 'vezife' ? (
         <>
