@@ -6,6 +6,50 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 🏗 06.09.2026 — Açılış Takibi modulu (yeni)
+
+**Budaq:** `feat/yoy-matrix-parser`. `npm test` **214/214** · typecheck təmiz ·
+build keçdi · lint 25 problem (main-də də EYNİ 25). **Hələ push EDİLMƏYİB.**
+
+Yeni filial açılışı LAYİHƏ kimi idarə olunur: profil girilir → vəzifələr
+avtomatik yaranır → departamentlər öz siyahısını görür → G0–G6 qapıları.
+
+**Niyə sabit siyahı deyil** (istifadəçi tələbi): «mallda olan filiala masa
+lazım deyil · terası varsa ayrı işlemler». Sabit siyahı ya şişir, ya əskik
+qalır — hər iki halda doldurulmur. Hər vəzifənin `cond` sahəsi var; profil
+uyğun gəlmirsə vəzifə HEÇ YARANMIR.
+
+Ölçüldü: küçə flagship + teras **187** vəzifə · mall food court **161** → 26
+fərq (masa/stul · çini dəst · uşaq stulu · masa nömrəsi · duz-bibər qabı ·
+musiqi · teras üçlüsü · pizza üçlüsü · ADRA icazəsi · zibil konteyneri).
+
+**Mənbə — üç sənəd birləşdirildi:**
+`Zaman Planı + Tam Kontrol Siyahısı` (23.06.2026) · `Açılış Dəyərləndirmə
+Formu` (Stage-Gate G0–G6) · **istifadəçi qeydi 06.09.2026 — keçmiş açılışlarda
+UNUDULANLAR** (23 vəzifə). Operasyon El Kitabının «7. AÇILIŞA HAZIRLIK»
+bölməsi BOŞDUR (başlıq var, məzmun yox) — bu şablon həmin boşluğu doldurur.
+
+**Sifariş tipi ayrımı** (gecikmələrin əsas səbəbi):
+`STANDART` hər filialda eyni → mərkəzi stokda → dərhal gedir ·
+`ÖLÇÜLÜ` filiala özəl → ölçü alınmadan sifariş verilə bilmir.
+
+| Fayl | Nə |
+|---|---|
+| `src/lib/acilis/template.ts` | 188 vəzifə + şərt qiymətləndirici (`eval` YOX) |
+| `src/db/schema/acilis.ts` | `openings` + `opening_tasks` |
+| `drizzle/migrations/0016_acilis_takip.sql` | yalnız CREATE |
+| `src/app/dashboard/acilis/**` | siyahı + profil formu + detay/qapılar/vəzifələr |
+| `src/app/api/dashboard/acilis/**` | POST yarat+generasiya · PATCH qapı · PATCH vəzifə |
+| `tests/acilis-template.test.ts` | 8 test |
+
+Vəzifələr şablondan **kopyalanır**, bağlı qalmır: şablon sonradan dəyişəndə
+keçmiş açılışın siyahısı dəyişməməlidir, yoxsa «nə vaxt nə edildi» itir.
+Tanınmayan şərt vəzifə YARATMIR (səssiz «true» yanlış siyahı verər).
+Sidebar-a ƏLAVƏ olundu, heç nə silinmədi (AGENTS.md qırmızı xətt).
+
+**Qalıb:** açılışın profilini sonradan redaktə etmək (indi yalnız yaradılışda);
+`branch_id` bağlanması (G5-də `branches` sətri yaradılanda).
+
 ### 🔁 06.09.2026 — YoY oxucusu + filial adı dəyişikliyi
 
 **Budaq:** `feat/yoy-matrix-parser` (`origin/main` = `f3fab27` üzərində).
@@ -17,6 +61,13 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 |---|---|
 | `1ca441a` | Bağlanmış ilin fakt matrisi oxunur — «avqusta keçən il yox» bitdi |
 | `905bbae` | Corner → **Səbail 2** · Mytcha → **Səbail 3** + `TRADE_ZONE` |
+
+**Migration `0015_sebail_rename.sql`** — `0011_mytcha_to_abdulkerim.sql`
+desenində. Yalnız `branches.name` yetmir: fakt cədvəllərinin unique açarı
+`filial` MƏTNİDİR → köçürmə edilməsə data İKİ ADA BÖLÜNƏR. 0011-dən fərqi:
+o vaxt iki fakt cədvəli vardı, indi saatlıq (0013) + silinmə/kasa-banka (0014)
+da köçürülür. Hər update `not exists` qorumalı, heç nə silinmir, təkrar
+işlədilsə no-op. **Əl ilə işlədilir** (deploy migration işlətmir).
 
 #### `1ca441a` — niyə YoY heç vaxt gəlmirdi
 
