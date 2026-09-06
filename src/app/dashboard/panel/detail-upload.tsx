@@ -59,6 +59,7 @@ const KIND_LABEL: Record<IikoKind, string> = {
   hourly: 'SAATLIQ SATIŞ',
   product: 'MƏHSUL',
   deletion: 'SİLİNMƏ',
+  writeoff: 'ANBAR SİLİNMƏSİ',
 }
 
 type SaveResult = {

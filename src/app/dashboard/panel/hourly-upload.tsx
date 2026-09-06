@@ -8,6 +8,7 @@ import {
   parseProductDaily, productDailyToItemFacts, detectReportKind, explainUnrecognized,
   parseDeletions, type DeletionReport,
   type HourlySalesReport, type ProductDailyReport,
+  parseWriteoffs,
 } from '@/lib/analytics/parse-iiko-reports'
 
 /**
@@ -150,9 +151,38 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
         // göstərir. Üçlü şərtdə `'deletion'` səssizcə «saatlıq» yazılırdı.
         const kindLabel: Record<NonNullable<typeof kind>, string> = {
           hourly: 'saatlıq', product: 'məhsul', deletion: 'silinmə',
+          writeoff: 'anbar silinməsi',
         }
         setPhase(`«${sn}» — ${kindLabel[kind]} hesabatı (${rows.length.toLocaleString('ru-RU')} sətir)…`)
         await new Promise(r => setTimeout(r, 0))
+        // Anbar silinməsi — çek bazlı silinmə ilə EYNİ cədvələ yazılır, amma
+        // `category` (QİDA/QEYRİ QİDA) ilə. Bu ayrım food cost üçün lazımdır və
+        // yalnız bu faylda gəlir. `XÜLASƏ` vərəqi PİVOTDUR — oxunmur.
+        if (kind === 'writeoff') {
+          const w = parseWriteoffs(rows)
+          if (w.rows.length) {
+            const payload = w.rows.map(r => ({
+              date: r.business_date, filial: r.filial, item: r.item,
+              amount: r.amount, qty: r.qty, category: r.category,
+              writtenOff: true, receipt: null, reason: null, comment: null,
+            })).filter(r => r.date)
+            for (let i = 0; i < payload.length; i += 4000) {
+              const dilim = payload.slice(i, i + 4000)
+              const res = await fetch('/api/dashboard/analytics/deletion-save', {
+                method: 'POST', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ rows: dilim, source: `anbar:${sn}`,
+                  ...(i === 0 ? { replaceDays: w.days } : {}) }),
+              })
+              if (!res.ok) throw new Error((await res.json()).error ?? 'Anbar silinməsi yazılmadı')
+            }
+            const kat = Object.entries(w.byCategory)
+              .map(([k, v]) => `${k} ${Math.round(v).toLocaleString('ru-RU')} ₼`).join(' · ')
+            setPhase(`Anbar silinməsi yazıldı — ${w.rows.length.toLocaleString('ru-RU')} sətir · ` +
+              `cəmi ${Math.round(w.total).toLocaleString('ru-RU')} ₼ · ${kat}` +
+              (w.staffMealTotal ? ` · personal yeməyi ${Math.round(w.staffMealTotal).toLocaleString('ru-RU')} ₼` : ''))
+          }
+          continue
+        }
         if (kind === 'deletion') {
           const dr = parseDeletions(rows)
           if (dr.rows.length && (!bestDel || dr.totals.amount > bestDel.totals.amount)) bestDel = dr

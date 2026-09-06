@@ -176,6 +176,11 @@ export const analytics_deletion_fact = pgTable('analytics_deletion_fact', {
   amount:        numeric('amount', { precision: 14, scale: 2 }).notNull(),
   // true = anbardan da silinib (real itki) · false = səhv vurulub, hazırlanmayıb
   written_off:   boolean('written_off').notNull().default(false),
+  // ── ANBAR SİLİNMƏSİ faylından (0019) ─────────────────────────────────────
+  // QİDA / QEYRİ QİDA / İSTEHSALAT — food cost ayrımı YALNIZ buradan gəlir.
+  // Çek bazlı silinmədə bu sütun boş qalır.
+  category:      text('category'),
+  qty:           numeric('qty', { precision: 14, scale: 3 }),
   source:        text('source'),
   updated_at:    timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [

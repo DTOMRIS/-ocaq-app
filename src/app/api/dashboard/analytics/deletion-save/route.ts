@@ -28,6 +28,9 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/
 type InRow = {
   date: string; filial: string; item: string; amount: number
   receipt?: string | null; reason?: string | null; comment?: string | null; writtenOff?: boolean
+  // ── Anbar silinməsi («Silinmə <ay>.xlsx») ────────────────────────────────
+  // QİDA / QEYRİ QİDA / İSTEHSALAT. Çek bazlı silinmədə boş gəlir.
+  category?: string | null; qty?: number | null
 }
 
 export async function POST(req: NextRequest) {
@@ -145,10 +148,10 @@ export async function POST(req: NextRequest) {
       // `unnest` — sütun başına BİR massiv parametri (bax `fact-save` şərhi).
       await sqlClient.query(`
         insert into analytics_deletion_fact
-          (tenant_id, branch_id, filial, business_date, receipt, item, reason, comment, amount, written_off, source)
-        select $1::uuid, t.branch_id, t.filial, t.business_date, t.receipt, t.item, t.reason, t.comment, t.amount, t.written_off, $2::text
-        from unnest($3::uuid[], $4::text[], $5::date[], $6::text[], $7::text[], $8::text[], $9::text[], $10::numeric[], $11::boolean[])
-          as t(branch_id, filial, business_date, receipt, item, reason, comment, amount, written_off)
+          (tenant_id, branch_id, filial, business_date, receipt, item, reason, comment, amount, written_off, category, qty, source)
+        select $1::uuid, t.branch_id, t.filial, t.business_date, t.receipt, t.item, t.reason, t.comment, t.amount, t.written_off, t.category, t.qty, $2::text
+        from unnest($3::uuid[], $4::text[], $5::date[], $6::text[], $7::text[], $8::text[], $9::text[], $10::numeric[], $11::boolean[], $12::text[], $13::numeric[])
+          as t(branch_id, filial, business_date, receipt, item, reason, comment, amount, written_off, category, qty)
       `, [
         tenantId, source,
         rows.map(r => branchIdOf(r.filial)),
@@ -160,6 +163,8 @@ export async function POST(req: NextRequest) {
         rows.map(r => r.comment ?? null),
         rows.map(r => Number(r.amount).toFixed(2)),
         rows.map(r => !!r.writtenOff),
+        rows.map(r => r.category ?? null),
+        rows.map(r => (r.qty == null ? null : Number(r.qty).toFixed(3))),
       ])
     }
 

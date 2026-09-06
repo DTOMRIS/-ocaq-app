@@ -96,6 +96,18 @@ const V = {
   delReason: /(item deleted$|silinmə səbəbi|ürün silindi$|silme nedeni)/,
   receipt: /(receipt no|qəbzin nömrəsi|fi[şs] no|çek numarasi)/,
   comment: /(item deletion comment|comment|silme yorumu|yorum)/,
+
+  // ── ANBAR SİLİNMƏSİ («Silinmə <ay>.xlsx» → `data` vərəqi) ────────────────
+  // Bu, çek bazlı silinmə hesabatından FƏRQLİ mənbədir: orada «Qəbzin nömrəsi»
+  // və «Silinmə səbəbi» var, burada YOXDUR. Burada ANBAR kateqoriyası var —
+  // QİDA / QEYRİ QİDA ayrımı yalnız bu faylda gəlir və food cost üçün lazımdır.
+  // Real fayl: Uçot günü · Hesab · Nomenklatura elementi · Miqdar · Məbləğ, m.
+  //            · Satış Azn · B/M · ANBAR
+  account:      /^(hesab|account)$/,
+  nomenclature: /(nomenklatura element|nomenclature|stok kart)/,
+  /** «Məbləğ, m.» — `endirimli` YOXDUR, ona görə V.money bunu tutmur. */
+  plainMoney:   /^(məbləğ,?\s*m\.?|amount|tutar)$/,
+  warehouse:    /^(anbar|warehouse|depo)$/,
 } as const
 
 /**
@@ -1205,13 +1217,17 @@ export function productDailyToItemFacts(rows: ProductDailyRow[]): ItemFactRow[] 
  *   • `ödəniş növü` VAR    → saatlıq satış hesabatı
  * Hər ikisi varsa məhsul üstün tutulur (menyu detayı daha dardır).
  */
-export type ReportKind = 'hourly' | 'product' | 'deletion' | null
+export type ReportKind = 'hourly' | 'product' | 'deletion' | 'writeoff' | null
 
 export function detectReportKind(rows: unknown[][], limit = 30): ReportKind {
   for (let r = 0; r < Math.min(rows.length, limit); r++) {
     const cells = (rows[r] ?? []).map(c => azFold(c))
     if (!cells.length) continue
     const has = (re: RegExp) => cells.some(c => re.test(c))
+    // ANBAR SİLİNMƏSİ ƏN ƏVVƏL: burada nə «Ticarət müəssisəsi», nə «Endirimli
+    // məbləğ» var — filial «Hesab», pul «Məbləğ, m.» adlanır. Aşağıdakı
+    // `V.store` yoxlaması bunu keçirməzdi və fayl haqsız yerə rədd edilərdi.
+    if (has(V.account) && has(V.nomenclature) && has(V.warehouse)) return 'writeoff'
     if (!has(V.store)) continue
     if (!has(V.money)) continue
     // SİLİNMƏ hesabatı ƏVVƏLCƏ yoxlanılır: onda da `Store` + `Gross Sales` var,
@@ -1290,4 +1306,87 @@ export function explainUnrecognized(rows: unknown[][], limit = 30): string {
     return `Bu fayl məhsul hesabatına oxşayır, lakin «Məhsulların sayı» sütunu yoxdur. Faylda tapılanlar: ${seen}.`
   }
   return `Fayl tanınmadı. Faylda tapılanlar: ${seen}. Gözlənilən: «Satış ay və gün» və ya «DT Məhsul sayı və qiyməti».`
+}
+
+// ─── ANBAR SİLİNMƏSİ ────────────────────────────────────────────────────────
+//
+// Mənbə: «Silinmə <ay>.xlsx» → `data` vərəqi (`XÜLASƏ` PİVOTDUR, oxunmur).
+// Çek bazlı silinmədən fərqi: qəbz nömrəsi yoxdur, əvəzində ANBAR kateqoriyası
+// var. QİDA / QEYRİ QİDA ayrımı YALNIZ buradan gəlir.
+//
+// Avqust 2026 real fayl: 13 652 sətir · 30 filial · 535 məhsul
+//   QİDA 49 144 ₼ · QEYRİ QİDA 42 723 ₼ · İSTEHSALAT 1 049 ₼ → 92 916 ₼
+//   «Personal ...» kalemləri 21 374 ₼ — personal yeməyi, AYRI izlənməlidir.
+
+export type WriteoffRow = {
+  filial: string
+  business_date: string
+  item: string
+  qty: number
+  amount: number
+  /** QİDA · QEYRİ QİDA · İSTEHSALAT — boş ola bilər */
+  category: string | null
+  /** Məhsul adı «Personal» ilə başlayır → personal yeməyi */
+  isStaffMeal: boolean
+}
+export type WriteoffReport = {
+  rows: WriteoffRow[]
+  days: string[]
+  byCategory: Record<string, number>
+  staffMealTotal: number
+  total: number
+  warnings: string[]
+}
+
+export function parseWriteoffs(rows: unknown[][]): WriteoffReport {
+  const out: WriteoffRow[] = []
+  const warnings: string[] = []
+  const byCategory: Record<string, number> = {}
+  const days = new Set<string>()
+  let staffMealTotal = 0, total = 0
+
+  let hi = -1
+  for (let r = 0; r < Math.min(rows.length, 30); r++) {
+    const cells = (rows[r] ?? []).map(c => azFold(c))
+    if (cells.some(c => V.account.test(c)) && cells.some(c => V.nomenclature.test(c))) { hi = r; break }
+  }
+  if (hi < 0) return { rows: out, days: [], byCategory, staffMealTotal: 0, total: 0,
+    warnings: ['Anbar silinməsi başlığı tapılmadı (Hesab / Nomenklatura elementi)'] }
+
+  const hdr = (rows[hi] ?? []).map(c => azFold(c))
+  const idx = (re: RegExp) => hdr.findIndex(h => re.test(h))
+  const iF = idx(V.account), iI = idx(V.nomenclature), iD = idx(V.day)
+  const iQ = hdr.findIndex(h => /^(miqdar|quantity|miktar)$/.test(h))
+  const iA = idx(V.plainMoney), iW = idx(V.warehouse)
+  if (iF < 0 || iI < 0 || iA < 0) {
+    return { rows: out, days: [], byCategory, staffMealTotal: 0, total: 0,
+      warnings: ['Anbar silinməsində Hesab / Nomenklatura / Məbləğ sütunlarından biri yoxdur'] }
+  }
+
+  for (let r = hi + 1; r < rows.length; r++) {
+    const row = rows[r] ?? []
+    const filialRaw = String(row[iF] ?? '').trim()
+    const item = String(row[iI] ?? '').trim()
+    if (!filialRaw || !item || TOTAL_WORD.test(filialRaw)) continue
+    const filial = normalizeFilial(filialRaw)
+    if (!filial || EXCLUDE.has(filial)) continue
+
+    const amtRaw = Number(String(row[iA] ?? '').replace(/\s/g, '').replace(',', '.'))
+    if (!isFinite(amtRaw)) continue
+    // Silinmə MƏNFİ gəlir; hesabatda MÜSBƏT böyüklük saxlanılır
+    const amount = Math.abs(amtRaw)
+    const qty = Math.abs(Number(String(row[iQ] ?? 0).replace(/\s/g, '').replace(',', '.'))) || 0
+
+    const business_date = iD >= 0 ? (excelSerialToISO(row[iD]) ?? '') : ''
+    if (business_date) days.add(business_date)
+    const category = iW >= 0 ? (String(row[iW] ?? '').trim() || null) : null
+    const isStaffMeal = /^personal/i.test(item)
+
+    out.push({ filial, business_date, item, qty, amount, category, isStaffMeal })
+    total += amount
+    if (category) byCategory[category] = (byCategory[category] ?? 0) + amount
+    if (isStaffMeal) staffMealTotal += amount
+  }
+  if (!out.length) warnings.push('Anbar silinməsində oxunan sətir yoxdur')
+  return { rows: out, days: [...days].sort(), byCategory, staffMealTotal, total, warnings }
 }
