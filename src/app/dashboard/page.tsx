@@ -1,6 +1,8 @@
 import Link from "next/link"
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { openings, opening_tasks } from '@/db/schema/acilis'
+import { ne as neOp } from 'drizzle-orm'
 import { db } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
@@ -271,6 +273,39 @@ export default async function DashboardPage() {
           { href: '/dashboard/regions', icon: '◉', title: 'Bölgə idarəetməsi', desc: 'Bölgə, filial və rəhbər təyinatlarını yoxlayın.' },
         ]
 
+  // ── Açılış takibi xülasəsi ────────────────────────────────────────────────
+  // Cədvəl hələ yoxdursa səhifə SINMAMALIDIR — dashboard bütün şəbəkənin
+  // giriş nöqtəsidir, bir modul ucbatından ağ ekran verə bilməz.
+  const acilisXulase = { aktiv: 0, acik: 0, gecikdi: 0,
+    enYaxinGun: null as number | null, enYaxinAd: null as string | null }
+  try {
+    const ops = await db.select().from(openings)
+      .where(and(eq(openings.tenant_id, session.user.tenant_id),
+                 neOp(openings.status, 'dayandirildi'), neOp(openings.status, 'acildi')))
+    acilisXulase.aktiv = ops.length
+    if (ops.length) {
+      const bugun = new Date(); bugun.setHours(0, 0, 0, 0)
+      const yaxin = ops
+        .filter(o => o.planned_open_date)
+        .map(o => ({ ad: o.name,
+          gun: Math.round((new Date(o.planned_open_date + 'T00:00:00Z').getTime() - bugun.getTime()) / 86400000) }))
+        .filter(x => x.gun >= 0)
+        .sort((a, b) => a.gun - b.gun)[0]
+      if (yaxin) { acilisXulase.enYaxinGun = yaxin.gun; acilisXulase.enYaxinAd = yaxin.ad }
+
+      const ids = new Set(ops.map(o => o.id))
+      const tasks = await db.select().from(opening_tasks)
+        .where(eq(opening_tasks.tenant_id, session.user.tenant_id))
+      const bugunStr = new Date().toISOString().slice(0, 10)
+      for (const t of tasks) {
+        if (!ids.has(t.opening_id)) continue
+        if (t.status === 'bitdi' || t.status === 'tetbiq_olunmur') continue
+        acilisXulase.acik++
+        if (t.due_date && t.due_date < bugunStr) acilisXulase.gecikdi++
+      }
+    }
+  } catch { /* cədvəl yoxdur — blok göstərilmir */ }
+
   return (
     <div>
       {/* ═══ BAŞLIQ ═══ */}
@@ -454,6 +489,39 @@ export default async function DashboardPage() {
           })}
         </div>
       </div>
+
+      {/* ═══ AÇILIŞ TAKİBİ ═══ */}
+      {acilisXulase.aktiv > 0 && (
+        <div className="mb-6">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-lg font-semibold text-slate-900">🏗 Açılış Takibi</h2>
+            <Link href="/dashboard/acilis" className="text-sm text-slate-500 hover:text-slate-800">hamısı →</Link>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs text-slate-500">Aktiv açılış</p>
+              <p className="text-2xl font-bold text-slate-900 tabular-nums">{acilisXulase.aktiv}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs text-slate-500">Açıq vəzifə</p>
+              <p className="text-2xl font-bold text-slate-900 tabular-nums">{acilisXulase.acik}</p>
+            </div>
+            <div className={`rounded-xl border p-4 ${acilisXulase.gecikdi > 0 ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-white'}`}>
+              <p className="text-xs text-slate-500">Gecikən</p>
+              <p className={`text-2xl font-bold tabular-nums ${acilisXulase.gecikdi > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                {acilisXulase.gecikdi}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs text-slate-500">Ən yaxın açılış</p>
+              <p className="text-2xl font-bold text-slate-900 tabular-nums">
+                {acilisXulase.enYaxinGun == null ? '—' : `${acilisXulase.enYaxinGun} gün`}
+              </p>
+              {acilisXulase.enYaxinAd && <p className="text-xs text-slate-500 mt-0.5">{acilisXulase.enYaxinAd}</p>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ TEZ KEÇİDLƏR ═══ */}
       <h2 className="text-lg font-semibold text-slate-900 mb-3">Tez Keçidlər</h2>
