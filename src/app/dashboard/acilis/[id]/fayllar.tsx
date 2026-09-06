@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 
-type Fayl = {
+export type Fayl = {
   id: string; kind: string; fileName: string; mime: string | null
   size: number | null; note: string | null; createdAt: string; url: string | null
 }
@@ -14,22 +15,14 @@ const KIND_ADI: Record<string, string> = {
 const olcu = (n: number | null) =>
   n == null ? '' : n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`
 
-export default function Fayllar({ openingId, canManage }: { openingId: string; canManage: boolean }) {
-  const [fayllar, setFayllar] = useState<Fayl[]>([])
+export default function Fayllar({ openingId, fayllar, canManage }:
+  { openingId: string; fayllar: Fayl[]; canManage: boolean }) {
+  const router = useRouter()
   const [yuk, setYuk] = useState(false)
   const [kind, setKind] = useState('proyekt')
   const [err, setErr] = useState<string | null>(null)
   const [faiz, setFaiz] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  async function oxu() {
-    try {
-      const r = await fetch(`/api/dashboard/acilis/${openingId}/file`)
-      const j = await r.json()
-      if (r.ok) setFayllar(j.files ?? [])
-    } catch { /* siyahı boş qalır */ }
-  }
-  useEffect(() => { oxu() }, [openingId])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function gonder(file: File) {
     setYuk(true); setErr(null); setFaiz(0)
@@ -59,7 +52,7 @@ export default function Fayllar({ openingId, canManage }: { openingId: string; c
       })
       const cj = await c.json()
       if (!c.ok) throw new Error(cj.error ?? 'Qeydiyyat alınmadı')
-      await oxu()
+      router.refresh()
       if (inputRef.current) inputRef.current.value = ''
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setYuk(false); setFaiz(null) }
@@ -71,7 +64,7 @@ export default function Fayllar({ openingId, canManage }: { openingId: string; c
       method: 'DELETE', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ fileId }),
     })
-    if (r.ok) oxu(); else alert('Silinmədi')
+    if (r.ok) router.refresh(); else alert('Silinmədi')
   }
 
   return (

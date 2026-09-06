@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import Fayllar from './fayllar'
+import Fayllar, { type Fayl } from './fayllar'
 
 export type Layihe = {
   id: string; name: string; address: string | null; zone: string | null; format: string
@@ -43,8 +43,8 @@ const ST_RENG: Record<string, string> = {
   tetbiq_olunmur: 'bg-slate-50 text-slate-400',
 }
 
-export default function DetayClient({ layihe, vezifeler, canManage }:
-  { layihe: Layihe; vezifeler: Vezife[]; canManage: boolean }) {
+export default function DetayClient({ layihe, vezifeler, fayllar, canManage }:
+  { layihe: Layihe; vezifeler: Vezife[]; fayllar: Fayl[]; canManage: boolean }) {
   const router = useRouter()
   const [dept, setDept] = useState<string>('')
   const [gate, setGate] = useState<string>('')
@@ -143,7 +143,7 @@ export default function DetayClient({ layihe, vezifeler, canManage }:
         <p className="mt-3 text-xs text-slate-500">{GATE_SERT[layihe.gate]}</p>
       </div>
 
-      <Fayllar openingId={layihe.id} canManage={canManage} />
+      <Fayllar openingId={layihe.id} fayllar={fayllar} canManage={canManage} />
 
       {/* ── Departament xülasəsi ── */}
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
