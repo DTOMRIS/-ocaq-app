@@ -6,6 +6,67 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 🔁 06.09.2026 — YoY oxucusu + filial adı dəyişikliyi
+
+**Budaq:** `feat/yoy-matrix-parser` (`origin/main` = `f3fab27` üzərində).
+İki commit. `npm test` **206/206** · `typecheck` təmiz · `next build` keçdi.
+**Hələ push EDİLMƏYİB** — istifadəçi təsdiqi gözlənilir. Migration yoxdur,
+şema dəyişmir; yalnız `branches.name` üçün ƏL İLƏ işlədiləcək SQL var.
+
+| Commit | Nə |
+|---|---|
+| `1ca441a` | Bağlanmış ilin fakt matrisi oxunur — «avqusta keçən il yox» bitdi |
+| `905bbae` | Corner → **Səbail 2** · Mytcha → **Səbail 3** + `TRADE_ZONE` |
+
+#### `1ca441a` — niyə YoY heç vaxt gəlmirdi
+
+Panel-də YoY altyapısı VAR idi (`parseYoy`, `y2025/y2026`, «keçən ilə görə
+düşən» filtresi). Rəqəm girmirdi, çünki oxucu başlıq sətrində **eyni anda üç
+şeyi** axtarır: `ticarət` ✅ · `2025` ❌ (il yalnız SHEET ADINDA) ·
+`gedişat` ❌ (bağlanmış ay faylında belə sütun yoxdur) → `hi < 0` → boş
+qaytarır, **xəta vermir**, panel səssizcə YoY-suz qalır.
+
+`parseYoy` ay-ortası «gedişat» faylı üçün yazılıb. Bağlanmış ayın FAKT faylı
+başqa formadadır → **düzəliş deyil, ikinci oxucu** əlavə olundu. `parseYoy`
+toxunulmayıb.
+
+Əlavə (`parse-daily.ts`, əlavə-yalnız): `parseYearMatrix` · `mergeYearMatrix`
+· `yoyFromYearMatrix`.
+
+**Yol boyu tapılan ikinci xəta — Azərbaycan «İ» tələsi:**
+`'İyul'.toLowerCase()` = `'i'` + U+0307 → `'iyul'` DEYİL. Sadə `toLowerCase()`
+ilə **İyul və İyun sütunları səssizcə itirdi** (avqust oxunurdu, iyul 0
+qalırdı). `filial-map.ts`-də sənədləşdirilmiş eyni tələ. `foldHdr()` +
+regression testi.
+
+Doğrulama (real `Yeni satış plan.xlsx`):
+Avqust 2025 = **3 977 166,63 ₼** · 29 filial · İyul 2025 = **4 037 351,66 ₼**.
+Panel avqust 2026 üçün YoY **−3,61%** göstərəcək; «5%+ düşən» filtresi 16 filial.
+
+#### `905bbae` — ad dəyişikliyi, tarixi data qorunur
+
+Köhnə adlar SİLİNMƏDİ, **alias oldu**: 2025 fakt faylı hələ «Corner» yazır,
+iiko «Mytcha» göndərir, Wolt «Əziz Əliyev Küç» deyir. Alias qırılsa keçən ilin
+cirosu yeni ada bağlanmaz və YoY sıfırdan başlayardı.
+
+`TRADE_ZONE` (yeni, hələ UI-ya bağlanmayıb): Səbail 2 ↔ Səbail 3 arası 140 m →
+eyni ticarət zonası. Ayrı müqayisə edilsə biri «çökdü» (−34,6%), digəri «yeni»
+görünür; zona olaraq **197 402 → 284 758 ₼ = +44,3%**.
+
+`bank-reconcile`: terminal → filial xəritələri `normalizeFilial()`-dan
+keçirildi. Əvvəl xam dəyər açar kimi işlənirdi (`'Corner'`), satış tərəfi isə
+kanonik ad verirdi (`'Səbail 2'`) → **mutabakat ikiyə bölünərdi**.
+
+#### ⚠️ Bu dəyişikliklə birlikdə lazım olan
+
+1. **`scripts/sql/2026-09-06-rename-sebail.sql`** əl ilə işlədilməlidir —
+   kanonik ad `branches.name` ilə eyni olmalıdır, yoxsa `branchIdOf` bağlanmır.
+   Script əvvəl `SELECT` ilə göstərir, sonra `BEGIN/UPDATE/COMMIT`.
+2. **Masazır −100% görünəcək** — bağlanan filial düşüş kimi oxunur. Dörd
+   sətirlik kırılım (şəbəkə / eyni filial / yeni katkı / bağlanan) `branches`
+   cədvəlinə `status` + açılış/bağlanış tarixi + zona sahələri tələb edir.
+
+
 ### 📋 DEVİR — 25.08…06.09.2026 sessiyası (nə edildi, nə qaldı)
 
 **Budaq:** `claude/ocaq-deploy-modules-dccn6v` → `main` (`4be1dba`).
