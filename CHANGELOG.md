@@ -6,6 +6,71 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 📋 DEVİR — 25.08…06.09.2026 sessiyası (nə edildi, nə qaldı)
+
+**Budaq:** `claude/ocaq-deploy-modules-dccn6v` → `main` (`4be1dba`).
+Səkkiz commit. Hər biri `tsc` + `npm test` (195/195) + `next build`-dən keçib.
+
+#### Edilənlər
+
+| Commit | Nə düzəldildi |
+|---|---|
+| `ab229f2` | Deploy-u sındıran `TS2322` (parser-ə `'deletion'` əlavə olundu, tip yenilənmədi) |
+| `801ffbd` | iiko dili **Türkçe**-yə keçdi → bütün hesabatlar oxunmaz oldu. Sütun lüğəti (`V`) mərkəzləşdi: AZ · EN · TR |
+| `ce93f8e` | Tarix `Date` obyekti kimi gələndə **bütün sətirlər səssizcə atılırdı** (66 593,79 ₼ → 0,00 ₼) |
+| `12a810d` | Birləşdirilmiş ara cəm xanası → **qonaq sayı 4 dəfə şişirdi** (6 122 ↔ 25 251); ciro düzgün qaldığı üçün görünmürdü |
+| `8e9a0f1` | Yükləmə qutusunda **build damğası** — «köhnə paket» tələsi |
+| `1b5c66d` | İki iiko faylı birlikdə atılanda **biri səssizcə itirdi** (`iikoHit` üzərinə yazılırdı) |
+| `8ad7240` | Yarıda qırılan yükləmə **ayı silirdi** → silmə sona alındı (`sweepDays`) |
+| `4be1dba` | Panel başlığındakı «yüklənib» tarixi **səhv mənbədən** gəlirdi + əhatə göstərilir |
+
+#### Doğrulanmış rəqəmlər (real fayllarla ölçüldü)
+
+| Fayl | Nəticə | Faylın öz «Grand Total»-ı ilə fərq |
+|---|---|---|
+| Rapor Satış avqust (62 279 sətir) | 3 833 665,55 ₼ · 188 578 çek · 31 gün · 30 filial | **0,00** |
+| DT Məhsul avqust (389 678 sətir) | 2 866 138,44 ₼ · 279 məhsul · 31 gün · 29 filial | **0,00** |
+| Rapor Satış / Total 24.08 | 117 985,77 ₼ · 6 122 qonaq — iki müstəqil fayl eyni rəqəmi verir | **0,00** |
+
+Uçdan-uca boru (parse → `hourly-save` → `hourlyToDailyFacts` → `fact-save` →
+`factsToPanel`) ciro və çek sayını **dəyişdirmir**; bütün çağırış limitləri
+(15/2/18 çağırış) `MAX_ROWS` altındadır.
+
+#### ⚠️ AÇIQ QALANLAR — növbəti agent üçün
+
+1. **AVQUST DATASI HƏLƏ BAZAYA YAZILMAYIB.** Panel `analytics_daily_fact`-dan
+   oxuyur, orada hələ **11.08.2026-da yüklənmiş 24 günlük** data var
+   (2 978 124 ₼). Avqust satış faylı yüklənməlidir → gözlənilən nəticə
+   **31 gün · 3 833 665,55 ₼ · ort.çek 20,33 ₼**. Kodda tıxanma YOXDUR
+   (yuxarıda ölçüldü) — sadəcə fayl yüklənməyib.
+2. **Süpürmə (`sweepDays`) yalnız SQL səviyyəsində doğrulandı** (real
+   PostgreSQL 16 ilə 4 ssenari), avtomatik test paketinə BAĞLANMADI. PGlite
+   proxy tərəfindən bloklanır (403). Neon test budağı ilə inteqrasiya testi
+   yazılmalıdır.
+3. **Məhsul hesabatı cironun yalnız %73,9-nu örtür.** `Seabreeze` hesabatda
+   ÜMUMİYYƏTLƏ yoxdur — 24.08-də **#1 filial** idi (10 576,25 ₼). iiko
+   tərəfində düzəldilməlidir (Rafael).
+4. **Cash Flow inteqrasiyası: təhlil edildi, QURULMADI.** Sənəd:
+   `docs/MUSAVIR-REYI-CASHFLOW-2026-08.md`. Tövsiyə olunan sıra:
+   (a) kassa/banka mutabakatı — `kasa_banka_recon` cədvəli hazırdır, məlumat
+   yoxdur; (b) likvidlik paneli; (c) xərc strukturu; (d) nağd gecikmə nəzarəti.
+   Yalnız `CF` vərəqi (60 sətir) kifayətdir; `Unibank pos` (23 647 sətir)
+   alınmasın.
+   **Ölçülmüş fakt:** Unibank POS gün-gün tutuşdurulur (24.08: iiko 36 409,05 ₼
+   ↔ bank 36 386,16 ₼ = **%0,06**). Kapital-da əsl əməliyyat tarixi olmadığı
+   üçün gün-gün mümkün deyil.
+5. **Qismən gün xəbərdarlığı** iiko axınında YOXDUR (PRODMIX-də var —
+   `PARTIAL_LAST_DAY_NOTE`). Məhsul faylı gün ortasında endirilsə ekran natamam
+   günü tam kimi göstərir.
+6. **Menyu/Food Cost `Maya dəyəri` saxlanması** → marja əsaslı Kasavana-Smith.
+   Başlanmadı.
+7. **`xlsx` paketi npm-də deyil** — hər `npm install`-da `cdn.sheetjs.com`-dan
+   çəkilir. O CDN əlçatmaz olsa deploy **install mərhələsində** sınır.
+8. **Lint: 6 xəta** (hamısı bu sessiyadan ƏVVƏL də vardı, `next build`-i
+   sındırmır): `parse-menu.ts` prefer-const, `analitika-client.tsx` render-də
+   komponent yaratma ×4, `hourly-upload.tsx` TDZ xəbərdarlığı.
+
+
 ### Fixed — panel başlığındakı «yüklənib» tarixi SƏHV MƏNBƏDƏN gəlirdi
 - **Hadisə (05.09.2026):** ekranda «PRODMIX/ÇEK datası · 11.08.2026 yüklənib»
   yazırdı və heç vaxt dəyişmirdi. İstifadəçi yeni fayl yükləyib tarixin
