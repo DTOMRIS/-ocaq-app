@@ -1,6 +1,113 @@
 # OCAQ — növbəti agent üçün devir sənədi
 
-Son yenilənmə: 16 iyul 2026, Bakı vaxtı.
+> ⚠️ **Bu faylın 2-ci və sonrakı bölmələri 16 İYUL 2026 vəziyyətini yazır və
+> KÖHNƏLİB** (budaq adı, Preview Neon müddəti və s. artıq doğru deyil).
+> Onlar tarixi qeyd kimi SAXLANILIR, silinmir. **Güncel vəziyyət aşağıdakı
+> «0» bölməsindədir — əvvəlcə onu oxu.**
+
+---
+
+## 0. GÜNCEL VƏZİYYƏT — 06.09.2026
+
+### 0.1 Kod haradadır
+
+| | |
+|---|---|
+| GitHub | `DTOMRIS/-ocaq-app` |
+| Aktiv budaq | `claude/ocaq-deploy-modules-dccn6v` |
+| `main` | **eynidir** — budaq `main`-ə push olunub |
+| Son commit | `adee61d` |
+| Deploy | `main` → Vercel avtomatik Production |
+
+⚠️ Yuxarıdakı köhnə bölmədə yazılan `codex/shift-leadership` budağı və
+`/Volumes/NO NAME/...` lokal yolları **ARTIQ AKTUAL DEYİL**.
+
+### 0.2 Əvvəlcə nə oxunmalı (bu sıra ilə)
+
+1. `CLAUDE.md` — iş prinsipləri, qırmızı xətlər
+2. `AGENTS.md` — silmə qadağası (KPI paneli, route-lar, sidebar)
+3. **`CHANGELOG.md` → «Unreleased» → «📋 DEVİR» bölməsi** — bu sessiyanın tam
+   xülasəsi, ölçülmüş rəqəmlər və açıq maddələr
+4. `docs/MUSAVIR-REYI-CASHFLOW-2026-08.md` — Cash Flow təhlili (iş sənədi)
+
+### 0.3 İşə başlama
+
+```bash
+git clone https://github.com/DTOMRIS/-ocaq-app
+cd -ocaq-app
+git checkout claude/ocaq-deploy-modules-dccn6v
+npm install        # ⚠️ `npm ci` DEYİL — aşağıdaki `xlsx` qeydinə bax
+npm test           # 195/195 keçməlidir
+npx tsc --noEmit   # təmiz olmalıdır
+```
+
+⚠️ **`xlsx` paketi npm-də DEYİL** — `https://cdn.sheetjs.com/...tgz`-dən çəkilir.
+Bəzi mühitlərdə (proxy arxasında) bu ünvan bloklanır və `npm install` sınır.
+Belə halda paketi müvəqqəti `package.json`-dan çıxarıb quraşdır, sonra
+**mütləq geri qaytar** — `commit`-ə düşməməlidir.
+
+### 0.4 Bu sessiyada dəyişən fayllar
+
+```
+src/lib/analytics/parse-iiko-reports.ts      ← sütun lüğəti (V), AZ/EN/TR
+src/lib/analytics/parse-sales-detail.ts      ← excelSerialToISO: Date dəstəyi
+src/app/dashboard/panel/detail-upload.tsx    ← çox fayl seçimi (iikoList)
+src/app/dashboard/panel/hourly-upload.tsx    ← süpürmə (sweep) axını
+src/app/dashboard/panel/page.tsx             ← fakt tarixi + əhatə
+src/app/dashboard/panel/panel-client.tsx     ← başlıqda əhatə göstərilir
+src/app/api/dashboard/analytics/fact-save/route.ts      ← sweepDays rejimi
+src/app/api/dashboard/analytics/deletion-save/route.ts  ← sweepDays rejimi
+tests/parse-iiko-reports.test.ts             ← 183 → 195 test
+CHANGELOG.md · docs/MUSAVIR-REYI-CASHFLOW-2026-08.md
+```
+
+### 0.5 🔴 BİRİNCİ İŞ — avqust datası bazaya yazılmayıb
+
+Panel `analytics_daily_fact`-dan oxuyur; orada hələ **11.08.2026-da yüklənmiş
+24 günlük** data var (**2 978 124 ₼**). Avqust satış faylı yüklənməlidir.
+
+**Gözlənilən nəticə (real fayl ilə ölçülüb):**
+**31 gün · 3 833 665,55 ₼ · 188 578 çek · ort.çek 20,33 ₼**
+
+Kodda tıxanma **YOXDUR** — parse → `hourly-save` → `hourlyToDailyFacts` →
+`fact-save` → `factsToPanel` zənciri uçdan-uca ölçülüb, ciro və çek sayı
+dəyişmir, bütün çağırış limitləri (15/2/18) `MAX_ROWS` altındadır.
+
+### 0.6 Fayllar (iiko/bank ixracları) REPODA DEYİL
+
+`.xlsx` faylları istifadəçinin özündədir, kod bazasına qoyulmayıb (məxfi
+əməliyyat datası). Yenidən iş görmək üçün istifadəçidən istənilməlidir:
+
+| Fayl | Nə üçün |
+|---|---|
+| «Doğan Tomris Rapor Satış» (aylıq/günlük) | saatlıq + günlük satış |
+| «DT Məhsul sayı və qiyməti» | menyu analizi |
+| «Silinmə hesabatı» | kassa nəzarəti |
+| «CASH FLOW» | kassa/banka mutabakatı (hələ qurulmayıb) |
+
+### 0.7 Açıq maddələr
+
+Tam siyahı `CHANGELOG.md` → «📋 DEVİR» → «AÇIQ QALANLAR» bölməsindədir
+(8 maddə). Ən vacibləri:
+
+1. Avqust datasının yüklənməsi (§0.5)
+2. Süpürmə (`sweepDays`) yalnız SQL səviyyəsində doğrulanıb — avtomatik testə
+   bağlanmayıb (PGlite proxy-də bloklanır, Neon test budağı lazımdır)
+3. `Seabreeze` məhsul hesabatında ÜMUMİYYƏTLƏ yoxdur — 24.08-də #1 filial idi
+   (10 576,25 ₼). iiko tərəfində düzəldilməlidir
+4. Cash Flow inteqrasiyası: təhlil edilib, qurulmayıb
+5. Menyu/Food Cost «Maya dəyəri» saxlanması — başlanmayıb
+
+### 0.8 Bu sessiyanın metod qeydi (təkrarlanmasın deyə)
+
+- **`azFold` ı/İ/I/i → «i» çevirir.** Naxışlar fold-dan SONRAKI mətnə yazılır
+  (`satılıb`→`satilib`, `sayı`→`sayi`). Bu tələyə **üç dəfə** düşüldü.
+- **`sqlClient.query()` SƏTİR MASSİVİNİ birbaşa qaytarır**, `{ rows }` deyil.
+- **SheetJS `range` rəqəm verilsə vərəqin HAMISINI oxuyur** — obyekt ver.
+- Hər dəyişiklikdən sonra `next build` işlət: `tsc` təmiz olsa da build sına
+  bilər (bir dəfə oldu, deploy sındı).
+
+---
 
 ## 1. Doğru kod mənbəyi
 
