@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 export const r2 = new S3Client({
@@ -62,4 +62,38 @@ export async function createAvatarUploadUrl(
   )
 
   return { uploadUrl, publicUrl }
+}
+
+// ─── AÇILIŞ FAYLLARI ────────────────────────────────────────────────────────
+// Proyekt, smeta, təklif, ölçü cədvəli, foto. PDF böyük ola bilər (mimari
+// proyekt 20–50 MB) → serverdən keçirmək əvəzinə PRESIGNED URL verilir,
+// brauzer birbaşa R2-yə yükləyir. Serverless body limitinə dəymir.
+
+export async function createOpeningFileUploadUrl(
+  tenantId: string, openingId: string, fileId: string,
+  fileName: string, contentType: string,
+): Promise<{ uploadUrl: string; key: string }> {
+  assertR2Configured()
+  // Ad təhlükəsizləşdirilir — R2 açarında qəribə simvol problem çıxarır
+  const temiz = fileName.replace(/[^\w.\-]+/g, '_').slice(-80)
+  const key = `uploads/${tenantId}/acilis/${openingId}/${fileId}-${temiz}`
+  const uploadUrl = await getSignedUrl(
+    r2, new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: contentType }),
+    { expiresIn: 300 },   // 5 dəqiqə — böyük fayl üçün 60 san. azdır
+  )
+  return { uploadUrl, key }
+}
+
+/** Endirmə üçün müvəqqəti link. Fayllar PRİVATdır — birbaşa URL işləmir. */
+export async function createFileDownloadUrl(key: string, fileName?: string): Promise<string> {
+  assertR2Configured()
+  return getSignedUrl(r2, new GetObjectCommand({
+    Bucket: R2_BUCKET, Key: key,
+    ...(fileName ? { ResponseContentDisposition: `attachment; filename="${fileName.replace(/"/g, '')}"` } : {}),
+  }), { expiresIn: 300 })
+}
+
+export async function deleteObject(key: string): Promise<void> {
+  assertR2Configured()
+  await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }))
 }

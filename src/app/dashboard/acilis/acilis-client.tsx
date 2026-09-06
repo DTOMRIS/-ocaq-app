@@ -81,12 +81,18 @@ export default function AcilisClient({ rows, canManage }: { rows: AcilisSatir[];
             Profil girilir → vəzifələr filiala uyğun olaraq yaranır → G0–G6 qapılarından keçilir
           </p>
         </div>
+        <div className="flex gap-2">
+        <Link href="/dashboard/acilis/departament"
+              className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold hover:bg-slate-50">
+          Departament siyahısı
+        </Link>
         {canManage && (
           <button onClick={() => setAcik(v => !v)}
                   className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
             {acik ? 'Bağla' : '+ Yeni açılış'}
           </button>
         )}
+        </div>
       </div>
 
       {acik && canManage && (
