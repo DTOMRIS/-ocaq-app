@@ -109,6 +109,154 @@ export function parseYoy(rows: unknown[][]): YoyResult {
   return { branches, network: net }
 }
 
+// ─── İl-matrisi (filial × ay) YoY mənbəyi ────────────────────────────────────
+// NİYƏ AYRI PARSER: `parseYoy` ay-ortası «gedişat» faylı üçün yazılıb — başlıq
+// sətrində eyni anda `ticarət` + `2025` + `gedişat` axtarır. Bağlanmış ayın
+// FAKT faylı isə tamam başqa formadadır:
+//     Ticarət müəssisəsi | İyul | Avgust | Sentyabr | Oktyabr | Noyabr | Dekabr
+// İl yalnız SHEET ADINDA («2025») olur, «gedişat» sözü heç yoxdur → köhnə
+// oxucu `hi < 0` qaytarır və YoY sükutla boş qalır (istifadəçi qeydi 06.09.2026:
+// «avgusta geçen sene yok»). Bu funksiya həmin formanı oxuyur. Əlavə-yalnız:
+// `parseYoy` toxunulmayıb, gedişat faylı gələndə hələ də o işləyir.
+
+export type YearMatrix = {
+  year: number | null
+  /** kanonik filial → ay nömrəsi (1–12) → məbləğ */
+  branches: Record<string, Record<number, number>>
+}
+
+// «Avgust» (g) və «Avqust» (q) hər ikisi işlənir — iiko və Excel faylları qarışıq
+// yazır. Eyni şəkildə sentyabr/sentabr.
+const AY_NO: Array<[string, number]> = [
+  ['yanvar', 1], ['fevral', 2], ['mart', 3], ['aprel', 4], ['may', 5],
+  ['iyun', 6], ['iyul', 7], ['avqust', 8], ['avgust', 8],
+  ['sentyabr', 9], ['sentabr', 9], ['oktyabr', 10], ['noyabr', 11], ['dekabr', 12],
+]
+// Uzun token əvvəl yoxlanır ki qısa ad uzununun içinə düşməsin.
+const AY_NO_SORTED = [...AY_NO].sort((a, b) => b[0].length - a[0].length)
+
+// Ay sütunu OLMAYAN başlıqlar: plan/fərq/faiz/cəmi sütunları fakt deyil.
+const NOT_FACT = /plan|f[əe]rq|faiz|%|art[ıi]m|gedişa|gedisa|total|c[əe]mi|proqnoz/i
+
+// AZƏRBAYCAN 'İ' TƏLƏSİ — `filial-map.ts`-dəki ilə eyni səbəb:
+//   'İyul'.toLowerCase() === 'i' + U+0307 (birləşən nöqtə) → 'iyul' DEYİL.
+// Sadə toLowerCase() ilə «İyul» və «İyun» sütunları sükutla itirdi (ilk qaçırılan
+// bu idi: avqust oxundu, iyul 0 qaldı). Ona görə İ/I/ı əvvəlcə 'i'-yə yığılır,
+// sonra NFD ilə birləşən nöqtələr atılır.
+function foldHdr(v: unknown): string {
+  return String(v ?? '')
+    .replace(/[İIı]/g, 'i')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
+function ayNo(h: string): number | null {
+  for (const [tok, no] of AY_NO_SORTED) if (h.includes(tok)) return no
+  return null
+}
+
+/**
+ * Bağlanmış ilin fakt matrisini oxuyur (filial × ay).
+ * İl sırası: başlıq xanasındakı 4 rəqəm > sheet adı > ilk sətirlərdəki 4 rəqəm.
+ */
+export function parseYearMatrix(rows: unknown[][], sheetName = ''): YearMatrix {
+  const branches: Record<string, Record<number, number>> = {}
+  const hi = rows.findIndex(r => {
+    if (!r?.some(c => /müəssisə|ticarət|filial/i.test(String(c ?? '')))) return false
+    const ays = r.filter(c => {
+      const h = foldHdr(c)
+      return !!h && !NOT_FACT.test(h) && ayNo(h) != null
+    })
+    return ays.length >= 2                      // ən azı iki ay sütunu → matris
+  })
+  if (hi < 0) return { year: null, branches }
+
+  const hdr = (rows[hi] ?? []).map(foldHdr)
+  const iF = hdr.findIndex(h => /m[üu][əe]ssis[əe]|ticar[əe]t|filial/.test(h))
+  if (iF < 0) return { year: null, branches }
+
+  // İl: başlıqdakı > sheet adındakı > ilk 6 sətirdəki
+  const fromHdr = hdr.map(h => h.match(/\b(20\d{2})\b/)?.[1]).find(Boolean)
+  const fromSheet = String(sheetName).match(/\b(20\d{2})\b/)?.[1]
+  const fromTop = rows.slice(0, 6).map(r => (r ?? []).join(' ')).join(' ').match(/\b(20\d{2})\b/)?.[1]
+  const year = Number(fromHdr ?? fromSheet ?? fromTop) || null
+  if (!year) return { year: null, branches }
+
+  // Ay sütunları: başlıqda il varsa matris ili ilə eyni olmalıdır (plan sütunu qarışmasın)
+  const cols: Array<[number, number]> = []
+  hdr.forEach((h, i) => {
+    if (!h || i === iF || NOT_FACT.test(h)) return
+    const m = ayNo(h)
+    if (m == null) return
+    const hy = h.match(/\b(20\d{2})\b/)?.[1]
+    if (hy && Number(hy) !== year) return
+    cols.push([i, m])
+  })
+  if (!cols.length) return { year: null, branches }
+
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i] ?? []
+    const f = String(r[iF] ?? '').trim()
+    if (!f || TOTAL.test(f)) continue
+    const kanon = normalizeFilial(f)
+    if (!kanon || EXCLUDE.has(kanon)) continue      // CLOSED QALIR: keçən ilin cirosu lazımdır
+    const row: Record<number, number> = branches[kanon] ?? {}
+    for (const [ci, m] of cols) {
+      const v = parseNum(r[ci])
+      if (v != null && v !== 0) row[m] = v
+    }
+    if (Object.keys(row).length) branches[kanon] = row
+  }
+  return { year, branches }
+}
+
+/** Eyni ilin bir neçə vərəqi (məs. «plan sen-dek» + «2025») birləşdirilir. */
+export function mergeYearMatrix(a: YearMatrix | null, b: YearMatrix): YearMatrix {
+  if (!a || !a.year) return b
+  if (!b.year || b.year !== a.year) return a
+  const branches: Record<string, Record<number, number>> = { ...a.branches }
+  for (const [f, months] of Object.entries(b.branches)) {
+    branches[f] = { ...months, ...(branches[f] ?? {}) }      // mövcud dəyər üstün
+  }
+  return { year: a.year, branches }
+}
+
+/**
+ * İl-matrisi + cari ayın faktı → YoY.
+ * `period` «2026-08» formatında; matrisdən (2025, avqust) sütunu götürülür.
+ * Bağlanmış filial y2026=0, yeni filial y2025=0 ilə görünür — dörd sətirlik
+ * kırılım (şəbəkə / eyni filial / yeni / bağlanan) sonra bunun üstünə qurulacaq.
+ */
+export function yoyFromYearMatrix(
+  matrix: YearMatrix | null,
+  period: string | null,
+  current: Array<{ filial: string; total: number }>,
+): YoyResult | null {
+  if (!matrix?.year || !period) return null
+  const [ys, ms] = period.split('-')
+  const y = Number(ys), m = Number(ms)
+  if (!y || !m || matrix.year >= y) return null       // matris keçmiş il olmalıdır
+
+  const cur: Record<string, number> = {}
+  for (const b of current) {
+    const k = normalizeFilial(b.filial)
+    if (k) cur[k] = (cur[k] ?? 0) + b.total
+  }
+  const names = new Set([...Object.keys(matrix.branches), ...Object.keys(cur)])
+  const branches: Record<string, { y2025: number; y2026: number }> = {}
+  let net = { y2025: 0, y2026: 0 }
+  for (const f of names) {
+    const y2025 = matrix.branches[f]?.[m] ?? 0
+    const y2026 = cur[f] ?? 0
+    if (!y2025 && !y2026) continue
+    branches[f] = { y2025, y2026 }
+    net = { y2025: net.y2025 + y2025, y2026: net.y2026 + y2026 }
+  }
+  return Object.keys(branches).length ? { branches, network: net } : null
+}
+
 export function parseDaily(rows: unknown[][]): DailyResult {
   const uyarilar: string[] = []
   const daily: DailyResult['daily'] = {}
