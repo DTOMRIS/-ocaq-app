@@ -7,7 +7,7 @@ export const BOLGELER: Record<string, string[]> = {
   // Kanonik ad OCAQ-daki `branches.name` ilə EYNİ olmalıdır — `branchIdOf`
   // bağlantısı bu adla qurulur. F-31 OCAQ-da ünvana görə «Abdülkerim Alizadə»
   // adlanır, iiko isə hələ «Mytcha» yazır → ALIASES onu bağlayır (aşağı).
-  'İsmayıl': ['Bulvar', 'Bayıl', '5 Mərtəbə', 'Torgoviy', 'Corner', 'Badamdar', 'Bulvar Festival', 'Abdülkerim Alizadə'],
+  'İsmayıl': ['Bulvar', 'Bayıl', '5 Mərtəbə', 'Torgoviy', 'Səbail 2', 'Badamdar', 'Bulvar Festival', 'Səbail 3'],
   'Ceyhun':  ['Hüseyn Cavid', 'Əcəmi', 'İnşaatçılar', 'Masazır', 'Space', 'Sumqayıt'],
   'Elnur':   ['Neftçilər', 'Bakıxanov 1', 'Zığ', 'Bakıxanov 2', 'Həzi Aslanov', 'Əhmədli'],
   'Taleh':   ['Binəqədi', 'Duet', 'Ayna Sultanova', 'Nərimanov', 'Amay', 'Azadlıq'],
@@ -26,10 +26,19 @@ export const ALIASES: Record<string, string> = {
   // «Mytcha» göndərir. İstifadəçi qeydi (09.08.2026): «bu Mytcha ismi adrese
   // göre yaptım, sonra iikoda düzelecek». iiko düzəldiləndən sonra bu alias
   // zərərsiz qalır (artıq uyğun gəlməyəcək, sadəcə istifadə olunmayacaq).
-  'Mytcha': 'Abdülkerim Alizadə',
-  'Mycta': 'Abdülkerim Alizadə',
-  'Myctha': 'Abdülkerim Alizadə',
-  'Abdulkerim Alizade': 'Abdülkerim Alizadə',
+  // ── AD DƏYİŞİKLİYİ 06.09.2026 (istifadəçi qərarı) ──────────────────────────
+  // Corner → «Səbail 2» · Mytcha/Abdülkerim Alizadə → «Səbail 3».
+  // KÖHNƏ ADLAR SİLİNMİR, ALİAS OLUR: 2025 fakt faylı «Corner» yazır, iiko
+  // export-u hələ «Mytcha» göndərir, Wolt «Əziz Əliyev Küç» deyir. Alias
+  // qalmasa keçən ilin cirosu yeni ada bağlanmaz və YoY sıfırdan başlayardı.
+  // İkisi 140 m aralıdır → eyni ticarət zonası (bax TRADE_ZONE).
+  'Corner': 'Səbail 2',
+  'Mytcha': 'Səbail 3',
+  'Mycta': 'Səbail 3',
+  'Myctha': 'Səbail 3',
+  'Matcha': 'Səbail 3',
+  'Abdülkerim Alizadə': 'Səbail 3',
+  'Abdulkerim Alizade': 'Səbail 3',
   'Xırdalan': 'Masazır',
   'Shaurma Seabreez': 'Seabreeze',
   '5 Mərtəbə.': '5 Mərtəbə',
@@ -58,7 +67,7 @@ export const ALIASES: Record<string, string> = {
   'Shaurma №1 H. Əliyev Park': 'Bakıxanov 1',
   'Shaurma №1 Mehmandarov küç': 'Bakıxanov 2',
   'Şaurma №1 Mehmandarov küç': 'Bakıxanov 2',
-  'Shaurma №1 Əziz Əliyev Küç': 'Corner',
+  'Shaurma №1 Əziz Əliyev Küç': 'Səbail 2',
   'Shaurma №1 Mahammad Hadi': 'Əhmədli',
   'Shaurma №1 Sumgait': 'Sumqayıt',
   // Wolt kısa/adres formları (bare)
@@ -70,12 +79,31 @@ export const ALIASES: Record<string, string> = {
   'Bakıxanov Küç': 'Duet',
   'H. Əliyev Park': 'Bakıxanov 1',
   'Mehmandarov küç': 'Bakıxanov 2',
-  'Əziz Əliyev Küç': 'Corner',
-  'Aziz Aliyev Str.': 'Corner',
+  'Əziz Əliyev Küç': 'Səbail 2',
+  'Aziz Aliyev Str.': 'Səbail 2',
   'Azadliq Ave.': 'Azadlıq',
   'Ataturk Parki': 'Ayna Sultanova',
   'Bilgah': 'Bilgəh',
   'Sumgait': 'Sumqayıt',
+}
+
+// ─── TİCARƏT ZONASI ─────────────────────────────────────────────────────────
+// İki filial bir-birinə çox yaxındırsa AYRI müqayisə edilməməlidir: biri
+// «çökdü», digəri «yeni» görünür — halbuki eyni qonaq kütləsidir.
+// Səbail 2 ↔ Səbail 3 arası 140 m (istifadəçi qeydi 06.09.2026). Avqust 2026:
+// Səbail 2 −68 343 ₼ (−34,6%), Səbail 3 +155 699 ₼ → ZONA CƏMİ +44,3%.
+// Səbail 2-nin itkisi Səbail 3-ün cirosunun %44-nə bərabər = transfer.
+// Hədəf də zona səviyyəsində qoyulmalıdır, yoxsa ikisi bir-birinin qonağını
+// çəkir və heç biri hədəfi tutmur.
+export const TRADE_ZONE: Record<string, string> = {
+  'Səbail 2': 'Səbail',
+  'Səbail 3': 'Səbail',
+}
+
+/** Filialın ticarət zonası (yoxdursa öz adı — tək başına bir zonadır). */
+export function tradeZone(name: unknown): string | null {
+  const canon = normalizeFilial(name)
+  return canon ? (TRADE_ZONE[canon] ?? canon) : null
 }
 
 // Rapora GİRMƏYƏN adlar

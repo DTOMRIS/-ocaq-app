@@ -6,6 +6,118 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 🏗 06.09.2026 — Açılış Takibi modulu (yeni)
+
+**Budaq:** `feat/yoy-matrix-parser`. `npm test` **214/214** · typecheck təmiz ·
+build keçdi · lint 25 problem (main-də də EYNİ 25). **Hələ push EDİLMƏYİB.**
+
+Yeni filial açılışı LAYİHƏ kimi idarə olunur: profil girilir → vəzifələr
+avtomatik yaranır → departamentlər öz siyahısını görür → G0–G6 qapıları.
+
+**Niyə sabit siyahı deyil** (istifadəçi tələbi): «mallda olan filiala masa
+lazım deyil · terası varsa ayrı işlemler». Sabit siyahı ya şişir, ya əskik
+qalır — hər iki halda doldurulmur. Hər vəzifənin `cond` sahəsi var; profil
+uyğun gəlmirsə vəzifə HEÇ YARANMIR.
+
+Ölçüldü: küçə flagship + teras **187** vəzifə · mall food court **161** → 26
+fərq (masa/stul · çini dəst · uşaq stulu · masa nömrəsi · duz-bibər qabı ·
+musiqi · teras üçlüsü · pizza üçlüsü · ADRA icazəsi · zibil konteyneri).
+
+**Mənbə — üç sənəd birləşdirildi:**
+`Zaman Planı + Tam Kontrol Siyahısı` (23.06.2026) · `Açılış Dəyərləndirmə
+Formu` (Stage-Gate G0–G6) · **istifadəçi qeydi 06.09.2026 — keçmiş açılışlarda
+UNUDULANLAR** (23 vəzifə). Operasyon El Kitabının «7. AÇILIŞA HAZIRLIK»
+bölməsi BOŞDUR (başlıq var, məzmun yox) — bu şablon həmin boşluğu doldurur.
+
+**Sifariş tipi ayrımı** (gecikmələrin əsas səbəbi):
+`STANDART` hər filialda eyni → mərkəzi stokda → dərhal gedir ·
+`ÖLÇÜLÜ` filiala özəl → ölçü alınmadan sifariş verilə bilmir.
+
+| Fayl | Nə |
+|---|---|
+| `src/lib/acilis/template.ts` | 188 vəzifə + şərt qiymətləndirici (`eval` YOX) |
+| `src/db/schema/acilis.ts` | `openings` + `opening_tasks` |
+| `drizzle/migrations/0016_acilis_takip.sql` | yalnız CREATE |
+| `src/app/dashboard/acilis/**` | siyahı + profil formu + detay/qapılar/vəzifələr |
+| `src/app/api/dashboard/acilis/**` | POST yarat+generasiya · PATCH qapı · PATCH vəzifə |
+| `tests/acilis-template.test.ts` | 8 test |
+
+Vəzifələr şablondan **kopyalanır**, bağlı qalmır: şablon sonradan dəyişəndə
+keçmiş açılışın siyahısı dəyişməməlidir, yoxsa «nə vaxt nə edildi» itir.
+Tanınmayan şərt vəzifə YARATMIR (səssiz «true» yanlış siyahı verər).
+Sidebar-a ƏLAVƏ olundu, heç nə silinmədi (AGENTS.md qırmızı xətt).
+
+**Qalıb:** açılışın profilini sonradan redaktə etmək (indi yalnız yaradılışda);
+`branch_id` bağlanması (G5-də `branches` sətri yaradılanda).
+
+### 🔁 06.09.2026 — YoY oxucusu + filial adı dəyişikliyi
+
+**Budaq:** `feat/yoy-matrix-parser` (`origin/main` = `f3fab27` üzərində).
+İki commit. `npm test` **206/206** · `typecheck` təmiz · `next build` keçdi.
+**Hələ push EDİLMƏYİB** — istifadəçi təsdiqi gözlənilir. Migration yoxdur,
+şema dəyişmir; yalnız `branches.name` üçün ƏL İLƏ işlədiləcək SQL var.
+
+| Commit | Nə |
+|---|---|
+| `1ca441a` | Bağlanmış ilin fakt matrisi oxunur — «avqusta keçən il yox» bitdi |
+| `905bbae` | Corner → **Səbail 2** · Mytcha → **Səbail 3** + `TRADE_ZONE` |
+
+**Migration `0015_sebail_rename.sql`** — `0011_mytcha_to_abdulkerim.sql`
+desenində. Yalnız `branches.name` yetmir: fakt cədvəllərinin unique açarı
+`filial` MƏTNİDİR → köçürmə edilməsə data İKİ ADA BÖLÜNƏR. 0011-dən fərqi:
+o vaxt iki fakt cədvəli vardı, indi saatlıq (0013) + silinmə/kasa-banka (0014)
+da köçürülür. Hər update `not exists` qorumalı, heç nə silinmir, təkrar
+işlədilsə no-op. **Əl ilə işlədilir** (deploy migration işlətmir).
+
+#### `1ca441a` — niyə YoY heç vaxt gəlmirdi
+
+Panel-də YoY altyapısı VAR idi (`parseYoy`, `y2025/y2026`, «keçən ilə görə
+düşən» filtresi). Rəqəm girmirdi, çünki oxucu başlıq sətrində **eyni anda üç
+şeyi** axtarır: `ticarət` ✅ · `2025` ❌ (il yalnız SHEET ADINDA) ·
+`gedişat` ❌ (bağlanmış ay faylında belə sütun yoxdur) → `hi < 0` → boş
+qaytarır, **xəta vermir**, panel səssizcə YoY-suz qalır.
+
+`parseYoy` ay-ortası «gedişat» faylı üçün yazılıb. Bağlanmış ayın FAKT faylı
+başqa formadadır → **düzəliş deyil, ikinci oxucu** əlavə olundu. `parseYoy`
+toxunulmayıb.
+
+Əlavə (`parse-daily.ts`, əlavə-yalnız): `parseYearMatrix` · `mergeYearMatrix`
+· `yoyFromYearMatrix`.
+
+**Yol boyu tapılan ikinci xəta — Azərbaycan «İ» tələsi:**
+`'İyul'.toLowerCase()` = `'i'` + U+0307 → `'iyul'` DEYİL. Sadə `toLowerCase()`
+ilə **İyul və İyun sütunları səssizcə itirdi** (avqust oxunurdu, iyul 0
+qalırdı). `filial-map.ts`-də sənədləşdirilmiş eyni tələ. `foldHdr()` +
+regression testi.
+
+Doğrulama (real `Yeni satış plan.xlsx`):
+Avqust 2025 = **3 977 166,63 ₼** · 29 filial · İyul 2025 = **4 037 351,66 ₼**.
+Panel avqust 2026 üçün YoY **−3,61%** göstərəcək; «5%+ düşən» filtresi 16 filial.
+
+#### `905bbae` — ad dəyişikliyi, tarixi data qorunur
+
+Köhnə adlar SİLİNMƏDİ, **alias oldu**: 2025 fakt faylı hələ «Corner» yazır,
+iiko «Mytcha» göndərir, Wolt «Əziz Əliyev Küç» deyir. Alias qırılsa keçən ilin
+cirosu yeni ada bağlanmaz və YoY sıfırdan başlayardı.
+
+`TRADE_ZONE` (yeni, hələ UI-ya bağlanmayıb): Səbail 2 ↔ Səbail 3 arası 140 m →
+eyni ticarət zonası. Ayrı müqayisə edilsə biri «çökdü» (−34,6%), digəri «yeni»
+görünür; zona olaraq **197 402 → 284 758 ₼ = +44,3%**.
+
+`bank-reconcile`: terminal → filial xəritələri `normalizeFilial()`-dan
+keçirildi. Əvvəl xam dəyər açar kimi işlənirdi (`'Corner'`), satış tərəfi isə
+kanonik ad verirdi (`'Səbail 2'`) → **mutabakat ikiyə bölünərdi**.
+
+#### ⚠️ Bu dəyişikliklə birlikdə lazım olan
+
+1. **`scripts/sql/2026-09-06-rename-sebail.sql`** əl ilə işlədilməlidir —
+   kanonik ad `branches.name` ilə eyni olmalıdır, yoxsa `branchIdOf` bağlanmır.
+   Script əvvəl `SELECT` ilə göstərir, sonra `BEGIN/UPDATE/COMMIT`.
+2. **Masazır −100% görünəcək** — bağlanan filial düşüş kimi oxunur. Dörd
+   sətirlik kırılım (şəbəkə / eyni filial / yeni katkı / bağlanan) `branches`
+   cədvəlinə `status` + açılış/bağlanış tarixi + zona sahələri tələb edir.
+
+
 ### 📋 DEVİR — 25.08…06.09.2026 sessiyası (nə edildi, nə qaldı)
 
 **Budaq:** `claude/ocaq-deploy-modules-dccn6v` → `main` (`4be1dba`).

@@ -2,7 +2,7 @@
 
 import { useState, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
-import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, type PlanResult, type YoyResult } from '@/lib/analytics/parse-daily'
+import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, parseYearMatrix, mergeYearMatrix, yoyFromYearMatrix, type PlanResult, type YoyResult, type YearMatrix } from '@/lib/analytics/parse-daily'
 import DetailUpload from './detail-upload'
 import { computeAttainment, attainmentByRegion } from '@/lib/analytics/target-attainment'
 import { canonBranchKey } from '@/lib/analytics/filial-map'
@@ -97,6 +97,7 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     try {
       const XLSX = await import('xlsx')
       let daily: Daily | null = null, pl: PlanResult | null = null, yo: YoyResult | null = null
+      let ymx: YearMatrix | null = null   // bağlanmış ilin fakt matrisi (filial × ay) — YoY ehtiyat mənbəyi
       let wideData: Daily | null = null, olapData: Daily | null = null  // gün-sütunlu + OLAP birləşəcək
       for (const f of files) {
         const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' })
@@ -108,6 +109,11 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
           if (!olapData && /(müəssisə|ticarət)/i.test(probe) && /(ödəniş|ödeniş|növ)/i.test(probe) && !/uçot/i.test(probe)) { const oo = parseOlap(rows); if (oo.branches.length) olapData = oo as Daily }
           if (!pl && /filial/i.test(probe) && /\bplan\b/i.test(probe)) { const pp = parsePlan(rows); if (Object.keys(pp.branches).length) pl = pp }
           if (!yo && /filial|müəssisə|ticarət/i.test(probe) && /2025/.test(probe) && /gedişa|gedisa/i.test(probe)) { const yy = parseYoy(rows); if (Object.keys(yy.branches).length) yo = yy }
+          // Bağlanmış ilin fakt matrisi: «Ticarət müəssisəsi | İyul | Avgust | …», il yalnız sheet adında.
+          // `parseYoy` bunu görmür (gedişat sütunu axtarır) — istifadəçi qeydi 06.09.2026: «avgusta geçen sene yok».
+          if (/müəssisə|ticarət|filial/i.test(probe) && /yanvar|fevral|mart|aprel|may|iyun|iyul|avqust|avgust|sentyabr|sentabr|oktyabr|noyabr|dekabr/i.test(probe)) {
+            const mm = parseYearMatrix(rows, sn); if (mm.year) ymx = mergeYearMatrix(ymx, mm)
+          }
         }
       }
       // Günlük seçim: uzun-format > (gün-sütunlu qrafik + OLAP ödəniş/filial birləşməsi) > biri
@@ -115,6 +121,8 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
         if (wideData && olapData) daily = { ...olapData, days: wideData.days, daily: wideData.daily } as Daily
         else daily = wideData ?? olapData
       }
+      // YoY: gedişat faylı yoxdursa il-matrisindən qur (cari ay faktı ilə birləşdirilir)
+      if (!yo && ymx && daily) yo = yoyFromYearMatrix(ymx, daily.period, daily.branches)
       if (!daily) throw new Error('Satış tapılmadı. Ham satış detayı (Uçot günü) və ya OLAP Hesabatı (filial × ödəniş növü) lazım — Proqnoz deyil.')
       setD(daily); setPlan(pl); setYoy(yo)
       // avtomatik yadda saxla → qalıcı olsun, bir daha yükləmə lazım olmasın

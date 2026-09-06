@@ -18,7 +18,10 @@ export const UNIBANK_CODE_TO_BRANCH: Record<string, string> = {
 // Anbar/depo kodları (satış deyil) — reconcile-dan xaric
 export const UNIBANK_ANBAR_CODES = new Set(['14003', '15003', '17004', '18005'])
 
-// Kapital terminal (R-no) → filial (terminal siyahı + müqavilə)
+// Kapital terminal (R-no) → filial (terminal siyahı + müqavilə).
+// DİQQƏT: dəyərlər KÖHNƏ adlar ola bilər (məs. «Corner» → «Səbail 2»).
+// İstifadə yerində normalizeFilial()-dan keçirilir ki, ad dəyişəndə banka
+// sətri satış sətri ilə eyni açara düşsün — yoxsa mutabakat ikiyə bölünür.
 export const KAPITAL_TERMINAL_TO_BRANCH: Record<string, string> = {
   R2290179: 'Badamdar', R2290171: 'Corner', R2290172: 'Corner', R2290178: 'Bilgəh',
   R2290169: 'Hüseyn Cavid', R2297093: 'Hüseyn Cavid', R2290166: 'Space', R2290175: 'Nərimanov',
@@ -39,7 +42,7 @@ export function unibankBranchFromDesc(desc: string): string | null {
   if (!m) return null
   const code = m[1]
   if (UNIBANK_ANBAR_CODES.has(code)) return null
-  return UNIBANK_CODE_TO_BRANCH[code] ?? null
+  return normalizeFilial(UNIBANK_CODE_TO_BRANCH[code]) ?? null
 }
 
 /** ATB təsvirindən filial adı ("Shaurma1 <ad>, Card no:..."). */
@@ -127,7 +130,7 @@ export function parseKapitalPosRows(rows: unknown[][]): BankByBranch {
   const iN = hdr.findIndex(h => /əməliyyatın növü/.test(h))
   for (let i = hi + 1; i < rows.length; i++) {
     const r = rows[i] ?? []
-    const br = KAPITAL_TERMINAL_TO_BRANCH[String(r[iT] ?? '').trim()]
+    const br = normalizeFilial(KAPITAL_TERMINAL_TO_BRANCH[String(r[iT] ?? '').trim()])
     if (!br) continue
     if (iN >= 0 && !/purchase/i.test(String(r[iN] ?? ''))) continue
     const amt = parseNum(r[iA])

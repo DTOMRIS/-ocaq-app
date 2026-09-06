@@ -460,7 +460,8 @@ test('mergeProdmix ayrı günlük faylları birləşdirir — heç nə itmir', (
   assert.equal(m.totals.amount.toFixed(2), '126.00')
   assert.equal(m.totals.qty, 18)
   assert.deepEqual(m.dates, ['2026-08-01', '2026-08-02', '2026-08-03'])
-  assert.deepEqual(m.branches, ['Bayıl', 'Corner'])
+  // «Corner» 06.09.2026-da «Səbail 2» adlandı — parser kanonik adı qaytarır (alias).
+  assert.deepEqual(m.branches, ['Bayıl', 'Səbail 2'])
   assert.deepEqual(m.warnings, [])
 })
 
