@@ -1,18 +1,15 @@
 // ─── AÇILIŞ ŞABLONU — filial profilinə görə vəzifə yaradan master siyahı ────
 //
-// Mənbə (3 sənəd birləşdirilib):
+// Mənbə (4 sənəd birləşdirilib):
 //   · «Zaman Planı + Tam Kontrol Siyahısı» (23.06.2026) — geri sayım + katalog
 //   · «Açılış Dəyərləndirmə və Təsdiq Formu» — Stage-Gate G0–G6
-//   · İstifadəçi qeydi 06.09.2026 — KEÇMİŞ AÇILIŞLARDA UNUDULANLAR
+//   · Operasyon El Kitabı §6 — inşaat müqaviləsi şərtləri
+//   · İstifadəçi qeydləri 06.09.2026 — UNUDULANLAR + açılış günü + avadanlıq
 //
-// NİYƏ SABİT SİYAHI DEYİL: mall food court-da masa/stul lazım deyil, terası
-// olmayan filialda teras icazəsi mənasızdır. Sabit siyahı ya şişir, ya əskik
-// qalır — hər iki halda etibarını itirir və doldurulmur. Ona görə hər vəzifənin
-// `cond` sahəsi var: profil uyğun gəlmirsə vəzifə HEÇ YARANMIR.
-//
-// Operasyon El Kitabının «7. AÇILIŞA HAZIRLIK» bölməsi BOŞDUR (başlıq var,
-// məzmun yox) və ekipman siyahısı «buraya qoyulacaq» yazır — bu fayl həmin
-// boşluğu doldurur.
+// NİYƏ SABİT SİYAHI DEYİL: mall food court-da masa/stul lazım deyil, Metropark-da
+// qəhvə xətti yoxdur, Qala/Səbail 1-də mətbəx AYRI MƏRTƏBƏDƏDİR. Sabit siyahı ya
+// şişir, ya əskik qalır — hər iki halda etibarını itirir və doldurulmur. Ona görə
+// hər vəzifənin `cond` sahəsi var: profil uyğun gəlmirsə vəzifə HEÇ YARANMIR.
 
 export type AcilisFormat = 'kuce' | 'mall' | 'flagship' | 'kiosk'
 
@@ -26,15 +23,24 @@ export type AcilisProfil = {
   catdirilma: boolean
   qaz: boolean
   generator: boolean
+  /** Qəhvə xətti var? (Metropark: YOX — «kahve olsun istemiyoruz») */
+  kofe: boolean
+  /** Mətbəx və zal FƏRQLİ mərtəbədə (Səbail 1, Qala Shopping) */
+  cok_kat: boolean
+  /** Bar stansiyası var (Qala, Ciabatta) */
+  bar: boolean
+  /** Mövcud filialla birləşdirilir (Hüseyn Cavid 2) */
+  birlesme: boolean
+  /** Park ərazisindədir — ayrıca icazə (Hüseyn Cavid 2) */
+  park_ici: boolean
 }
 
 export type AcilisSablon = {
   gate: string
-  /** Açılışdan neçə gün əvvəl. null = qapıya bağlıdır, sabit tarixi yoxdur. */
+  /** Açılışdan neçə gün əvvəl. 0 = açılış günü. null = qapıya bağlıdır. */
   offset: number | null
   dept: string
   task: string
-  /** null = hər açılışda var. Əks halda profil şərti. */
   cond: string | null
   note: string | null
 }
@@ -205,8 +211,6 @@ export const ACILIS_SABLON: AcilisSablon[] = [
   { gate: 'G5', offset: null, dept: 'OPS', task: 'Usta ilə birlikdə menyu təqdimatının çalışılması', cond: null, note: null },
   { gate: 'G5', offset: null, dept: 'Maliyyə', task: 'Point sistemi və maaş sisteminin müəyyən edilməsi', cond: null, note: null },
   { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'İlk sifarişlərin verilməsi (xammal, qablaşdırma)', cond: null, note: null },
-  { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Barda ƏL YUMA yeri (lavabo) proyektə salınır', cond: null, note: 'UNUDULDU — sanitar tələb, sonradan tikilə bilmir' },
-  { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Zaldan bara açılan qapı tipi seçilir (kovboy / ortası şüşəli gəmici qapısı)', cond: null, note: 'UNUDULDU — düz qapı toqquşma yaradır' },
   { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Arxa giriş qapısına pəncərə + milçək toru (sineklik)', cond: null, note: 'UNUDULDU — HACCP' },
   { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Giriş/çıxış EXIT və təhlükə işıqları', cond: null, note: 'UNUDULDU — yanğın tələbi' },
   { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Teras üçün tente / çətir konstruksiyası', cond: 'teras', note: 'UNUDULDU' },
@@ -219,7 +223,6 @@ export const ACILIS_SABLON: AcilisSablon[] = [
   { gate: 'G6', offset: 2, dept: 'Satın Alma', task: 'Masa üstü balaca zibil qabı', cond: 'oturma', note: 'UNUDULDU' },
   { gate: 'G6', offset: 2, dept: 'Satın Alma', task: 'Masa nömrələri', cond: 'oturma', note: 'UNUDULDU' },
   { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Zal stasionları', cond: 'oturma', note: 'UNUDULDU' },
-  { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Qəhvə filtr sistemi', cond: null, note: 'UNUDULDU — su filtrindən AYRI' },
   { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Cola premix sistemi və qurulumu', cond: null, note: 'UNUDULDU' },
   { gate: 'G6', offset: 5, dept: 'Marketinq', task: 'Pilon (ayaqlı işıqlı tabela)', cond: 'format!=\'mall\'', note: 'UNUDULDU' },
   { gate: 'G6', offset: 5, dept: 'Marketinq', task: 'Tente üzərinə brendinq', cond: 'teras', note: 'UNUDULDU' },
@@ -228,6 +231,34 @@ export const ACILIS_SABLON: AcilisSablon[] = [
   { gate: 'G6', offset: 21, dept: 'Satın Alma', task: 'QİDA sifarişləri verilir — SON TARİX', cond: null, note: 'UNUDULDU/GECİKDİ — 21 gün öncə bağlanır' },
   { gate: 'G6', offset: 21, dept: 'Satın Alma', task: 'QEYRİ-QİDA sifarişləri verilir — SON TARİX', cond: null, note: 'UNUDULDU/GECİKDİ — 21 gün öncə bağlanır' },
   { gate: 'G6', offset: 3, dept: 'OPS', task: 'Açılışdan ƏVVƏL dərmanlama (ilaçlama) icra olunur', cond: null, note: 'UNUDULDU — müqavilə deyil, İCRA' },
+  { gate: 'G6', offset: 14, dept: 'Marketinq', task: 'Açılışa özəl kampaniya / xüsusi təklif təsdiqlənir', cond: null, note: 'Menyu və kassaya girməlidir' },
+  { gate: 'G6', offset: 10, dept: 'Marketinq', task: 'Partnyor şirkət nümayəndələri və qonaqlar dəvət edilir', cond: null, note: null },
+  { gate: 'G6', offset: 7, dept: 'Marketinq', task: 'Foto və video çəkiliş komandası bağlanır', cond: null, note: null },
+  { gate: 'G6', offset: 7, dept: 'Marketinq', task: 'DJ və musiqi proqramı bağlanır', cond: null, note: null },
+  { gate: 'G6', offset: 5, dept: 'İK', task: 'Shaurma №1 brend geyimində 2 hostes təyin edilir', cond: null, note: 'Açılış günü üçün' },
+  { gate: 'G6', offset: 3, dept: 'Marketinq', task: 'Tort və lent sifarişi', cond: null, note: null },
+  { gate: 'G6', offset: 1, dept: 'Marketinq', task: 'Giriş brend rənglərində şar dekorasiyası + tavanda helium şarları', cond: null, note: null },
+  { gate: 'G6', offset: 0, dept: 'Marketinq', task: 'Açılış günü SMM kontenti çəkilir və paylaşılır', cond: null, note: 'Gün ərzində canlı' },
+  { gate: 'G6', offset: 0, dept: 'OPS', task: 'Tort və lent kəsimi mərasimi', cond: null, note: null },
+  { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Kofe maşını', cond: 'kofe', note: null },
+  { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Qrinder (qəhvə dəyirmanı)', cond: 'kofe', note: null },
+  { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Türk qəhvəsi maşını', cond: 'kofe', note: null },
+  { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Qəhvə filtr sistemi', cond: 'kofe', note: 'UNUDULDU — su filtrindən AYRI' },
+  { gate: 'G3', offset: null, dept: 'İnşaat', task: 'Mətbəx→zal yemək lifti (dumbwaiter) yeri proyektə salınır', cond: 'cok_kat', note: 'Sonradan tikilə bilmir' },
+  { gate: 'G3', offset: null, dept: 'İnşaat', task: 'Mərtəbələr arası personal pilləkəni + təhlükəsizlik', cond: 'cok_kat', note: null },
+  { gate: 'G5', offset: null, dept: 'OPS', task: 'Mərtəbələr arası servis axını planı (kim nəyi daşıyır)', cond: 'cok_kat', note: 'Sifariş vaxtını bu müəyyən edir' },
+  { gate: 'G3', offset: null, dept: 'İnşaat', task: 'Alt mərtəbədə tualet + havalandırma', cond: 'cok_kat', note: null },
+  { gate: 'G3', offset: null, dept: 'İnşaat', task: 'Mal giriş-çıxışı ayrı marşrut (qonaq axını ilə kəsişməsin)', cond: 'cok_kat', note: 'HACCP' },
+  { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Barda ƏL YUMA lavabosu proyektə salınır', cond: 'bar', note: 'UNUDULDU — sanitar tələb' },
+  { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Zaldan bara qapı tipi (kovboy / ortası şüşəli gəmici qapısı)', cond: 'bar', note: 'UNUDULDU' },
+  { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'Bar tezgahı və arxa bar rəfləri', cond: 'bar', note: null },
+  { gate: 'G6', offset: 30, dept: 'İdari İşlər', task: 'Park idarəsindən icazə (ərazi istifadəsi)', cond: 'park_ici', note: null },
+  { gate: 'G6', offset: 30, dept: 'İdari İşlər', task: 'Park ərazisində tabela/reklam icazəsi', cond: 'park_ici', note: null },
+  { gate: 'G0', offset: null, dept: 'OPS', task: 'Birləşdiriləcək filialın müştəri transfer nisbəti ölçülür', cond: 'birlesme', note: 'Açılış qərarının açarı' },
+  { gate: 'G5', offset: null, dept: 'İK', task: 'Köhnə filialın kadrosu yeni filiala keçirilir', cond: 'birlesme', note: 'İşdən çıxarma deyil, köçürmə' },
+  { gate: 'G5', offset: null, dept: 'Bilgi İşlem', task: 'Köhnə filialın kassa/POS-u söndürülür, yenisinə keçirilir', cond: 'birlesme', note: null },
+  { gate: 'G6', offset: 1, dept: 'İdari İşlər', task: 'Köhnə filialın bağlanış sənədləri (AQTA, VÖEN obyekt kodu)', cond: 'birlesme', note: null },
+  { gate: 'G6', offset: 0, dept: 'Marketinq', task: 'Köhnə filial qapısına «yeni ünvanımız» yönləndirmə', cond: 'birlesme', note: 'Müştəri itirməmək üçün' },
 ]
 
 /**
@@ -249,7 +280,6 @@ export function sertUygun(cond: string | null, p: AcilisProfil): boolean {
 export type YaradilanVezife = {
   gate: string; dept: string; task: string; note: string | null
   cond: string | null; offset: number | null
-  /** `offset` varsa açılış tarixindən geri sayılır; yoxsa null. */
   due: string | null
 }
 
@@ -274,6 +304,51 @@ export function vezifeYarat(p: AcilisProfil, acilisTarixi: string): YaradilanVez
     ((a.due ?? '') < (b.due ?? '') ? -1 : (a.due ?? '') > (b.due ?? '') ? 1 : 0) ||
     a.dept.localeCompare(b.dept))
   return out
+}
+
+// ─── AVADANLIQ KATALOQU ─────────────────────────────────────────────────────
+// İstifadəçi siyahısı 06.09.2026. `say` = planlanan açılışlar üçün ÜMUMİ sifariş.
+// `cond` olan sətir yalnız uyğun profilə aiddir (qəhvə avadanlığı Metropark-a
+// getmir, bar soyuducusu barı olmayan filiala getmir).
+export type AvadanliqSetri = { kat: string; ad: string; say: number | null; cond: string | null }
+
+export const AVADANLIQ: AvadanliqSetri[] = [
+  { kat: 'Avadanlıq', ad: 'Sh (şaurma) aparatı', say: 5, cond: null },
+  { kat: 'Avadanlıq', ad: 'Toster', say: 4, cond: null },
+  { kat: 'Avadanlıq', ad: 'Ayran aparatı', say: 5, cond: null },
+  { kat: 'Avadanlıq', ad: 'Fırın peçka', say: 3, cond: null },
+  { kat: 'Avadanlıq', ad: 'Fritöz', say: 5, cond: null },
+  { kat: 'Avadanlıq', ad: 'Nugget aparatı', say: 5, cond: null },
+  { kat: 'Avadanlıq', ad: 'Xəmir yoğuran', say: 3, cond: 'pizza' },
+  { kat: 'Avadanlıq', ad: 'Mikrodalğa soba', say: 10, cond: null },
+  { kat: 'Avadanlıq', ad: 'Şorba (sup) qazanı', say: 12, cond: null },
+  { kat: 'Avadanlıq', ad: 'Milkshake blender', say: 5, cond: null },
+  { kat: 'Avadanlıq', ad: 'Şirə çəkən', say: 4, cond: null },
+  { kat: 'Avadanlıq', ad: 'Qrinder', say: 5, cond: 'kofe' },
+  { kat: 'Avadanlıq', ad: 'Türk qəhvəsi maşını', say: 5, cond: 'kofe' },
+  { kat: 'Avadanlıq', ad: 'Kofe maşını', say: 5, cond: 'kofe' },
+  { kat: 'Avadanlıq', ad: 'Buz maşını', say: 5, cond: null },
+  { kat: 'Avadanlıq', ad: 'Profesional samovar', say: 2, cond: null },
+  { kat: 'Avadanlıq', ad: 'Uğur dondurucu 300–400 lt', say: 4, cond: null },
+  { kat: 'Nerjavika', ad: '3 gözlü moyka', say: 5, cond: null },
+  { kat: 'Nerjavika', ad: 'Divar rəfi (polka)', say: null, cond: null },
+  { kat: 'Nerjavika', ad: 'Salat şkaf soyuducu', say: 5, cond: null },
+  { kat: 'Nerjavika', ad: 'Un qabı', say: 5, cond: null },
+  { kat: 'Nerjavika', ad: 'Vitrin sh soyuducu (kiçik)', say: 5, cond: null },
+  { kat: 'Nerjavika', ad: 'Vitrin bar soyuducu (kiçik)', say: 5, cond: 'bar' },
+  { kat: 'Nerjavika', ad: 'Desert vitrin soyuducu', say: 4, cond: null },
+  { kat: 'Nerjavika', ad: 'Sh mini soyuducu', say: 5, cond: null },
+  { kat: 'Nerjavika', ad: 'Salfetka pinvin qabı', say: 10, cond: null },
+  { kat: 'Nerjavika', ad: 'Zibil qabı', say: 10, cond: null },
+  { kat: 'Mebel', ad: 'Steyşn', say: 12, cond: null },
+  { kat: 'Mebel', ad: 'Zibil qabı', say: 12, cond: null },
+  { kat: 'Metal', ad: 'Anbar üçün setka polka', say: 20, cond: null },
+  { kat: 'Metal', ad: 'Zibil qabı (taxta teksturlu)', say: 10, cond: null },
+]
+
+/** Profilə uyğun avadanlıq siyahısı. */
+export function avadanliqSiyahisi(p: AcilisProfil): AvadanliqSetri[] {
+  return AVADANLIQ.filter(a => sertUygun(a.cond, p))
 }
 
 // ─── SİFARİŞ TİPİ ───────────────────────────────────────────────────────────

@@ -47,6 +47,7 @@ export default function AcilisClient({ rows, canManage }: { rows: AcilisSatir[];
     m2_inside: '', m2_terrace: '', m2_garden: '', seats: '',
     has_terrace: false, has_garden: false, has_seating: true, has_pizza: true,
     has_delivery: true, has_gas: false, has_generator: false, was_cafe: false,
+    has_coffee: true, multi_floor: false, has_bar: false, is_merge: false, in_park: false,
   })
 
   async function yarat() {
@@ -136,6 +137,11 @@ export default function AcilisClient({ rows, canManage }: { rows: AcilisSatir[];
             {cb('has_gas', 'Qaz xətti var', 'Yoxsa tam elektrik mətbəx — güc tələbi artır')}
             {cb('has_generator', 'Generator mümkün')}
             {cb('was_cafe', 'Keçmiş kafe binası', 'MEP retrofit riski — G3-də kritik')}
+            {cb('has_coffee', 'Qəhvə xətti var', 'Yoxsa kofe/qrinder/türk qəhvəsi/filtr yaranmır')}
+            {cb('has_bar', 'Bar var', 'Bar tezgahı + ƏL YUMA lavabosu + qapı tipi əlavə olunur')}
+            {cb('multi_floor', 'Mətbəx ayrı mərtəbədə', 'Yemək lifti · pilləkən · servis axını · mal marşrutu')}
+            {cb('in_park', 'Park ərazisində', 'Park idarəsindən ayrıca icazə')}
+            {cb('is_merge', 'Mövcud filialla birləşir', 'Transfer ölçümü · kadro köçürməsi · yönləndirmə')}
           </div>
           {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
           <button onClick={yarat} disabled={busy}
