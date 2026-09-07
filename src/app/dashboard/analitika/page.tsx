@@ -63,7 +63,8 @@ export default async function AnalitikaPage({ searchParams }: {
     // aparılır (İ/ı tələsi — bax `canonBranchKey`).
     allowedNames = brs.map(b => b.name)
     if (allowedNames.length === 0) {
-      return <AnalitikaClient empty="Sizə təyin edilmiş filial yoxdur. Bölgə/filial təyinatı üçün sistem admini ilə əlaqə saxlayın." periods={[]} />
+      return <AnalitikaClient
+      empty="Sizə təyin edilmiş filial yoxdur. Bölgə/filial təyinatı üçün sistem admini ilə əlaqə saxlayın." periods={[]} />
     }
   }
 
@@ -168,6 +169,31 @@ export default async function AnalitikaPage({ searchParams }: {
     branches: n(r.branches), codes: n(r.codes),
   }))
 
+  // ── ÖRTÜŞMƏ YOXLAMASI — iki cədvəl eyni dövrü göstərirmi? ─────────────────
+  //
+  // 🔴 NİYƏ: «ciro payı» məhsul cəmi üzərindən hesablanır (`item_fact`), çek
+  // sayı isə `daily_fact`-dən gəlir. İkisi FƏRQLİ doluluqda ola bilər — real
+  // hadisə 07.09.2026: ekranda ən çox satılan məhsul 135 952 ₼ / %14,1
+  // göstərirdi, yəni məhsul cəmi ≈960 000 ₼. Halbuki avqustun həqiqi məhsul
+  // cirosu 2 866 138 ₼-dır. Çek sayı isə TAM idi (188 578). Faiz düzgün
+  // hesablanmışdı, GİRDİ əskik idi — və ekran bunu demirdi.
+  //
+  // İndi deyir. Rəqəmin özünü gizlətmirik, amma «bu natamamdır» xəbərdarlığı
+  // olmadan göstərmək istifadəçini yanlış qərara aparır.
+  const [cover] = rowsOf(await sqlClient.query(
+    `select coalesce(sum(amount),0)::float8 amount,
+            count(distinct business_date)::int days
+     from analytics_item_fact
+     where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4`,
+    [...args],
+  ))
+  const coverage = {
+    itemAmount: n(cover?.amount),
+    itemDays: n(cover?.days),
+    dayAmount: n(sum?.amount),
+    dayDays: n(sum?.days),
+  }
+
   // ── Gəlir gətirməyən sətirlər — silinmir, ayrıca göstərilir ─────────────────
   const nonRevenue = rowsOf(await sqlClient.query(
     `select line_kind, sum(qty)::float8 qty, count(distinct item_name)::int items
@@ -247,6 +273,7 @@ export default async function AnalitikaPage({ searchParams }: {
 
   return (
     <AnalitikaClient
+      coverage={coverage}
       period={period}
       periods={periods}
       drillFilial={drillFilial}

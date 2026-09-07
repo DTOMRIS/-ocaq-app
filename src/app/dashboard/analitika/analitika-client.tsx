@@ -58,6 +58,7 @@ export default function AnalitikaClient({
   empty, period, periods = [], summary, pay = [], products = [], nonRevenue = [],
   branchRows = [], attach = [], topNames = [], daily = [], isNetwork = false,
   drillFilial = null, drillBolge = null, baseline = null, regionRows = [], branchRegion = {},
+  coverage,
 }: {
   empty?: string
   period?: string
@@ -78,6 +79,8 @@ export default function AnalitikaClient({
   baseline?: { amount: number; receipts: number } | null
   regionRows?: Array<{ bolge: string; amount: number; receipts: number; branches: number }>
   branchRegion?: Record<string, string | null>
+  /** İki fakt cədvəlinin eyni dövrü nə qədər örtdüyü — natamamlıq xəbərdarlığı. */
+  coverage?: { itemAmount: number; itemDays: number; dayAmount: number; dayDays: number }
 }) {
   const router = useRouter()
   const [sortK, setSortK] = useState<'amount' | 'qty' | 'name' | 'attach'>('amount')
@@ -87,6 +90,13 @@ export default function AnalitikaClient({
   const [upsellItem, setUpsellItem] = useState(topNames[0] ?? '')
 
   const totalAmount = products.reduce((s, p) => s + p.amount, 0)
+  // ÖRTÜŞMƏ: məhsul cədvəli ilə gün cədvəli eyni dövrü göstərirmi?
+  // Fərq %5-dən çoxdursa və ya gün sayı azdırsa — «ciro payı» natamam bazadan
+  // hesablanır və istifadəçi bunu BİLMƏLİDİR.
+  const cov = coverage
+  const covGap = cov && cov.dayAmount > 0 ? 1 - cov.itemAmount / cov.dayAmount : null
+  const covWarn = !!cov && cov.dayAmount > 0 &&
+    ((covGap != null && covGap > 0.05) || (cov.dayDays > 0 && cov.itemDays < cov.dayDays))
   const totalQty = products.reduce((s, p) => s + p.qty, 0)
   const receipts = summary?.receipts ?? 0
 
@@ -381,6 +391,31 @@ export default function AnalitikaClient({
           {upsell.list.every(x => x.gapAmount <= 0) && (
             <div style={{ fontSize: 12, color: '#1c7a4e' }}>✓ Bütün filiallar şəbəkə tempində və ya üstündədir.</div>
           )}
+        </div>
+      )}
+
+      {/* ── ÖRTÜŞMƏ XƏBƏRDARLIĞI ────────────────────────────────────────────
+          «Ciro payı» məhsul cəmi üzərindən hesablanır. Məhsul cədvəli gün
+          cədvəlindən az doludursa faiz DÜZGÜN hesablanır, amma NATAMAM bazadan —
+          və bu, ekranda yazılmasa istifadəçini yanlış qərara aparır. */}
+      {covWarn && cov && (
+        <div style={{ ...card, background: '#fdf6e9', borderColor: '#e8dcc0', padding: '12px 15px', marginBottom: 12, fontSize: 12.5, color: '#4d483f', lineHeight: 1.7 }}>
+          <b>⚠ Məhsul datası bu dövrü tam örtmür — «ciro payı» natamam bazadan hesablanır.</b>
+          <div style={{ marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
+            Məhsul cədvəli: <b>{money(cov.itemAmount)}</b>
+            {cov.itemDays > 0 && <> · {int(cov.itemDays)} gün</>}
+            {'  —  '}
+            Gün cədvəli (ciro): <b>{money(cov.dayAmount)}</b>
+            {cov.dayDays > 0 && <> · {int(cov.dayDays)} gün</>}
+            {covGap != null && covGap > 0 && (
+              <> · əskik <b style={{ color: '#8a1f2a' }}>{pct(covGap)}</b></>
+            )}
+          </div>
+          <div style={{ marginTop: 6, color: '#6b655c' }}>
+            Faizlər öz aralarında doğrudur, lakin şəbəkə cirosuna görə deyil.
+            Düzəltmək üçün «DT Məhsul sayı və qiyməti» faylının TAM ayını
+            Günlük Panelə yenidən yükləyin.
+          </div>
         </div>
       )}
 
