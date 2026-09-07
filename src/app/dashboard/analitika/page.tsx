@@ -187,11 +187,30 @@ export default async function AnalitikaPage({ searchParams }: {
      where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4`,
     [...args],
   ))
+  // GÜN-GÜN müqayisə: hansı günlər əskikdir? «Natamam» demək azdır —
+  // hansı gün olduğunu göstərmək lazımdır ki səbəb tapılsın.
+  const covDays = rowsOf(await sqlClient.query(
+    `with d as (
+       select business_date::text dt, sum(amount)::float8 amt
+       from analytics_daily_fact
+       where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
+         and payment_type='__day__' group by 1
+     ), i as (
+       select business_date::text dt, sum(amount)::float8 amt
+       from analytics_item_fact
+       where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
+       group by 1
+     )
+     select d.dt, d.amt day_amt, coalesce(i.amt,0)::float8 item_amt
+     from d left join i on i.dt = d.dt order by d.dt`, [...args],
+  )).map(r => ({ date: s(r.dt).slice(0, 10), dayAmount: n(r.day_amt), itemAmount: n(r.item_amt) }))
+
   const coverage = {
     itemAmount: n(cover?.amount),
     itemDays: n(cover?.days),
     dayAmount: n(sum?.amount),
     dayDays: n(sum?.days),
+    days: covDays,
   }
 
   // ── Gəlir gətirməyən sətirlər — silinmir, ayrıca göstərilir ─────────────────

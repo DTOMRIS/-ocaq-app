@@ -80,7 +80,10 @@ export default function AnalitikaClient({
   regionRows?: Array<{ bolge: string; amount: number; receipts: number; branches: number }>
   branchRegion?: Record<string, string | null>
   /** İki fakt cədvəlinin eyni dövrü nə qədər örtdüyü — natamamlıq xəbərdarlığı. */
-  coverage?: { itemAmount: number; itemDays: number; dayAmount: number; dayDays: number }
+  coverage?: {
+    itemAmount: number; itemDays: number; dayAmount: number; dayDays: number
+    days?: Array<{ date: string; dayAmount: number; itemAmount: number }>
+  }
 }) {
   const router = useRouter()
   const [sortK, setSortK] = useState<'amount' | 'qty' | 'name' | 'attach'>('amount')
@@ -413,9 +416,43 @@ export default function AnalitikaClient({
           </div>
           <div style={{ marginTop: 6, color: '#6b655c' }}>
             Faizlər öz aralarında doğrudur, lakin şəbəkə cirosuna görə deyil.
-            Düzəltmək üçün «DT Məhsul sayı və qiyməti» faylının TAM ayını
-            Günlük Panelə yenidən yükləyin.
           </div>
+          {(() => {
+            const dd = cov.days ?? []
+            if (!dd.length) return null
+            // Gün TAM sayılır: məhsul cəmi gün cəminin ən azı %60-ıdır.
+            // (Məhsul faylında bəzi sətirlər olmaya bilər — %100 gözlənilmir.)
+            const bos = dd.filter(x => x.itemAmount <= 0)
+            const yarim = dd.filter(x => x.itemAmount > 0 && x.dayAmount > 0 && x.itemAmount / x.dayAmount < 0.6)
+            const g = (x: { date: string }) => x.date.slice(8, 10)
+            return (
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e0d6bc', fontVariantNumeric: 'tabular-nums' }}>
+                <b>Günlər:</b> {int(dd.length)} gün ciroda var
+                {bos.length > 0 && (
+                  <div style={{ marginTop: 3 }}>
+                    <b style={{ color: '#8a1f2a' }}>Məhsul datası HEÇ YOXDUR ({int(bos.length)} gün):</b>{' '}
+                    {bos.map(g).join(' · ')}
+                  </div>
+                )}
+                {yarim.length > 0 && (
+                  <div style={{ marginTop: 3 }}>
+                    <b style={{ color: '#8a6a1f' }}>Yarımçıq ({int(yarim.length)} gün):</b>{' '}
+                    {yarim.map(x => `${g(x)} (%${Math.round(x.itemAmount / x.dayAmount * 100)})`).join(' · ')}
+                  </div>
+                )}
+                {!bos.length && !yarim.length && (
+                  <div style={{ marginTop: 3, color: '#6b655c' }}>
+                    Bütün günlər var — fərq gün əskikliyindən deyil, sətir əskikliyindən.
+                    Yükləmə zamanı ekrandakı «Məhsul yazılır — N/68 794» rəqəmi sona çatırmı?
+                  </div>
+                )}
+                <div style={{ marginTop: 5, color: '#6b655c' }}>
+                  Düzəltmək üçün «DT Məhsul sayı və qiyməti» faylının TAM ayını
+                  Günlük Panelə yenidən yükləyin və yükləmə bitənə qədər səhifəni BAĞLAMAYIN.
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
