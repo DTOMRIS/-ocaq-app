@@ -3,7 +3,7 @@ import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { openings, opening_tasks } from '@/db/schema/acilis'
 import { ne as neOp } from 'drizzle-orm'
-import { db } from '@/db'
+import { db, sqlClient } from '@/db'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
 import { daily_sales, sales_targets } from '@/db/schema/sales'
@@ -157,9 +157,38 @@ export default async function DashboardPage() {
   // Satış rəqəmi hansı mənbədən gəldi — ekranda göstərilir ki mənbə görünməz
   // qalmasın (iyul hadisəsinin dərsi).
   let salesSource: 'fact' | 'manual' | null = hasSalesData ? 'manual' : null
+  /**
+   * Göstərilən dövr CARİ AY DEYİLSƏ bu dolur (məs. «Avqust 2026»).
+   *
+   * 🔴 NİYƏ: sorğu yalnız cari təqvim ayına baxırdı. 07.09.2026-da sentyabr
+   * datası hələ yüklənməmişdi, bütün data avqustda idi → dashboard «0 ₼ /
+   * 100 000 ₼ hədəf · −100 000 ₼ fərq» və «Çek faylı yüklənməyib» göstərdi.
+   * Data VAR idi, sorğu görmürdü. Ayın ilk günlərində hər səhər belə görünürdü.
+   * İndi cari ay boşdursa SON DOLU AYA düşür və dövr ekranda YAZILIR —
+   * səssizcə köhnə rəqəm göstərmək daha pisdir.
+   */
+  let staleMonthLabel: string | null = null
   try {
     const now = new Date()
-    const yr = now.getFullYear(), mo = now.getMonth()
+    let yr = now.getFullYear(), mo = now.getMonth()
+    // Cari ayda `__day__` sətri varmı? Yoxdursa son dolu aya keç.
+    try {
+      const [son] = await sqlClient.query(
+        `select max(business_date)::text d from analytics_daily_fact
+         where tenant_id = $1 and payment_type = '__day__'`, [session.user.tenant_id],
+      ) as Array<{ d: string | null }>
+      const [car] = await sqlClient.query(
+        `select count(*)::int n from analytics_daily_fact
+         where tenant_id = $1 and payment_type = '__day__'
+           and business_date >= $2::date`, [session.user.tenant_id,
+           `${yr}-${String(mo + 1).padStart(2, '0')}-01`],
+      ) as Array<{ n: number }>
+      if (!car?.n && son?.d) {
+        const d = new Date(son.d + 'T00:00:00')
+        yr = d.getFullYear(); mo = d.getMonth()
+        staleMonthLabel = d.toLocaleDateString('az-AZ', { month: 'long', year: 'numeric' })
+      }
+    } catch { /* sorğu alınmasa cari ayda qal */ }
     const mStart = `${yr}-${String(mo + 1).padStart(2, '0')}-01`
     const mEnd = `${yr}-${String(mo + 1).padStart(2, '0')}-${new Date(yr, mo + 1, 0).getDate()}`
 
@@ -224,7 +253,9 @@ export default async function DashboardPage() {
 
   const now2 = new Date()
   const dim = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate()
-  const dailyTarget = monthTarget > 0 ? Math.round(monthTarget / dim) : 0
+  // Köhnə dövr göstərilirsə HƏDƏF müqayisəsi mənasızdır — avqustun son gününü
+  // sentyabr hədəfi ilə tutuşdurmaq yalan «−100 000 ₼ fərq» yaradır.
+  const dailyTarget = (monthTarget > 0 && !staleMonthLabel) ? Math.round(monthTarget / dim) : 0
   const salesActual = dayActual
   const salesTarget = dailyTarget
   const salesYesterday = dayYesterday
@@ -343,7 +374,13 @@ export default async function DashboardPage() {
           gedir» kimi oxunur, halbuki hədəf sadəcə təyin edilməyib. */}
       <div className={`rounded-2xl border-2 p-5 mb-4 ${!hasSalesData ? "bg-white border-slate-200" : !hasTarget ? "bg-slate-50 border-slate-200" : salesPct >= 100 ? "bg-emerald-50 border-emerald-200" : salesPct >= 75 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-slate-900">📊 Günlük Satış{factDateLabel && salesSource === 'fact' ? <span className="ml-2 text-xs font-normal text-slate-400">{factDateLabel}</span> : null}</h2>
+          <h2 className="font-bold text-slate-900">📊 Günlük Satış{factDateLabel && salesSource === 'fact' ? <span className="ml-2 text-xs font-normal text-slate-400">{factDateLabel}</span> : null}
+            {staleMonthLabel && (
+              <span className="ml-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                son yüklənən dövr · {staleMonthLabel}
+              </span>
+            )}
+          </h2>
           <span className={`text-sm font-bold px-3 py-1 rounded-full ${!hasSalesData ? "bg-slate-100 text-slate-500" : !hasTarget ? "bg-slate-100 text-slate-500" : salesPct >= 100 ? "bg-emerald-100 text-emerald-700" : salesPct >= 75 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
             {!hasSalesData ? 'Məlumat yoxdur' : hasTarget ? `${salesPct}%` : 'Hədəf yoxdur'}
           </span>
