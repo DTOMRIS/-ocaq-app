@@ -83,6 +83,8 @@ const CHUNK = 4000
 export default function HourlyUpload({ presetFile = null }: { presetFile?: File | null } = {}) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
+  // Eyni oxumada iki dəfə yazmasın (React strict mode / re-render qoruması)
+  const autoSaved = useRef(false)
   const [file, setFile] = useState<File | null>(presetFile)
   const [rep, setRep] = useState<HourlySalesReport | null>(null)
   // Bir qutu İKİ hesabatı tanıyır: «Satış ay və gün» (saatlıq) və
@@ -116,9 +118,36 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
     if (inputRef.current) inputRef.current.value = ''
   }
 
-  async function read() { if (file) await readFile(file) }
+  /**
+   * OXU + YAZ — TƏK ADDIM.
+   *
+   * 🔴 NİYƏ BİRLƏŞDİRİLDİ (istifadəçi hadisəsi 06–07.09.2026):
+   * Əvvəl iki düymə vardı. «OXU» faylı oxuyub ekranda düzgün rəqəmləri
+   * göstərirdi — istifadəçi «yüklədim» sanırdı. Amma baza YALNIZ ikinci
+   * (qırmızı) düymə basılanda yazılırdı. Nəticə: avqust məhsul datası HEÇ VAXT
+   * yazılmadı; bazada köhnə PRODMIX qalıqları qaldı (ÇAY DƏSTGAHI ort. qiyməti
+   * 10,76 ₼ — DT faylında 30,48 ₼ olmalıydı; bu, datanın DT-dən GƏLMƏDİYİNİ
+   * sübut etdi). Üç dəfə «yenidən yüklə» dedik, hər dəfə eyni nəticə çıxdı.
+   *
+   * Ekranda düzgün rəqəm görünüb bazaya yazılmaması ən pis UX səhvidir:
+   * istifadəçi işin bitdiyinə İNANIR. Ona görə oxumaqla yazmaq artıq ayrılmır.
+   * Əvəzləmə xəbərdarlığı yazmadan ƏVVƏL göstərilir (aşağıda `confirm`).
+   */
+  async function read() {
+    if (!file) return
+    await readFile(file)
+  }
+
+  // Oxu bitəndə avtomatik yaz — `readFile` state qoyur, effekt onu tutur.
+  useEffect(() => {
+    if (busy || autoSaved.current) return
+    if (!rep && !prod && !del) return
+    autoSaved.current = true
+    void save()
+  }, [rep, prod, del, busy])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function readFile(f: File) {
+    autoSaved.current = false
     setBusy(true); setErr(null); setRep(null); setProd(null); setDel(null); setResult(null); setDated(null); setProdDone(null); setDelDone(null)
     try {
       setPhase('Fayl oxunur…')
@@ -451,7 +480,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
             <input ref={inputRef} type="file" accept=".xlsx,.xls,.xlsb"
               onChange={e => { setFile(e.target.files?.[0] ?? null); setRep(null); setProd(null); setDel(null); setResult(null); setDated(null); setProdDone(null); setDelDone(null) }} />
             <button onClick={read} disabled={!file || busy} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: !file || busy ? '#9a9488' : '#26221d', color: '#fff', fontWeight: 700, cursor: !file || busy ? 'default' : 'pointer' }}>
-              {busy ? (phase || 'oxunur…') : 'oxu'}
+              {busy ? (phase || 'işlənir…') : 'OXU VƏ BAZAYA YAZ'}
             </button>
             {/* Düymə boz olanda SƏBƏBİ yazılır — əvvəl səssizcə sönük dururdu
                 və «basılmır» kimi görünürdü. */}
@@ -503,7 +532,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
                     {progress.done.toLocaleString('ru-RU')} / {progress.total.toLocaleString('ru-RU')} sətir
                   </span>
                 )}
-                <button onClick={save} disabled={busy} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                <button onClick={() => { autoSaved.current = true; void save() }} disabled={busy} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
                   {busy ? (phase || 'yazılır…') : 'yaz'}
                 </button>
               </div>
@@ -561,7 +590,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
                     {progress.done.toLocaleString('ru-RU')} / {progress.total.toLocaleString('ru-RU')} sətir
                   </span>
                 )}
-                <button onClick={save} disabled={busy} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                <button onClick={() => { autoSaved.current = true; void save() }} disabled={busy} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
                   {busy ? (phase || 'yazılır…') : 'yaz'}
                 </button>
               </div>
@@ -623,7 +652,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
                     {progress.done.toLocaleString('ru-RU')} / {progress.total.toLocaleString('ru-RU')} sətir
                   </span>
                 )}
-                <button onClick={save} disabled={busy || (!rep.hasDayColumn && !coverEnd)} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy || (!rep.hasDayColumn && !coverEnd) ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                <button onClick={() => { autoSaved.current = true; void save() }} disabled={busy || (!rep.hasDayColumn && !coverEnd)} style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 10, border: 'none', background: busy || (!rep.hasDayColumn && !coverEnd) ? '#9a9488' : '#C8102E', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
                   {busy ? (phase || 'yazılır…') : 'yaz'}
                 </button>
               </div>
