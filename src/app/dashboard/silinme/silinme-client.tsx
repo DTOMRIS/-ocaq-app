@@ -23,6 +23,10 @@ const td: CSSProperties = { padding: '8px 9px', fontVariantNumeric: 'tabular-num
 
 type Branch = {
   filial: string; total: number; clean: number; outlier: number
+  /** Personal yeməyi — İTKİ DEYİL, işçi xərci. Nisbətə QARIŞDIRILMIR. */
+  staff: number
+  /** ANBAR kateqoriyası (yalnız «Silinmə <ay>.xlsx» faylından gəlir) */
+  food: number; nonfood: number
   cnt: number; offCnt: number; noComment: number; revenue: number
 }
 type Reason = { reason: string; amount: number; cnt: number }
@@ -42,7 +46,7 @@ export default function SilinmeClient(props: {
   empty?: string
   start?: string; end?: string; outlierMin?: number
   byBranch?: Branch[]; byReason?: Reason[]; byDay?: Day[]
-  outliers?: Outlier[]; byItem?: Item[]
+  outliers?: Outlier[]; byItem?: Item[]; staffItems?: Item[]
 }) {
   if (props.empty) {
     return (
@@ -66,6 +70,12 @@ export default function SilinmeClient(props: {
   const totRev = b.reduce((s, x) => s + x.revenue, 0)
   const totCnt = b.reduce((s, x) => s + x.cnt, 0)
   const totNoComment = b.reduce((s, x) => s + x.noComment, 0)
+  const totStaff = b.reduce((s, x) => s + x.staff, 0)
+  const totFood = b.reduce((s, x) => s + x.food, 0)
+  const totNonfood = b.reduce((s, x) => s + x.nonfood, 0)
+  const staffItems = props.staffItems ?? []
+  // Personal yazmayan filiallar — nisbətləri haqsız yerə YAXŞI görünür
+  const yazmayan = b.filter(x => x.revenue > 0 && x.staff < x.revenue * 0.0005)
   const netPct = totRev > 0 ? totClean / totRev : null
   const maxDay = Math.max(...days.map(d => d.clean), 1)
 
@@ -83,7 +93,28 @@ export default function SilinmeClient(props: {
         <Stat k="Silinmə sayı" v={int(totCnt)} />
         <Stat k="Şərhsiz silinmə" v={totCnt ? `%${(totNoComment / totCnt * 100).toFixed(0)}` : '—'}
           sub={`${int(totNoComment)} sətir · nəzarət boşluğu`} />
+        <Stat k="Personal yeməyi" v={money(totStaff)}
+          sub={totRev > 0 ? `ciroya nisbət %${(totStaff / totRev * 100).toFixed(2)} · itki DEYİL` : 'itki deyil'} />
         <Stat k="Ciro (eyni dövr)" v={money(totRev)} />
+      </div>
+
+      {(totFood > 0 || totNonfood > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 10 }}>
+          <Stat k="QİDA" v={money(totFood)}
+            sub={totRev > 0 ? `ciroya nisbət %${(totFood / totRev * 100).toFixed(2)}` : undefined} />
+          <Stat k="Qeyri-qida" v={money(totNonfood)}
+            sub="qablaşdırma, təmizlik, ləvazimat" />
+        </div>
+      )}
+
+      <div style={{ background: '#fdf6e9', border: '1px solid #e8dcc0', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#4d483f', lineHeight: 1.65 }}>
+        <b>Personal yeməyi silinmə nisbətinə DAXİL DEYİL.</b> O, itki deyil — işçi xərcidir.
+        Qarışdırılsa iki səhv birdən olur: nisbət şişir, və <b>yazmayan filial yaxşı görünür</b>.
+        {yazmayan.length > 0 && (
+          <> Bu dövrdə personal yeməyi <b>demək olar heç</b> yazmayan filiallar:{' '}
+            <b>{yazmayan.map(x => x.filial).join(' · ')}</b>. Yemədikləri üçün deyil,
+            yazmadıqları üçün — onların nisbəti başqaları ilə müqayisə edilə bilməz.</>
+        )}
       </div>
 
       <div style={{ background: '#f7f6f3', border: '1px solid #e6e1d7', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#4d483f', lineHeight: 1.65 }}>
@@ -92,6 +123,24 @@ export default function SilinmeClient(props: {
         (bir məhsul 20 079,90 ₼ yazılmışdı); anomaliyasız nisbət %1,95 idi. Xam rəqəm gizlədilmir,
         lakin ittiham ona görə qurulmur.
       </div>
+
+      {staffItems.length > 0 && (
+        <Section title="Personal yeməyi" note="ayrıca izlənir · silinmə nisbətinə daxil deyil">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 420 }}>
+              <tbody>
+                {staffItems.map(x => (
+                  <tr key={x.item} style={{ borderBottom: '1px solid #f0ece4' }}>
+                    <td style={{ padding: '7px 10px 7px 0' }}>{x.item}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: '#8b8378', fontSize: 12 }}>{int(x.cnt)}</td>
+                    <td style={{ padding: '7px 0', textAlign: 'right', fontWeight: 700 }}>{money(x.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
 
       {/* ── Filial cədvəli ───────────────────────────────────────────────── */}
       <Section title="Filiallar" note="anomaliyasız nisbətə görə sıralanıb · %2-yə qədər normal, %4+ araşdırılmalı">
@@ -103,6 +152,7 @@ export default function SilinmeClient(props: {
                 <th style={{ ...th, textAlign: 'right' }}>Nisbət</th>
                 <th style={{ ...th, textAlign: 'right' }}>Silinmə</th>
                 <th style={{ ...th, textAlign: 'right' }}>Anomaliya</th>
+                <th style={{ ...th, textAlign: 'right' }}>Personal</th>
                 <th style={{ ...th, textAlign: 'right' }}>Say</th>
                 <th style={{ ...th, textAlign: 'right' }}>Anbardan</th>
                 <th style={{ ...th, textAlign: 'right' }}>Şərhsiz</th>
@@ -124,6 +174,15 @@ export default function SilinmeClient(props: {
                     <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{money2(x.clean)}</td>
                     <td style={{ ...td, textAlign: 'right', color: x.outlier > 0 ? '#8a6a1f' : '#c8c2b6' }}>
                       {x.outlier > 0 ? money(x.outlier) : '—'}
+                    </td>
+                    {/* Personal yeməyi — nisbətə daxil deyil. Demək olar sıfırsa
+                        SARI: yazılmır deməkdir, nisbəti müqayisə edilə bilməz. */}
+                    <td style={{ ...td, textAlign: 'right',
+                                 color: x.revenue > 0 && x.staff < x.revenue * 0.0005 ? '#8a6a1f' : '#6b655c' }}
+                        title={x.revenue > 0 && x.staff < x.revenue * 0.0005
+                          ? 'personal yeməyi demək olar yazılmayıb — nisbət haqsız yerə yaxşı görünür'
+                          : 'itki deyil, işçi xərci'}>
+                      {x.staff > 0 ? money(x.staff) : 'yazılmayıb'}
                     </td>
                     <td style={{ ...td, textAlign: 'right', color: '#6b655c' }}>{int(x.cnt)}</td>
                     <td style={{ ...td, textAlign: 'right', color: '#6b655c' }} title="anbardan da silinib = real itki">

@@ -25,6 +25,21 @@ export const dynamic = 'force-dynamic'
 
 const OUTLIER_MIN = 200   // bundan böyük TƏK silinmə anomaliya sayılır
 
+/**
+ * PERSONAL YEMƏYİ AYRILIR — istifadəçi qeydi 07.09.2026: «personel yemeğini
+ * ayrı vermedi, silinme diye verdi».
+ *
+ * NİYƏ VACİB: personal yeməyi İTKİ DEYİL, işçi xərcidir. Silinmə faizinə
+ * qarışsa iki səhv birdən olur:
+ *   1) faiz şişir — %2,64 görünən rəqəmin dörddə biri personal yeməyidir
+ *   2) YAZMAYAN filial YAXŞI görünür — real hal (avqust 2026): Səbail 2
+ *      13 ₼, Hüseyn Cavid 49 ₼, Badamdar 0 ₼ yazıb. Yemədikləri üçün yox,
+ *      YAZMADIQLARI üçün. Dürüst yazan filial haqsız yerə pis sıralanır.
+ * Ona görə əsas nisbət personalsız hesablanır, personal AYRI sütunda görünür —
+ * gizlədilmir, qarışdırılmır.
+ */
+const STAFF_MEAL = `item ilike 'personal%'`
+
 type Row = Record<string, unknown>
 const rowsOf = (r: unknown): Row[] => (Array.isArray(r) ? r : (r as { rows?: Row[] })?.rows ?? []) as Row[]
 const n = (v: unknown) => Number(v ?? 0)
@@ -76,8 +91,12 @@ export default async function SilinmePage() {
     `with d as (
        select filial,
               sum(amount)::float8 total,
-              sum(case when amount <  $5 then amount else 0 end)::float8 clean,
-              sum(case when amount >= $5 then amount else 0 end)::float8 outlier,
+              sum(case when amount < $5 and not (${STAFF_MEAL}) then amount else 0 end)::float8 clean,
+              sum(case when amount >= $5 and not (${STAFF_MEAL}) then amount else 0 end)::float8 outlier,
+              sum(case when ${STAFF_MEAL} then amount else 0 end)::float8 staff,
+              sum(case when category ilike 'q%da' and category not ilike 'qeyr%' and not (${STAFF_MEAL})
+                       then amount else 0 end)::float8 food,
+              sum(case when category ilike 'qeyr%' then amount else 0 end)::float8 nonfood,
               count(*)::int cnt,
               count(*) filter (where written_off)::int off_cnt,
               count(*) filter (where comment is null or comment = '')::int no_comment
@@ -96,6 +115,7 @@ export default async function SilinmePage() {
      order by d.clean desc`, [...args, OUTLIER_MIN],
   )).map(x => ({
     filial: s(x.filial), total: n(x.total), clean: n(x.clean), outlier: n(x.outlier),
+    staff: n(x.staff), food: n(x.food), nonfood: n(x.nonfood),
     cnt: n(x.cnt), offCnt: n(x.off_cnt), noComment: n(x.no_comment), revenue: n(x.revenue),
   }))
 
@@ -110,8 +130,8 @@ export default async function SilinmePage() {
   // ── Gün üzrə (trend) ──────────────────────────────────────────────────────
   const byDay = rowsOf(await sqlClient.query(
     `select business_date,
-            sum(case when amount < $5 then amount else 0 end)::float8 clean,
-            sum(amount)::float8 total, count(*)::int cnt
+            sum(case when amount < $5 and not (${STAFF_MEAL}) then amount else 0 end)::float8 clean,
+            sum(case when not (${STAFF_MEAL}) then amount else 0 end)::float8 total, count(*)::int cnt
      from analytics_deletion_fact
      where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
      group by 1 order by 1`, [...args, OUTLIER_MIN],
@@ -122,7 +142,7 @@ export default async function SilinmePage() {
     `select business_date, filial, item, receipt, coalesce(comment,'') comment, amount::float8 amount
      from analytics_deletion_fact
      where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
-       and amount >= $5
+       and amount >= $5 and not (${STAFF_MEAL})
      order by amount desc limit 30`, [...args, OUTLIER_MIN],
   )).map(x => ({
     date: s(x.business_date).slice(0, 10), filial: s(x.filial), item: s(x.item),
@@ -134,13 +154,22 @@ export default async function SilinmePage() {
     `select item, sum(amount)::float8 amount, count(*)::int cnt
      from analytics_deletion_fact
      where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
-       and amount < $5
+       and amount < $5 and not (${STAFF_MEAL})
      group by 1 order by 3 desc limit 15`, [...args, OUTLIER_MIN],
+  )).map(x => ({ item: s(x.item), amount: n(x.amount), cnt: n(x.cnt) }))
+
+  // ── PERSONAL YEMƏYİ — ayrıca, məhsul üzrə ─────────────────────────────────
+  const staffItems = rowsOf(await sqlClient.query(
+    `select item, sum(amount)::float8 amount, count(*)::int cnt
+     from analytics_deletion_fact
+     where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
+       and ${STAFF_MEAL}
+     group by 1 order by 2 desc limit 12`, [...args],
   )).map(x => ({ item: s(x.item), amount: n(x.amount), cnt: n(x.cnt) }))
 
   return (
     <SilinmeClient
-      start={start} end={end} outlierMin={OUTLIER_MIN}
+      start={start} end={end} outlierMin={OUTLIER_MIN} staffItems={staffItems}
       byBranch={byBranch} byReason={byReason} byDay={byDay}
       outliers={outliers} byItem={byItem}
     />
