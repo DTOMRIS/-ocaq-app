@@ -35,6 +35,11 @@ export default function ReceturaClient({ empty, period, periods = [], products =
   const router = useRouter()
   const [ara, setAra] = useState('')
   const [gorunus, setGorunus] = useState<'xammal' | 'ortusme'>('xammal')
+  // Hook-lar erkən return-dan ƏVVƏL çağırılmalıdır (React qaydası) — yoxsa
+  // «empty» halında sıra dəyişir və render pozulur.
+  const mats = useMemo(() =>
+    materials.filter(m => !ara || m.material.toLowerCase().includes(ara.toLowerCase())),
+    [materials, ara])
 
   if (empty) {
     return (
@@ -48,9 +53,6 @@ export default function ReceturaClient({ empty, period, periods = [], products =
   const st = stats!
   const coverage = st.totalAmount > 0 ? st.coveredAmount / st.totalAmount : 0
   const yox = products.filter(p => !p.hasRecipe)
-  const mats = useMemo(() =>
-    materials.filter(m => !ara || m.material.toLowerCase().includes(ara.toLowerCase())),
-    [materials, ara])
 
   return (
     <div style={{ padding: 20, maxWidth: 1200, display: 'flex', flexDirection: 'column', gap: 14 }}>

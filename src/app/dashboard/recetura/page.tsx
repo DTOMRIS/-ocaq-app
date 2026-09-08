@@ -34,7 +34,7 @@ export default async function ReceturaPage({ searchParams }:
   let period: string | null = null
   let products: ProductRow[] = []
   let materials: MaterialUse[] = []
-  let stats = { products: 0, materials: 0, semi: 0, covered: 0, soldItems: 0, coveredAmount: 0, totalAmount: 0 }
+  const stats = { products: 0, materials: 0, semi: 0, covered: 0, soldItems: 0, coveredAmount: 0, totalAmount: 0 }
 
   try {
     const [cnt] = rowsOf(await sqlClient.query(
