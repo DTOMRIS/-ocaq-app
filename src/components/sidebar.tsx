@@ -14,6 +14,7 @@ const NAV: NavItem[] = [
   { href: '/dashboard/kasa-banka', icon: '🏦', label: 'Kasa/Banka', roles: ['super_admin'] },
   { href: '/dashboard/acilis', icon: '🏗', label: 'Açılış Takibi', roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/menyu', icon: '🍔', label: 'Menü', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/recetura', icon: '🧾', label: 'Reçetura', roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/promosyonlar', icon: '🎁', label: 'Promosyonlar', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/vardiya-liderliyi', icon: '◆', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT doldur', roles: ['branch_manager'] },

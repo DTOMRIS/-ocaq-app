@@ -215,3 +215,38 @@ export const kasa_banka_recon = pgTable('kasa_banka_recon', {
   uniqueIndex('kbr_uq').on(t.tenant_id, t.period_start, t.period_end, t.filial),
   index('kbr_period_idx').on(t.tenant_id, t.period_end),
 ])
+
+// ─── REÇETURA (Tərkiblər.xlsx) ──────────────────────────────────────────────
+//
+// Hansı məhsul hansı xammaldan nə qədər işlədir. Teorik maya dəyərinin və
+// «reçeturaya görə nə qədər olmalıydı» hesabının TƏMƏLİ.
+//
+// NİYƏ AYRI CƏDVƏL, `analytics_item_fact.cost` deyil: `cost` FAKTİKİ maya
+// (iiko-nun sildiyi), bu isə NORMA. İkisinin FƏRQİ əsas nəzarət göstəricisidir —
+// eyni sütuna yazılsa fərq görünməz olar.
+//
+// `valid_from` VACİBDİR: reçetura dəyişir. Versiyasız saxlansa keçən ayın
+// teorik mayası bugünkü norma ilə yenidən hesablanar və KEÇMİŞ SƏSSİZCƏ DƏYİŞƏR.
+export const recipe_lines = pgTable('recipe_lines', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenant_id: uuid('tenant_id').notNull().references(() => tenants.id),
+
+  product:   text('product').notNull(),
+  category:  text('category'),
+  material:  text('material').notNull(),
+  /** iiko nomenklatura kodu — ad dəyişsə də bağlantı qalır */
+  code:      text('code'),
+  /** 1 vahid məhsul üçün norma */
+  norm:      numeric('norm', { precision: 14, scale: 6 }).notNull(),
+  unit:      text('unit'),
+  /** Bu sətir «İSTEHSAL TƏDARÜK» yarım mamuluna aiddirmi */
+  is_semi:   boolean('is_semi').notNull().default(false),
+
+  valid_from: date('valid_from').notNull(),
+  source:     text('source'),
+  updated_at: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('rcl_uq').on(t.tenant_id, t.product, t.material, t.valid_from),
+  index('rcl_prod_idx').on(t.tenant_id, t.product),
+  index('rcl_mat_idx').on(t.tenant_id, t.material),
+])

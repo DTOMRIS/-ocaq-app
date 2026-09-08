@@ -10,6 +10,7 @@ import {
   type HourlySalesReport, type ProductDailyReport,
   parseWriteoffs,
 } from '@/lib/analytics/parse-iiko-reports'
+import { parseRecipes } from '@/lib/analytics/parse-recipe'
 
 /**
  * SAATLIQ satış hesabatını («Doğan Tomris Rapor») yükləyir.
@@ -165,6 +166,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
       let best: HourlySalesReport | null = null
       let bestProd: ProductDailyReport | null = null
       let bestDel: DeletionReport | null = null
+      let bestRecipe: ReturnType<typeof parseRecipes> | null = null
       // Tanınmadıqda SƏBƏBİ yaza bilmək üçün ilk vərəqin başlığını saxlayırıq.
       let firstHead: unknown[][] = []
       for (const sn of wb.SheetNames) {
@@ -174,6 +176,12 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
         await new Promise(r => setTimeout(r, 0))
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: true, defval: null }) as unknown[][]
         if (!firstHead.length) firstHead = rows.slice(0, 30)
+        // REÇETURA («Tərkiblər.xlsx») — sütunları tamam fərqlidir (MƏHSUL /
+        // Mallar / Norma), `detectReportKind` onu tanımır. Ən əvvəl yoxlanılır.
+        if (!bestRecipe) {
+          const rc = parseRecipes(rows)
+          if (rc.products.length >= 5) { bestRecipe = rc; continue }
+        }
         const kind = detectReportKind(rows)
         if (!kind) continue
         // Obyektlə: yeni hesabat növü əlavə olunanda TypeScript əskik açarı
@@ -223,6 +231,7 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
           if (h.rows.length && (!best || h.totals.net > best.totals.net)) best = h
         }
       }
+      if (bestRecipe) { await saveRecipe(bestRecipe); return }
       if (bestDel) { setDel(bestDel); setPhase(''); return }
       if (bestProd && (!best || bestProd.rows.length > best.rows.length)) { setProd(bestProd); setPhase(''); return }
       if (!best) throw new Error(explainUnrecognized(firstHead))
@@ -311,6 +320,42 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
    * Məhsul hesabatı → MÖVCUD `analytics_item_fact` (fact-save, kind='item').
    * Ayrı endpoint yazmırıq: Analitika səhifəsi ONSUZ DA bu cədvəli oxuyur.
    */
+  /**
+   * REÇETURA yazılır — `valid_from` = AYIN BİRİ.
+   *
+   * Niyə ayın biri: reçetura versiyalanır. Bugünkü tarixlə yazılsa eyni ay
+   * iki dəfə yüklənəndə iki versiya yaranar və teorik maya hansına görə
+   * hesablandığı bilinməz. Ayın birinə bağlanınca təkrar yükləmə üzərinə yazır.
+   */
+  async function saveRecipe(rc: ReturnType<typeof parseRecipes>) {
+    setBusy(true); setErr(null)
+    try {
+      const now = new Date()
+      const validFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+      const semi = new Set(rc.semiFinished)
+      const payload = rc.products.flatMap(p => p.lines.map(l => ({
+        product: p.product, category: p.category, material: l.material,
+        code: l.code, norm: l.norm, unit: l.unit, is_semi: semi.has(p.product),
+      })))
+      let written = 0
+      for (let i = 0; i < payload.length; i += 4000) {
+        setPhase(`Reçetura yazılır — ${i.toLocaleString('ru-RU')}/${payload.length.toLocaleString('ru-RU')}`)
+        const res = await fetch('/api/dashboard/analytics/recipe-save', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: payload.slice(i, i + 4000), validFrom, source: file?.name?.slice(0, 120) ?? null }),
+        })
+        const j = await res.json()
+        if (!res.ok) throw new Error(j?.error ?? 'Reçetura yazılmadı')
+        written += Number(j.written ?? 0)
+      }
+      setPhase(`Reçetura yazıldı — ${rc.products.length} məhsul · ${written.toLocaleString('ru-RU')} sətir · ` +
+        `${rc.materials} xammal · ${rc.semiFinished.length} yarım mamul · qüvvədə ${validFrom}`)
+      router.refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally { setBusy(false) }
+  }
+
   async function saveProduct() {
     if (!prod) return
     const src = file?.name?.slice(0, 120) ?? null
