@@ -55,11 +55,26 @@ type IikoKind = NonNullable<ReportKind>
  * vardı və `'deletion'` səssizcə «SAATLIQ» kimi yazılırdı — istifadəçiyə yalan
  * ad göstərən sinif səhv budur.
  */
-const KIND_LABEL: Record<IikoKind, string> = {
+/**
+ * Yönləndirmə növü — `IikoKind`-dən GENİŞDİR.
+ *
+ * 🔴 07.09.2026 hadisəsi: CASH FLOW faylı bu qutuya atıldı və «sütun adları
+ * tanınmadı» xətası verdi. Səbəb: bu qutu XARİCİ QAPIDIR — faylı ya özü
+ * oxuyur (PRODMIX/ÇEK), ya da `detectReportKind` tanıyanda iiko axınına
+ * ötürür. CASH FLOW və REÇETURA nə birincisidir, nə ikincisi — ona görə
+ * heç yerə getmirdi, halbuki parser-ləri HAZIR idi.
+ *
+ * İndi bu qapı onları da tanıyır və eyni axına ötürür.
+ */
+type RouteKind = IikoKind | 'cashflow' | 'recipe'
+
+const KIND_LABEL: Record<RouteKind, string> = {
   hourly: 'SAATLIQ SATIŞ',
   product: 'MƏHSUL',
   deletion: 'SİLİNMƏ',
   writeoff: 'ANBAR SİLİNMƏSİ',
+  cashflow: 'PUL AXINI',
+  recipe: 'REÇETURA',
 }
 
 type SaveResult = {
@@ -98,7 +113,7 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
   // SONUNCUSU işlənir, digəri HEÇ BİR XƏBƏRDARLIQ OLMADAN itirdi
   // («ekledim, əlavə olunmadı»). Bu, 10.08.2026-da PRODMIX tərəfində
   // düzəldilmiş səhvin GÜZGÜ ƏKSİDİR — iiko qolunda qalmışdı.
-  const [iikoList, setIikoList] = useState<Array<{ file: File; kind: IikoKind }>>([])
+  const [iikoList, setIikoList] = useState<Array<{ file: File; kind: RouteKind }>>([])
   const [iikoPick, setIikoPick] = useState<number | null>(null)
   const [iikoDone, setIikoDone] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
@@ -122,7 +137,7 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
       const XLSX = await import('xlsx')
       // Bütün fayl/vərəqlərin nəticəsi toplanır, sonra birləşdirilir (son qalib).
       // HAMISI yığılır — heç biri atılmır (bax `iikoList` şərhi).
-      const iikoHits: Array<{ file: File; kind: IikoKind }> = []
+      const iikoHits: Array<{ file: File; kind: RouteKind }> = []
       let firstHead: unknown[][] = []
       const prodmixParts: ProdmixResult[] = []
       const receiptsParts: ReceiptsResult[] = []
@@ -132,6 +147,18 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
         // ⚡ ƏVVƏLCƏ UCUZ TANIMA: iiko hesabatıdırsa PRODMIX/ÇEK parser-lərini
         // heç işlətmirik. «DT Məhsul» 292 610 sətirdir — boş yerə iki keçid
         // brauzeri dondururdu.
+        // CASH FLOW / REÇETURA — vərəq ADINDAN tanınır, ucuzdur.
+        // Sütun oxumağa ehtiyac yoxdur: «Baş kassa» və «RESEPTURA» vərəq adları
+        // bu iki faylı birmənalı ayırd edir. CASH FLOW-un ilk vərəqi (CF) PİVOTDUR
+        // və başlıqları «46254, 46255…» (Excel serial) kimi görünür — heç bir
+        // parser onu tanımır, ona görə ad testi daha etibarlıdır.
+        {
+          const sn = wb.SheetNames
+          const isCash = /cash\s*flow/i.test(f.name) || sn.includes('Baş kassa')
+          const isRec = /t[əe]rkib/i.test(f.name) || sn.some(x => /resept/i.test(x))
+          if (isCash) { iikoHits.push({ file: f, kind: 'cashflow' }); continue }
+          if (isRec) { iikoHits.push({ file: f, kind: 'recipe' }); continue }
+        }
         {
           let hit: IikoKind | null = null
           for (const sn of wb.SheetNames) {
@@ -189,7 +216,7 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
       // iiko faylı ayrı axına gedir — SƏSSİZ ATILMASIN, açıq deyilir.
       if (iikoHits.length) {
         throw new Error(
-          `«${iikoHits.map(x => x.file.name).join('», «')}» iiko ${KIND_LABEL[iikoHits[0].kind]} hesabatıdır və ` +
+          `«${iikoHits.map(x => x.file.name).join('», «')}» — ${KIND_LABEL[iikoHits[0].kind]} faylıdır və ` +
           'PRODMIX/ÇEK faylları ilə BİRLİKDƏ oxuna bilmir (fərqli axınlar). ' +
           'Onu ayrıca atın — sistem özü tanıyacaq.',
         )
@@ -387,7 +414,7 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
         <div style={{ background: '#f1f8f2', border: '1px solid #cfe6d3', color: '#1f5130', borderRadius: 10, padding: '10px 12px', fontSize: 12.5 }}>
           {iikoList.length === 1 ? (
             <>
-              <b>«{iikoList[0].file.name}»</b> — {KIND_LABEL[iikoList[0].kind]} hesabatı tanındı,
+              <b>«{iikoList[0].file.name}»</b> — {KIND_LABEL[iikoList[0].kind]} faylı tanındı,
               aşağıda açıldı. <button onClick={cancel} style={link}>ləğv et</button>
             </>
           ) : (
@@ -395,7 +422,7 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
               {/* BİR NEÇƏ FAYL: hamısı görünür, heç biri atılmır. Hər biri
                   AYRICA yüklənir — yüklənən fayl «✓ yükləndi» kimi işarələnir
                   ki, hansının qaldığı yadda saxlanmasın. */}
-              <b>{iikoList.length} iiko hesabatı tanındı.</b> Hər biri ayrıca yüklənir —
+              <b>{iikoList.length} fayl tanındı.</b> Hər biri ayrıca yüklənir —
               birini seçin, bitəndən sonra digərinə keçin.
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                 {iikoList.map((x, i) => {
