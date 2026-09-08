@@ -11,6 +11,7 @@ import {
   parseWriteoffs,
 } from '@/lib/analytics/parse-iiko-reports'
 import { parseRecipes } from '@/lib/analytics/parse-recipe'
+import { parseCashflow } from '@/lib/analytics/parse-cashflow'
 
 /**
  * SAATLIQ satış hesabatını («Doğan Tomris Rapor») yükləyir.
@@ -163,6 +164,17 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
       // «oxu düyməsinə basılmır» görürdü (əslində basılırdı, sonra səhifə
       // kilidlənirdi). İndi `detectReportKind` yalnız ilk 30 sətrə baxır və
       // yalnız DOĞRU parser işləyir — iş yarıya düşür.
+      // PUL AXINI («CASH FLOW …»): çox vərəqli və hər vərəqin başlığı FƏRQLİDİR.
+      // Digər parserlər vərəq-vərəq işləyir, bu isə hamısını BİRLİKDƏ istəyir —
+      // ona görə döngüdən ƏVVƏL yoxlanılır.
+      if (/cash\s*flow/i.test(file?.name ?? '') || wb.SheetNames.includes('Baş kassa')) {
+        const all = wb.SheetNames.map(sn => ({
+          name: sn,
+          rows: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, raw: true, defval: null }) as unknown[][],
+        }))
+        const cf = parseCashflow(all)
+        if (cf.rows.length) { await saveCashflow(cf); return }
+      }
       let best: HourlySalesReport | null = null
       let bestProd: ProductDailyReport | null = null
       let bestDel: DeletionReport | null = null
@@ -327,6 +339,42 @@ export default function HourlyUpload({ presetFile = null }: { presetFile?: File 
    * iki dəfə yüklənəndə iki versiya yaranar və teorik maya hansına görə
    * hesablandığı bilinməz. Ayın birinə bağlanınca təkrar yükləmə üzərinə yazır.
    */
+  /** Pul axını — dövr əvəzləmə (əvvəl yaz, sonda köhnəni süpür). */
+  async function saveCashflow(cf: ReturnType<typeof parseCashflow>) {
+    setBusy(true); setErr(null)
+    try {
+      const src = file?.name?.slice(0, 120) ?? null
+      const payload = cf.rows.filter(r => r.date)
+      let sweepFrom: string | null = null
+      let written = 0
+      for (let i = 0; i < payload.length; i += 4000) {
+        setPhase(`Pul axını yazılır — ${i.toLocaleString('ru-RU')}/${payload.length.toLocaleString('ru-RU')}`)
+        const res = await fetch('/api/dashboard/analytics/cashflow-save', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: payload.slice(i, i + 4000), source: src, ...(i === 0 ? { wantSweepFrom: true } : {}) }),
+        })
+        const j = await res.json()
+        if (!res.ok) throw new Error(j?.error ?? 'Pul axını yazılmadı')
+        written += Number(j.written ?? 0)
+        if (i === 0) sweepFrom = typeof j.sweepFrom === 'string' ? j.sweepFrom : null
+      }
+      // Süpürmə YALNIZ hamısı yazıldıqdan sonra — yarıda qırılsa köhnə data qalır
+      if (sweepFrom && cf.days.length) {
+        setPhase('Köhnə sətirlər təmizlənir…')
+        await fetch('/api/dashboard/analytics/cashflow-save', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sweepDays: cf.days, sweepFrom }),
+        })
+      }
+      const fm = (n: number) => Math.round(n).toLocaleString('ru-RU')
+      setPhase(`Pul axını yazıldı — ${written.toLocaleString('ru-RU')} sətir · ${cf.days.length} gün · ` +
+        `daxil ${fm(cf.inflow)} ₼ · xaric ${fm(cf.outflow)} ₼`)
+      router.refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally { setBusy(false) }
+  }
+
   async function saveRecipe(rc: ReturnType<typeof parseRecipes>) {
     setBusy(true); setErr(null)
     try {

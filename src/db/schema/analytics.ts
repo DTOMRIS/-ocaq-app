@@ -250,3 +250,39 @@ export const recipe_lines = pgTable('recipe_lines', {
   index('rcl_prod_idx').on(t.tenant_id, t.product),
   index('rcl_mat_idx').on(t.tenant_id, t.material),
 ])
+
+// ─── PUL AXINI (CASH FLOW) ──────────────────────────────────────────────────
+//
+// «CASH FLOW <dövr>.xlsx» — bir kassa + səkkiz bank hesabının BÜTÜN hərəkəti.
+//
+// NİYƏ `kasa_banka_recon`-dan AYRI: o cədvəl BİR sual verir — «kart satışı
+// bankaya düşübmü?». Bu isə bütün pul hərəkətidir (icarə, əmək haqqı, kredit,
+// təhtəlhesab). İkisi fərqli suallardır; birləşdirilsə heç biri düzgün
+// cavablanmaz.
+//
+// UNİKAL AÇAR YOXDUR — QƏSDƏN: eyni gün, eyni hesab, eyni maddə, eyni məbləğ
+// İKİ DƏFƏ ola bilər (iki ayrı ödəniş). Açar qoysaydıq onlar birləşər və pul
+// AZ görünərdi. Yükləmə «dövr əvəzləmə» ilə işləyir.
+export const cashflow_lines = pgTable('cashflow_lines', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenant_id: uuid('tenant_id').notNull().references(() => tenants.id),
+
+  /** 52 sözlükdən biri — bütün vərəqlərdə ORTAQ */
+  item:      text('item').notNull(),
+  /** Hesab adı: «Baş kassa», «Unibank pos», «ATB 2»… */
+  account:   text('account').notNull(),
+  op_date:   date('op_date').notNull(),
+  /** Müsbət = daxil, mənfi = xaric */
+  amount:    numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  /** «Bölmə» — YALNIZ Baş kassada var (filial/mərkəz) */
+  branch:    text('branch'),
+  branch_id: uuid('branch_id').references(() => branches.id),
+  note:      text('note'),
+
+  source:     text('source'),
+  updated_at: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  index('cfl_date_idx').on(t.tenant_id, t.op_date),
+  index('cfl_item_idx').on(t.tenant_id, t.item, t.op_date),
+  index('cfl_acc_idx').on(t.tenant_id, t.account, t.op_date),
+])
