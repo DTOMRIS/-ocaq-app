@@ -25,12 +25,21 @@ export default async function PulAxiniPage({ searchParams }: { searchParams: Pro
   const tid = session.user.tenant_id
   const sp = await searchParams
 
+  // JSX try/catch İÇİNDƏ qurulmamalıdır: React komponenti dərhal render etmir,
+  // ona görə render xətası bu catch-ə DÜŞMÜR (yanlış təhlükəsizlik hissi).
+  // Data toplanır, sonra bir dəfə render olunur.
+  let empty: string | null = null
+  let view: {
+    from: string; to: string; inflow: number; outflow: number; cnt: number; days: number
+    byItem: ItemRow[]; byAccount: AccRow[]; byDay: DayRow[]; byBranch: BranchRow[]
+  } | null = null
+
   try {
     const [rng] = rowsOf(await sqlClient.query(
       `select min(op_date)::text d0, max(op_date)::text d1, count(*)::int n from cashflow_lines where tenant_id=$1`, [tid],
     ))
     if (!n(rng?.n)) {
-      return <PulClient empty="Pul axını hələ yüklənməyib. Günlük Panel → «CASH FLOW» faylını yükləyin." />
+      empty = 'Pul axını hələ yüklənməyib. Günlük Panel → «CASH FLOW» faylını yükləyin.'
     }
     const from = sp.from && /^\d{4}-\d{2}-\d{2}$/.test(sp.from) ? sp.from : s(rng?.d0).slice(0, 10)
     const to = sp.to && /^\d{4}-\d{2}-\d{2}$/.test(sp.to) ? sp.to : s(rng?.d1).slice(0, 10)
@@ -66,12 +75,16 @@ export default async function PulAxiniPage({ searchParams }: { searchParams: Pro
        group by 1 order by abs(sum(amount)) desc limit 25`, [...a],
     )).map(r => ({ branch: s(r.branch), amount: n(r.amount), cnt: n(r.cnt) }))
 
-    return <PulClient from={from} to={to}
-      inflow={n(sum?.inflow)} outflow={n(sum?.outflow)} cnt={n(sum?.cnt)} days={n(sum?.days)}
-      byItem={byItem} byAccount={byAccount} byDay={byDay} byBranch={byBranch} />
+    if (!empty) {
+      view = { from, to, inflow: n(sum?.inflow), outflow: n(sum?.outflow),
+               cnt: n(sum?.cnt), days: n(sum?.days), byItem, byAccount, byDay, byBranch }
+    }
   } catch (e) {
-    return <PulClient empty={e instanceof Error && /cashflow_lines/.test(e.message)
+    empty = e instanceof Error && /cashflow_lines/.test(e.message)
       ? 'Pul axını cədvəli hələ qurulmayıb (migration 0021).'
-      : 'Pul axını oxunmadı.'} />
+      : 'Pul axını oxunmadı.'
   }
+
+  if (!view) return <PulClient empty={empty ?? 'Pul axını oxunmadı.'} />
+  return <PulClient {...view} />
 }
