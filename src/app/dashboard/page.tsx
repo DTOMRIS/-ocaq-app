@@ -304,6 +304,55 @@ export default async function DashboardPage() {
           { href: '/dashboard/regions', icon: '◉', title: 'Bölgə idarəetməsi', desc: 'Bölgə, filial və rəhbər təyinatlarını yoxlayın.' },
         ]
 
+  // ── ŞƏBƏKƏ NƏBZİ ──────────────────────────────────────────────────────────
+  //
+  // Dashboard-a baxanda «vəziyyət nədir?» sualı BİR EKRANDA cavablanmalıdır.
+  // Ona görə burada YALNIZ diqqət tələb edən rəqəmlər var — hər biri artıq
+  // hesablanmış modullardan gəlir, yenidən hesablanmır.
+  //
+  // BOŞ RƏQƏM UYDURULMUR: mənbəsi olmayan göstərici `null` qalır və ekranda
+  // «—» görünür. Uydurma rəqəm göstərməkdənsə boş göstərmək dürüstdür.
+  const nabz = {
+    yoyPct: null as number | null,        // eyni-filial YoY
+    silinmePct: null as number | null,    // silinmə / ciro (personalsız)
+    staffMeal: null as number | null,     // personal yeməyi ₼
+    foodCostPct: null as number | null,   // reçeturaya görə teorik food cost
+    gecikenAcilis: 0,
+    period: null as string | null,
+  }
+  try {
+    const tid = session.user.tenant_id
+    // Son dolu ay — dashboard artıq bu aya düşür (yuxarıdakı staleMonthLabel)
+    const [p] = await sqlClient.query(
+      `select to_char(max(business_date),'YYYY-MM') p from analytics_daily_fact
+       where tenant_id=$1 and payment_type='__day__'`, [tid],
+    ) as Array<{ p: string | null }>
+    const per = p?.p ?? null
+    nabz.period = per
+    if (per) {
+      const f = `${per}-01`
+      const t = `${per}-${new Date(+per.slice(0, 4), +per.slice(5, 7), 0).getDate()}`
+      // Silinmə — personal yeməyi AYRI (itki deyil, işçi xərcidir)
+      const [d] = await sqlClient.query(
+        `select
+           coalesce(sum(amount) filter (where item not ilike 'personal%'),0)::float8 sil,
+           coalesce(sum(amount) filter (where item ilike 'personal%'),0)::float8 staff
+         from analytics_deletion_fact
+         where tenant_id=$1 and business_date between $2 and $3`, [tid, f, t],
+      ) as Array<{ sil: number; staff: number }>
+      const [r] = await sqlClient.query(
+        `select coalesce(sum(amount),0)::float8 rev from analytics_daily_fact
+         where tenant_id=$1 and business_date between $2 and $3 and payment_type='__day__'`,
+        [tid, f, t],
+      ) as Array<{ rev: number }>
+      const rev = Number(r?.rev ?? 0)
+      if (rev > 0 && d) {
+        nabz.silinmePct = Number(d.sil) / rev
+        nabz.staffMeal = Number(d.staff)
+      }
+    }
+  } catch { /* mənbə yoxdursa göstərici boş qalır */ }
+
   // ── Açılış takibi xülasəsi ────────────────────────────────────────────────
   // Cədvəl hələ yoxdursa səhifə SINMAMALIDIR — dashboard bütün şəbəkənin
   // giriş nöqtəsidir, bir modul ucbatından ağ ekran verə bilməz.
@@ -356,6 +405,51 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* ═══ ŞƏBƏKƏ NƏBZİ — telefonda da bir baxışda oxunur ═══ */}
+      {(nabz.silinmePct != null || acilisXulase.gecikdi > 0) && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+          <div className="flex items-baseline justify-between px-4 pt-3 pb-2 border-b border-slate-100">
+            <h2 className="font-semibold text-slate-900">📍 Şəbəkə nəbzi</h2>
+            {nabz.period && <span className="text-xs text-slate-400 tabular-nums">{nabz.period}</span>}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100">
+            <Link href="/dashboard/silinme" className="p-3 sm:p-4 hover:bg-slate-50 transition">
+              <p className="text-[11px] text-slate-500">Silinmə</p>
+              <p className={`text-xl sm:text-2xl font-bold tabular-nums ${
+                nabz.silinmePct == null ? 'text-slate-300'
+                : nabz.silinmePct >= 0.04 ? 'text-rose-600'
+                : nabz.silinmePct >= 0.02 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {nabz.silinmePct == null ? NA : `%${(nabz.silinmePct * 100).toFixed(2)}`}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">hədəf ≤%2 · personalsız</p>
+            </Link>
+            <Link href="/dashboard/silinme" className="p-3 sm:p-4 hover:bg-slate-50 transition">
+              <p className="text-[11px] text-slate-500">Personal yeməyi</p>
+              <p className="text-xl sm:text-2xl font-bold tabular-nums text-slate-900">
+                {nabz.staffMeal == null ? NA : fmt(Math.round(nabz.staffMeal))}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">itki deyil · işçi xərci</p>
+            </Link>
+            <Link href="/dashboard/recetura" className="p-3 sm:p-4 hover:bg-slate-50 transition">
+              <p className="text-[11px] text-slate-500">Reçetura</p>
+              <p className="text-xl sm:text-2xl font-bold tabular-nums text-slate-900">
+                {nabz.foodCostPct == null ? NA : `%${(nabz.foodCostPct * 100).toFixed(1)}`}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">tələb olunan xammal →</p>
+            </Link>
+            <Link href="/dashboard/acilis" className="p-3 sm:p-4 hover:bg-slate-50 transition">
+              <p className="text-[11px] text-slate-500">Gecikən açılış işi</p>
+              <p className={`text-xl sm:text-2xl font-bold tabular-nums ${acilisXulase.gecikdi > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                {acilisXulase.gecikdi}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {acilisXulase.enYaxinGun == null ? 'açılış yoxdur' : `ən yaxın ${acilisXulase.enYaxinGun} gün`}
+              </p>
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-3 mb-6">
         {priorityActions.map((item) => (
@@ -477,7 +571,7 @@ export default async function DashboardPage() {
 
       {/* ═══ MALİYYƏT GÖSTƏRİCİLƏRİ ═══ */}
       <h2 className="text-lg font-semibold text-slate-900 mb-3">💰 Maliyyət Göstəriciləri</h2>
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {[
           { label: "Food Cost", target: 33, icon: "🥩" },
           { label: "Labor Cost", target: 30, icon: "👥" },
@@ -534,8 +628,8 @@ export default async function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-900">🏗 Açılış Takibi</h2>
             <Link href="/dashboard/acilis" className="text-sm text-slate-500 hover:text-slate-800">hamısı →</Link>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
               <p className="text-xs text-slate-500">Aktiv açılış</p>
               <p className="text-2xl font-bold text-slate-900 tabular-nums">{acilisXulase.aktiv}</p>
             </div>

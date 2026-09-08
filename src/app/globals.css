@@ -51,6 +51,13 @@ body {
     padding-left: calc(16px + env(safe-area-inset-left));
     padding-right: calc(16px + env(safe-area-inset-right));
   }
+  /* Telefonda SƏHİFƏ GÖVDƏSİ üfüqi sürüşməməlidir — yalnız cədvəllər öz
+     qabında sürüşür. Bir dar element bütün səhifəni sağa itələsə başlıq və
+     rəqəmlər ekrandan çıxır və istifadəçi «sistem pozulub» sanır. */
+  .dashboard-main > * { max-width: 100%; }
+  .dashboard-main table { max-width: none; }   /* cədvəl öz qabında sürüşsün */
+  /* Rəqəm kartları telefonda daralanda mətn kəsilməsin */
+  .dashboard-main .tabular-nums { font-variant-numeric: tabular-nums; }
   .login-visual { display: none !important; }
   .login-panel { width: 100% !important; min-width: 0 !important; }
   .login-topbar { padding: 16px 20px !important; gap: 12px; }
