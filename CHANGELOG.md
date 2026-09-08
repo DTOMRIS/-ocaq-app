@@ -6,6 +6,66 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 🔴 08.09.2026 — «ciro payı» yanlış: KÖK SƏBƏB + STRUKTUR HƏLL
+
+**Şikayət:** ekranda 135 952 ₼ → **%14,1**. Halbuki avqustun məhsul cirosu
+2 866 138 ₼-dır; düzgün pay **%4,74** olmalıdır.
+
+#### Kanıt — ekrandakı data DT faylından GƏLMİR
+
+Real avqust DT faylı parser-dən keçirildi və ekranla tutuşduruldu:
+
+| Məhsul | Ekran ədəd | DT faylı | Ekran ort.qiymət | DT ort.qiymət |
+|---|---|---|---|---|
+| SHAURMA LAVAŞDA BÖYÜK | 19 070 | **31 156** | 7,13 ₼ | **12,34 ₼** |
+| ÇAY DƏSTGAHI | 4 961 | **6 705** | 10,77 ₼ | **29,86 ₼** |
+| Ayran | 17 720 | **34 073** | 2,11 ₼ | **3,46 ₼** |
+
+**Həlledici göstərici ORTA QİYMƏTDİR.** Ekranda DT-nin bir HİSSƏSİ olsaydı
+qiymət EYNİ qalardı (az gün, eyni məhsul, eyni qiymət). Qiymət fərqlidirsə
+mənbə fərqlidir. Məhsul sayı da uyuşmur (286 ↔ 279). Faiz düsturu DÜZGÜNDÜR
+— taban ≈964 198 ₼-dır, yəni bazada köhnə PRODMIX qalıqları var.
+
+Yazma yolu `bbc09ee`-də düzəldildi (OXU + YAZ birləşdi).
+
+#### Kaçırılan struktur səhv — İKİ MƏNBƏ, İKİ AÇAR SXEMİ
+
+`analytics_item_fact`-a **iki yol** yazır və `item_code` sxemləri
+**UYĞUNSUZDUR**:
+
+| Yol | `item_code` | Gün əvəzləmə |
+|---|---|---|
+| PRODMIX (`detail-upload`) | məhsulun **KODU** | **YOX** idi |
+| DT Məhsul (`hourly-upload`) | məhsulun **ADI** | var |
+
+Unikal açar `(tenant, filial, gün, item_code)` olduğu üçün iki dəst
+**HEÇ VAXT TOQQUŞMUR** — ikisi də cədvəldə yan-yana qalır. Analitika isə
+`item_name` üzrə qruplaşdırıb **TOPLAYIR** → eyni məhsul İKİ DƏFƏ sayılır.
+Rəqəm «məqbul» göründüyü üçün heç kim fərq etmir.
+
+**Real PostgreSQL 16-da nümayiş olundu:**
+
+| Ssenari | Nəticə |
+|---|---|
+| Yalnız PRODMIX | 426 ₼ |
+| DT əlavə olunur (köhnə davranış) | **1 999 ₼ — ŞİŞİK**, Ayran 2 sətir / 2 kod |
+| Yeni davranış (gün əvəzləmə) | **1 573 ₼ — TƏMİZ**, hər məhsul 1 sətir / 1 kod ✅ |
+| Yükləmə yarıda qırılır | köhnə sətirlər **yerində**, heç nə silinmədi ✅ |
+
+#### Düzəlişlər
+
+1. **`detail-upload.tsx`** — PRODMIX yolu da əhatə etdiyi **günləri əvəz edir**
+   (`replaceDays` + sonda `sweepDays`). Bir gün üçün məhsul datası artıq
+   HƏMİŞƏ TƏK MƏNBƏDƏNDİR; qarışma struktur olaraq mümkünsüzdür.
+   Silmə SONDA olduğu üçün yarıda qırılan yükləmə heç nə silmir.
+2. **`analitika-client.tsx`** — örtüşmə xəbərdarlığı **İKİ TƏRƏFLİ** oldu.
+   Əvvəl yalnız «əskik» yoxlanılırdı; məhsul cəmi gün cirosunu AŞSA `covGap`
+   mənfi olur və **heç bir xəbərdarlıq çıxmırdı**. Halbuki aşmaq fiziki olaraq
+   mümkün deyil — yalnız çift sayım deməkdir. İndi deyilir və həlli yazılır.
+
+`npm test` **229/229** · typecheck təmiz · `next build` keçdi.
+
+
 ### 🏗 06.09.2026 — Açılış Takibi modulu (yeni)
 
 **Budaq:** `feat/yoy-matrix-parser`. `npm test` **214/214** · typecheck təmiz ·

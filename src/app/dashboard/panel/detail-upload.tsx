@@ -223,10 +223,13 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
    * Bir chunk göndərir. Uğurlu olsa nəticəni, olmasa xətanı qaytarır.
    * Yazı İDEMPOTENT olduğu üçün (açar üzrə upsert) təkrar göndərmək zərərsizdir.
    */
-  async function send(kind: 'daily' | 'item', slice: unknown[], source: string) {
+  async function send(
+    kind: 'daily' | 'item', slice: unknown[], source: string,
+    extra?: Record<string, unknown>,
+  ) {
     const res = await fetch('/api/dashboard/analytics/fact-save', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ kind, rows: slice, source }),
+      body: JSON.stringify({ kind, rows: slice, source, ...extra }),
     })
     const j = await res.json().catch(() => null)
     if (!res.ok) {
@@ -239,16 +242,46 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
     return j
   }
 
+  /**
+   * 🔴 08.09.2026 — İKİ MƏNBƏ, İKİ AÇAR SXEMİ, SƏSSİZ ÇİFT SAYIM.
+   *
+   * `analytics_item_fact`-a İKİ yol yazır və `item_code` sxemləri UYĞUNSUZDUR:
+   *   • PRODMIX (bu fayl)      → item_code = MƏHSULUN KODU  (məs. «10023»)
+   *   • DT Məhsul (hourly-upload) → item_code = MƏHSULUN ADI («SHAURMA …»)
+   *
+   * Unikal açar `(tenant, filial, gün, item_code)` olduğu üçün bu iki dəst
+   * HEÇ VAXT TOQQUŞMUR — ikisi də cədvəldə yan-yana qala bilir. Analitika isə
+   * `item_name` üzrə qruplaşdırıb TOPLAYIR → eyni məhsul İKİ DƏFƏ sayılır və
+   * rəqəm «məqbul» göründüyü üçün heç kim fərq etmir.
+   *
+   * DT yolunda gün əvəzləmə (sweep) VARDI, burada YOX idi. Nəticədə DT-dən
+   * sonra bir dəfə PRODMIX yükləmək kifayət edirdi ki ciro şişsin.
+   *
+   * Həll: bu yol da əhatə etdiyi GÜNLƏRİ əvəz edir. Beləliklə bir gün üçün
+   * məhsul datası HƏMİŞƏ TƏK MƏNBƏDƏNDİR — sonuncu yüklənən fayl o günün
+   * sahibidir. Qarışma struktur olaraq mümkünsüz olur.
+   *
+   * Silmə SONDA olur (`sweepDays`): yükləmə yarıda qırılsa köhnə data
+   * TOXUNULMAZ qalır (bax `fact-save/route.ts` «SÜPÜRMƏ» şərhi).
+   */
   async function post(kind: 'daily' | 'item', rows: unknown[], source: string, onChunk: (n: number) => void): Promise<SaveResult> {
     const acc: SaveResult = { ok: true, written: 0, merged: 0, rejected: 0, rejectedSample: [], days: [], unmatchedBranches: [] }
     const allDays = new Set<string>(), allUnmatched = new Set<string>()
+    // Yalnız MƏHSUL üçün: faylın əhatə etdiyi günlər əvəz olunur.
+    const coverDays = kind === 'item'
+      ? [...new Set((rows as Array<{ date?: unknown }>)
+        .map(r => String(r?.date ?? ''))
+        .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort()
+      : []
+    let sweepFrom: string | null = null
     let size = CHUNK
     let i = 0
     while (i < rows.length) {
       const slice = rows.slice(i, i + size)
       let j: Record<string, unknown> & { written?: number; merged?: number; rejected?: number; rejectedSample?: string[]; days?: string[]; unmatchedBranches?: string[] }
       try {
-        j = await send(kind, slice, source)
+        j = await send(kind, slice, source,
+          i === 0 && coverDays.length ? { replaceDays: coverDays } : undefined)
       } catch (e) {
         // UYĞUNLAŞAN CHUNK: ölçü səbəbli sınmalarda yarıya en və TƏKRAR CƏHD ET.
         // Yazı idempotentdir → təkrar göndərmək data pozmur. MIN_CHUNK-dan
@@ -260,6 +293,7 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
         }
         throw e
       }
+      if (i === 0 && typeof j.sweepFrom === 'string') sweepFrom = j.sweepFrom
       acc.written += j.written ?? 0
       acc.merged += j.merged ?? 0
       acc.rejected += j.rejected ?? 0
@@ -269,6 +303,21 @@ export default function DetailUpload({ buildSha = 'local' }: { buildSha?: string
       i += slice.length
       onChunk(slice.length)
     }
+
+    // ── SÜPÜRMƏ — yalnız BÜTÜN paketlər uğurla yazıldıqdan sonra ────────────
+    // Bu günlərdə BU YÜKLƏMƏDƏ təzələnməyən sətirlər silinir. Yəni əvvəl
+    // DT faylından qalan (ad-açarlı) sətirlər təmizlənir və gün tək mənbədən
+    // qalır. Yuxarıdakı dövrə `throw` etsə bura gəlinmir → heç nə silinmir.
+    if (sweepFrom && coverDays.length) {
+      setPhase('Köhnə məhsul sətirləri təmizlənir…')
+      const res = await fetch('/api/dashboard/analytics/fact-save', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'item', sweepDays: coverDays, sweepFrom }),
+      })
+      const j = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(`Təmizləmə: ${j?.error ?? `HTTP ${res.status}`}${j?.detail ? ` — ${j.detail}` : ''}`)
+    }
+
     acc.days = [...allDays].sort()
     acc.unmatchedBranches = [...allUnmatched]
     return acc

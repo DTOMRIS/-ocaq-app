@@ -98,8 +98,22 @@ export default function AnalitikaClient({
   // hesablanır və istifadəçi bunu BİLMƏLİDİR.
   const cov = coverage
   const covGap = cov && cov.dayAmount > 0 ? 1 - cov.itemAmount / cov.dayAmount : null
+  // 🔴 08.09.2026 — XƏBƏRDARLIQ İKİ TƏRƏFLİ OLMALIDIR.
+  //
+  // Əvvəl yalnız «əskik» (`covGap > 0.05`) yoxlanılırdı. Məhsul cəmi gün
+  // cəmini AŞSA `covGap` MƏNFİ olur və heç bir xəbərdarlıq çıxmırdı.
+  //
+  // Halbuki aşmaq FİZİKİ OLARAQ MÜMKÜN DEYİL — məhsul filialın kassaya
+  // aldığından çox sata bilməz. Aşma yalnız BİR ŞEY deməkdir: eyni məhsul
+  // İKİ DƏFƏ sayılır. Səbəbi `analytics_item_fact`-a iki mənbənin fərqli
+  // `item_code` sxemi ilə yazmasıdır (PRODMIX = məhsul kodu · DT = məhsul
+  // adı) — açarlar toqquşmadığı üçün iki dəst yan-yana qalırdı.
+  // Struktur həll `detail-upload.tsx`-dədir (gün əvəzləmə); bu isə KEÇMİŞ
+  // qarışıq data üçün toru: rəqəm «məqbul» görünsə də səssiz qalmasın.
+  const covOver = covGap != null && covGap < -0.01
   const covWarn = !!cov && cov.dayAmount > 0 &&
-    ((covGap != null && covGap > 0.05) || (cov.dayDays > 0 && cov.itemDays < cov.dayDays))
+    ((covGap != null && covGap > 0.05) || covOver ||
+     (cov.dayDays > 0 && cov.itemDays < cov.dayDays))
   const totalQty = products.reduce((s, p) => s + p.qty, 0)
   const receipts = summary?.receipts ?? 0
 
@@ -403,7 +417,9 @@ export default function AnalitikaClient({
           və bu, ekranda yazılmasa istifadəçini yanlış qərara aparır. */}
       {covWarn && cov && (
         <div style={{ ...card, background: '#fdf6e9', borderColor: '#e8dcc0', padding: '12px 15px', marginBottom: 12, fontSize: 12.5, color: '#4d483f', lineHeight: 1.7 }}>
-          <b>⚠ Məhsul datası bu dövrü tam örtmür — «ciro payı» natamam bazadan hesablanır.</b>
+          <b>{covOver
+            ? '⚠ Məhsul cəmi gün cirosunu AŞIR — bu mümkün deyil, çox güman ÇİFT SAYIM var.'
+            : '⚠ Məhsul datası bu dövrü tam örtmür — «ciro payı» natamam bazadan hesablanır.'}</b>
           <div style={{ marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
             Məhsul cədvəli: <b>{money(cov.itemAmount)}</b>
             {cov.itemDays > 0 && <> · {int(cov.itemDays)} gün</>}
@@ -413,9 +429,14 @@ export default function AnalitikaClient({
             {covGap != null && covGap > 0 && (
               <> · əskik <b style={{ color: '#8a1f2a' }}>{pct(covGap)}</b></>
             )}
+            {covOver && (
+              <> · <b style={{ color: '#8a1f2a' }}>artıq {pct(-covGap!)}</b></>
+            )}
           </div>
           <div style={{ marginTop: 6, color: '#6b655c' }}>
-            Faizlər öz aralarında doğrudur, lakin şəbəkə cirosuna görə deyil.
+            {covOver
+              ? 'Eyni günə iki fərqli mənbədən məhsul datası yazılıb (PRODMIX + DT). Həmin ayın məhsul faylını YENİDƏN yüklə — yükləmə həmin günləri əvəz edir və təkrar sətirlər təmizlənir.'
+              : 'Faizlər öz aralarında doğrudur, lakin şəbəkə cirosuna görə deyil.'}
           </div>
           {(() => {
             const dd = cov.days ?? []
