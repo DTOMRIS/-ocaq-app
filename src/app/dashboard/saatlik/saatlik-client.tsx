@@ -29,6 +29,13 @@ type PayRow = { payType: string; net: number; guests: number }
 type BranchRow = { filial: string; net: number; guests: number; peak: number }
 type DayRow = { date: string; net: number; guests: number; derivation: string }
 
+const AY_ADLARI = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun',
+  'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
+const AY_ETIKET = (p: string) => {
+  const [y, m] = p.split('-')
+  return `${AY_ADLARI[+m] ?? m} ${y}`
+}
+
 export default function SaatlikClient(props: {
   empty?: string
   /** 'fact' = gün-gün data (əsas) · 'cume' = köhnə kumulyativ görüntü. */
@@ -44,17 +51,30 @@ export default function SaatlikClient(props: {
   pickedDay?: string | null
   dayHours?: HourRow[]
   canDrill?: boolean
+  /** Mövcud aylar (YYYY-MM), yeni→köhnə. Boşdursa seçici görünmür. */
+  periods?: string[]
+  /** Seçilmiş ay · null = bütün dövr */
+  period?: string | null
 }) {
   const router = useRouter()
 
   // URL `useSearchParams` ilə deyil, SERVERDƏN gələn props-dan qurulur.
   // Səbəb: `useSearchParams` prerender zamanı Suspense sərhədi tələb edir və
   // build-i sındıra bilər. Mövcud vəziyyət onsuz da props-dadır.
-  function setParam(key: 'filial' | 'gun', value: string | null) {
+  function setParam(key: 'filial' | 'gun' | 'period', value: string | null) {
     const q = new URLSearchParams()
-    const next = { filial: props.drillFilial ?? null, gun: props.pickedDay ?? null, [key]: value }
+    const next = {
+      filial: props.drillFilial ?? null,
+      gun: props.pickedDay ?? null,
+      // `period` null = «bütün dövr» → URL-də 'all' kimi gedir, yoxsa
+      // server default olaraq son ayı seçər və «hamısı» seçimi işləməz.
+      period: props.period ?? 'all',
+      [key]: value,
+    }
     if (next.filial) q.set('filial', next.filial)
-    if (next.gun) q.set('gun', next.gun)
+    // Ay dəyişəndə seçilmiş GÜN köhnə aya aid qalır → təmizlənir.
+    if (next.gun && key !== 'period') q.set('gun', next.gun)
+    if (next.period) q.set('period', next.period)
     router.push(`/dashboard/saatlik${q.toString() ? `?${q}` : ''}`)
   }
 
@@ -89,7 +109,25 @@ export default function SaatlikClient(props: {
     <div style={{ padding: 20, maxWidth: 1200, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Head />
 
-      {/* ── Əhatə seçimi ─────────────────────────────────────────────────── */}
+      {/* ── Dövr + əhatə seçimi ──────────────────────────────────────────── */}
+      {/* AY SEÇİCİSİ: iki ay yüklü olanda ekran onları TOPLAYIRDI və «iyul necə
+          idi?» sualına cavab vermirdi. Seçilməsə son ay gəlir. */}
+      {(props.periods?.length ?? 0) > 1 && (
+        <div style={{ ...card, padding: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#6b655c' }}>Dövr:</span>
+          <select value={props.period ?? 'all'} onChange={e => setParam('period', e.target.value)}
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #d8d2c6', fontSize: 13, fontWeight: 700 }}>
+            {props.periods!.map(p => <option key={p} value={p}>{AY_ETIKET(p)}</option>)}
+            <option value="all">Bütün dövr ({props.periods!.length} ay)</option>
+          </select>
+          {props.period == null && (
+            <span style={{ fontSize: 12, color: '#8a6d1f' }}>
+              ⚠ {props.periods!.length} ay birlikdə göstərilir — rəqəmlər cəmdir
+            </span>
+          )}
+        </div>
+      )}
+
       {props.canDrill && (
         <div style={{ ...card, padding: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#6b655c' }}>Filial:</span>

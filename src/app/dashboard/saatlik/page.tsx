@@ -37,7 +37,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/
 const d10 = (v: unknown) => s(v).slice(0, 10)
 
 export default async function SaatlikPage({ searchParams }: {
-  searchParams: Promise<{ filial?: string; gun?: string }>
+  searchParams: Promise<{ filial?: string; gun?: string; period?: string }>
 }) {
   const session = await auth()
   if (!session) redirect('/login')
@@ -92,8 +92,28 @@ export default async function SaatlikPage({ searchParams }: {
   // Əsas mənbənin cədvəli və dövr açarı.
   const src = hasFact ? 'fact' : 'cume'
   const legacy = snapshots[0] ?? null
-  const start = hasFact ? d10(factInfo?.d0) : legacy!.start
-  const end = hasFact ? d10(factInfo?.d1) : legacy!.end
+
+  // ── AY SEÇİCİSİ ───────────────────────────────────────────────────────────
+  // 🔴 09.09.2026: iyul yüklənəndən sonra ekran İKİ AYI TOPLADI (60 gün,
+  // 7 796 778 ₼) və istifadəçi ayrı-ayrı baxa bilmədi. Rəqəm doğru idi
+  // (3 963 112 + 3 833 666), lakin «iyul necə idi?» sualına cavab vermirdi.
+  // İndi ay seçilir; seçilməsə SON ay gəlir — bütün dövr «hamısı» ilə açılır.
+  let periods: string[] = []
+  let period: string | null = null
+  if (hasFact) {
+    periods = rowsOf(await sqlClient.query(
+      `select distinct to_char(business_date,'YYYY-MM') p
+       from analytics_hourly_fact where tenant_id=$1 order by 1 desc`, [tenantId],
+    )).map(r => s(r.p))
+    const want = sp?.period?.trim() || null
+    period = want === 'all' ? null : (want && periods.includes(want) ? want : periods[0] ?? null)
+  }
+  const start = period
+    ? `${period}-01`
+    : (hasFact ? d10(factInfo?.d0) : legacy!.start)
+  const end = period
+    ? `${period}-${new Date(+period.slice(0, 4), +period.slice(5, 7), 0).getDate()}`
+    : (hasFact ? d10(factInfo?.d1) : legacy!.end)
 
   // Mənbəyə görə WHERE bəndi və parametrləri. İki cədvəlin sütun adları eynidir
   // (`filial`, `pay_type`, `hour`, `net`, `guests`) — yalnız süzgəc fərqlidir.
@@ -175,6 +195,7 @@ export default async function SaatlikPage({ searchParams }: {
 
   return (
     <SaatlikClient
+      periods={periods} period={period}
       source={src}
       snapshots={snapshots}
       latest={{
