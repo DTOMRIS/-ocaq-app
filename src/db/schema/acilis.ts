@@ -46,6 +46,8 @@ export const openings = pgTable('openings', {
   // Sifariş siyahısının YEGANƏ dəyişəni: duz/istiot/salfet qabı və masa
   // stikeri buna görə hesablanır. Mimari proyektdən ƏL İLƏ girilir.
   table_count: integer('table_count'),
+  // Menyu ekranı banko uzunluğuna görə sifariş edilir (hər 1,2 m-ə 1 ekran)
+  counter_len_m: numeric('counter_len_m', { precision: 6, scale: 2 }),
   is_merge:    boolean('is_merge').notNull().default(false),     // Hüseyn Cavid 2
   in_park:     boolean('in_park').notNull().default(false),      // Hüseyn Cavid 2
 
@@ -166,9 +168,11 @@ export const opening_orders = pgTable('opening_orders', {
   dept:  text('dept').notNull().default('Satın Alma'),
 
   // Masa sayı girilməyibsə `per_masa` sətirlərində NULL qalır — sifariş bloklanır
-  qty:       numeric('qty', { precision: 12, scale: 2 }),
-  per_masa:  numeric('per_masa', { precision: 6, scale: 2 }),
-  qty_manual: boolean('qty_manual').notNull().default(false),
+  qty: numeric('qty', { precision: 12, scale: 2 }),
+  // «masa × 1», «hər 1.2 banko», «masa × 1 + 4» — rəqəmin haradan gəldiyi
+  // sətirlə birlikdə SAXLANILIR, yoxsa sonradan «niyə 28 ədəd?» cavabsız qalır
+  olcu_etiket: text('olcu_etiket'),
+  qty_manual:  boolean('qty_manual').notNull().default(false),
 
   status: text('status').notNull().default('planlandi'),
   // planlandi | sifaris_verildi | geldi | lazim_deyil

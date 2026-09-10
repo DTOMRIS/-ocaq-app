@@ -12,7 +12,7 @@ export type Layihe = {
   m2Inside: string | null; m2Terrace: string | null; m2Garden: string | null; seats: number | null
   hasTerrace: boolean; hasGarden: boolean; hasSeating: boolean; hasPizza: boolean
   hasDelivery: boolean; hasGas: boolean; hasGenerator: boolean; wasCafe: boolean
-  decisionNote: string | null; tableCount: number | null
+  decisionNote: string | null; tableCount: number | null; counterLenM: string | null
 }
 export type Vezife = {
   id: string; gate: string; dept: string; task: string; note: string | null
@@ -147,8 +147,9 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
 
       <Fayllar openingId={layihe.id} fayllar={fayllar} canManage={canManage} />
 
-      <Sifaris openingId={layihe.id} masaSayi={layihe.tableCount}
-               setirler={sifarisler} canManage={canManage} />
+      <Sifaris openingId={layihe.id} setirler={sifarisler} canManage={canManage}
+               masaSayi={layihe.tableCount} oturacaqSayi={layihe.seats}
+               bankoUzunlugu={layihe.counterLenM} />
 
       {/* ── Departament xülasəsi ── */}
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

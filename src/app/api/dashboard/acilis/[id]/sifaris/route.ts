@@ -4,7 +4,7 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { openings, opening_orders } from '@/db/schema/acilis'
 import { type AcilisProfil, type AcilisFormat } from '@/lib/acilis/template'
-import { sifarisYarat } from '@/lib/acilis/sifaris'
+import { sifarisYarat, type Olculer } from '@/lib/acilis/sifaris'
 
 export const runtime = 'nodejs'
 
@@ -22,26 +22,33 @@ function profilCixar(op: OpRow): AcilisProfil {
 }
 
 /**
- * Masa sayını yaz və sifariş siyahısını yarat/yenilə.
+ * Ölçüləri yaz və sifariş siyahısını yarat/yenilə.
  *
- * TƏKRAR ÇAĞIRILA BİLƏR: masa sayı dəyişəndə yalnız `per_masa` sətirlərinin
- * miqdarı yenilənir. Əl ilə düzəldilmiş sətirə (`qty_manual`) TOXUNULMUR —
- * anbarın verdiyi rəqəm səssizcə silinməməlidir. Statusu/qeydi də qorunur.
+ * TƏKRAR ÇAĞIRILA BİLƏR: ölçü dəyişəndə yalnız ölçüyə bağlı sətirlərin miqdarı
+ * yenilənir. Əl ilə düzəldilmiş sətirə (`qty_manual`) TOXUNULMUR — anbarın
+ * verdiyi rəqəm səssizcə silinməməlidir. Status və qeyd də qorunur.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   try {
-    const b = await req.json() as { masaSayi?: number | string | null }
-    const raw = b.masaSayi
-    let masaSayi: number | null = null
-    if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+    const b = await req.json() as Record<string, unknown>
+
+    /** Boş sahə → null. Sərhəddən kənar → XƏTA (səssizcə düzəltmirik). */
+    function olcuOxu(ad: string, etiket: string, maxDeyer: number, tam: boolean): number | null {
+      const raw = b[ad]
+      if (raw === undefined || raw === null || String(raw).trim() === '') return null
       const n = Number(raw)
-      if (!Number.isFinite(n) || n < 0 || n > 500) {
-        return NextResponse.json({ error: 'Masa sayı 0–500 aralığında olmalıdır' }, { status: 400 })
+      if (!Number.isFinite(n) || n < 0 || n > maxDeyer) {
+        throw new Error(`${etiket} 0–${maxDeyer} aralığında olmalıdır`)
       }
-      masaSayi = Math.round(n)
+      return tam ? Math.round(n) : Math.round(n * 100) / 100
+    }
+    const olculer: Olculer = {
+      masa:     olcuOxu('masaSayi', 'Masa sayı', 500, true),
+      oturacaq: olcuOxu('oturacaqSayi', 'Oturacaq sayı', 2000, true),
+      banko:    olcuOxu('bankoUzunlugu', 'Banko uzunluğu', 100, false),
     }
 
     const tenantId = session.user.tenant_id
@@ -49,33 +56,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .where(and(eq(openings.id, id), eq(openings.tenant_id, tenantId))).limit(1)
     if (!op) return NextResponse.json({ error: 'Açılış tapılmadı' }, { status: 404 })
 
-    await db.update(openings).set({ table_count: masaSayi, updated_at: new Date() })
-      .where(and(eq(openings.id, id), eq(openings.tenant_id, tenantId)))
+    await db.update(openings).set({
+      table_count: olculer.masa,
+      seats: olculer.oturacaq,
+      counter_len_m: olculer.banko == null ? null : String(olculer.banko),
+      updated_at: new Date(),
+    }).where(and(eq(openings.id, id), eq(openings.tenant_id, tenantId)))
 
-    const setirler = sifarisYarat(profilCixar(op), masaSayi)
+    const setirler = sifarisYarat(profilCixar(op), olculer)
     if (setirler.length) {
       await db.insert(opening_orders).values(setirler.map(r => ({
         tenant_id: tenantId, opening_id: id,
         kat: r.kat, ad: r.ad, vahid: r.vahid, dept: r.dept,
         qty: r.qty == null ? null : String(r.qty),
-        per_masa: r.perMasa == null ? null : String(r.perMasa),
+        olcu_etiket: r.olcuEtiket,
         qeyd: r.qeyd,
       }))).onConflictDoUpdate({
         target: [opening_orders.opening_id, opening_orders.kat, opening_orders.ad],
-        // Yalnız masa-asılı və əl ilə toxunulmamış sətir yenilənir.
+        // Yalnız ölçüyə bağlı və əl ilə toxunulmamış sətir yenilənir.
         set: {
           qty: sql`case when ${opening_orders.qty_manual} then ${opening_orders.qty}
-                        when excluded.per_masa is null then ${opening_orders.qty}
+                        when excluded.olcu_etiket is null then ${opening_orders.qty}
                         else excluded.qty end`,
-          per_masa: sql`excluded.per_masa`,
+          olcu_etiket: sql`excluded.olcu_etiket`,
           updated_at: new Date(),
         },
       })
     }
     const eksik = setirler.filter(r => r.qty == null).length
-    return NextResponse.json({ ok: true, setir: setirler.length, masaSayi, eksik })
+    return NextResponse.json({ ok: true, setir: setirler.length, eksik, olculer })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Naməlum xəta' }, { status: 500 })
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Naməlum xəta' }, { status: 400 })
   }
 }
 

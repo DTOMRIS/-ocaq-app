@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { tekrarSetirleri, SIFARIS_KATLAR, type SifarisKat } from '@/lib/acilis/sifaris'
+import { tekrarSetirleri, SIFARIS_KATLAR, SIFARIS_OLCULU, olcuEtiketi,
+         type SifarisKat, type Olculer } from '@/lib/acilis/sifaris'
 
 export type SifarisSetriDb = {
   id: string; kat: string; ad: string; vahid: string; dept: string
-  qty: string | null; perMasa: string | null; qtyManual: boolean
+  qty: string | null; olcuEtiket: string | null; qtyManual: boolean
   status: string; qeyd: string | null
 }
 
@@ -27,16 +28,13 @@ const KAT_IZAH: Record<SifarisKat, string> = {
   'Fırın': 'Pizza · lahmacun · pide — yalnız fırını olan filiala',
 }
 
-function nf(v: string | null): string {
-  if (v == null) return '—'
-  const n = Number(v)
-  return Number.isFinite(n) ? (n === Math.round(n) ? String(n) : n.toFixed(2).replace(/0$/, '')) : v
-}
-
-export default function Sifaris({ openingId, masaSayi, setirler, canManage }:
-  { openingId: string; masaSayi: number | null; setirler: SifarisSetriDb[]; canManage: boolean }) {
+export default function Sifaris({ openingId, setirler, canManage, masaSayi, oturacaqSayi, bankoUzunlugu }:
+  { openingId: string; setirler: SifarisSetriDb[]; canManage: boolean
+    masaSayi: number | null; oturacaqSayi: number | null; bankoUzunlugu: string | null }) {
   const router = useRouter()
-  const [masa, setMasa] = useState<string>(masaSayi != null ? String(masaSayi) : '')
+  const [masa, setMasa] = useState(masaSayi != null ? String(masaSayi) : '')
+  const [oturacaq, setOturacaq] = useState(oturacaqSayi != null ? String(oturacaqSayi) : '')
+  const [banko, setBanko] = useState(bankoUzunlugu != null ? String(Number(bankoUzunlugu)) : '')
   const [busy, setBusy] = useState<string | null>(null)
   const [xeta, setXeta] = useState<string | null>(null)
   const [acik, setAcik] = useState<SifarisKat | null>(null)
@@ -44,6 +42,18 @@ export default function Sifaris({ openingId, masaSayi, setirler, canManage }:
 
   const tekrarlar = useMemo(() => tekrarSetirleri(), [])
   const eksik = setirler.filter(r => r.qty == null && r.status !== 'lazim_deyil')
+
+  /** Girilən ölçülərlə canlı önizləmə — düyməyə basmadan nə çıxacağı görünsün. */
+  const onizleme = useMemo(() => {
+    const say = (v: string) => (v.trim() === '' ? null : Number(v))
+    const o: Olculer = { masa: say(masa), oturacaq: say(oturacaq), banko: say(banko) }
+    return SIFARIS_OLCULU.map(r => {
+      const baza = o[r.olcu!.esas]
+      const qty = baza == null || baza <= 0 ? null
+        : Math.ceil(r.olcu!.kat != null ? baza * r.olcu!.kat : baza / r.olcu!.herBir!) + (r.olcu!.ehtiyat ?? 0)
+      return { ad: r.ad, qty, etiket: olcuEtiketi(r.olcu!), cond: r.olcu!.cond ?? null }
+    })
+  }, [masa, oturacaq, banko])
 
   const kats = useMemo(() => SIFARIS_KATLAR.map(k => {
     const rows = setirler.filter(r => r.kat === k)
@@ -60,7 +70,7 @@ export default function Sifaris({ openingId, masaSayi, setirler, canManage }:
     try {
       const r = await fetch(`/api/dashboard/acilis/${openingId}/sifaris`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ masaSayi: masa === '' ? null : masa }),
+        body: JSON.stringify({ masaSayi: masa, oturacaqSayi: oturacaq, bankoUzunlugu: banko }),
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error ?? 'Xəta')
@@ -104,8 +114,9 @@ export default function Sifaris({ openingId, masaSayi, setirler, canManage }:
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Yeni filial sifarişi</p>
           <p className="text-xs text-slate-500 mt-1">
-            Şəbəkə standartı — 4 siyahı. Yeganə dəyişən <b>masa sayıdır</b>: duz qabı,
-            istiot qabı, salfet qabı və masa stikeri ona görə hesablanır.
+            Şəbəkə standartı — 4 siyahı. Üç ölçü siyahını dəyişir: <b>masa</b> (duz,
+            istiot, salfet, stolüstü zibil, stiker, külqabı), <b>oturacaq</b> (menyu),
+            <b>banko uzunluğu</b> (menyu ekranı). Qalan hər şey sabitdir.
           </p>
         </div>
         {setirler.length > 0 && (
@@ -116,41 +127,54 @@ export default function Sifaris({ openingId, masaSayi, setirler, canManage }:
         )}
       </div>
 
-      {/* ── Masa sayı ── */}
-      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-3">
-        <label className="text-sm">
-          <span className="block text-xs text-slate-500 mb-1">Masa sayı</span>
-          <input type="number" min={0} max={500} value={masa} disabled={!canManage}
-                 onChange={e => setMasa(e.target.value)} placeholder="məs. 24"
-                 className="w-28 rounded-lg border border-slate-300 px-3 py-1.5 text-sm tabular-nums" />
-        </label>
-        {canManage && (
-          <button onClick={yarat} disabled={busy === 'yarat'}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-            {busy === 'yarat' ? 'gözləyin…'
-              : setirler.length ? 'Miqdarları yenilə' : 'Sifariş siyahısını yarat'}
-          </button>
-        )}
-        {masa !== '' && Number(masa) > 0 && (
-          <p className="text-xs text-slate-500">
-            duz {Math.ceil(Number(masa) * 2)} · istiot {Math.ceil(Number(masa) * 2)} ·
-            salfet {Math.ceil(Number(masa) * 1)} · stiker {Math.ceil(Number(masa) * 1)} əd
-          </p>
-        )}
+      {/* ── Ölçülər ── */}
+      <div className="mt-3 rounded-lg bg-slate-50 p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          {([
+            ['Masa sayı', masa, setMasa, 1, 'məs. 24'],
+            ['Oturacaq sayı', oturacaq, setOturacaq, 1, 'məs. 60'],
+            ['Banko uzunluğu (m)', banko, setBanko, 0.1, 'məs. 3.6'],
+          ] as const).map(([etiket, deyer, setDeyer, addim, ph]) => (
+            <label key={etiket} className="text-sm">
+              <span className="block text-xs text-slate-500 mb-1">{etiket}</span>
+              <input type="number" min={0} step={addim} value={deyer} disabled={!canManage}
+                     onChange={e => setDeyer(e.target.value)} placeholder={ph}
+                     className={`w-32 rounded-lg border px-3 py-1.5 text-sm tabular-nums ${
+                       deyer.trim() === '' ? 'border-rose-300 bg-rose-50' : 'border-slate-300'}`} />
+            </label>
+          ))}
+          {canManage && (
+            <button onClick={yarat} disabled={busy === 'yarat'}
+                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {busy === 'yarat' ? 'gözləyin…'
+                : setirler.length ? 'Miqdarları yenilə' : 'Sifariş siyahısını yarat'}
+            </button>
+          )}
+        </div>
+
+        {/* Düyməyə basmadan nə çıxacağı görünür */}
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+          {onizleme.map(o => (
+            <span key={o.ad} className={o.qty == null ? 'text-rose-600' : ''}>
+              {o.ad} <b className="tabular-nums">{o.qty ?? '—'}</b>
+              <span className="text-slate-400"> ({o.etiket}{o.cond ? `, ${o.cond}` : ''})</span>
+            </span>
+          ))}
+        </div>
       </div>
 
       {xeta && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{xeta}</p>}
 
       {setirler.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">
-          Siyahı hələ yaradılmayıb. Masa sayını girib düyməni basın — 4 kateqoriyada
-          444 standart sətir + masaya bağlı 4 sətir yaranacaq.
+          Siyahı hələ yaradılmayıb. Ölçüləri girib düyməni basın — 4 kateqoriyada
+          441 standart sətir + ölçüyə bağlı 8 sətir yaranacaq.
         </p>
       ) : (
         <>
           {eksik.length > 0 && (
             <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              ⚠ {eksik.length} sətrin miqdarı yoxdur — <b>masa sayı girilməyib</b>.
+              ⚠ {eksik.length} sətrin miqdarı yoxdur — <b>ölçü girilməyib</b>.
               Sifariş verilməmişdən əvvəl doldurun: {eksik.map(r => r.ad).join(', ')}
             </p>
           )}
@@ -213,9 +237,9 @@ export default function Sifaris({ openingId, masaSayi, setirler, canManage }:
                             <tr key={r.id} className="border-b border-slate-100 last:border-0">
                               <td className="px-3 py-1.5 text-slate-900">
                                 {r.ad}
-                                {r.perMasa && (
+                                {r.olcuEtiket && (
                                   <span className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-50 text-sky-700">
-                                    masa × {nf(r.perMasa)}
+                                    {r.olcuEtiket}
                                   </span>
                                 )}
                                 {r.dept !== 'Satın Alma' && (

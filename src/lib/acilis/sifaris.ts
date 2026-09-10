@@ -29,35 +29,81 @@ export const SIFARIS_KAT_SERT: Record<SifarisKat, string | null> = {
   'Qida': null, 'Qeyri-qida': null, 'Bar': null, 'Fırın': 'pizza',
 }
 
+/**
+ * Ölçü bazası — sifarişin nəyə görə hesablandığı.
+ *   masa      → masa sayı (duz, istiot, salfet, stiker, stolüstü zibil, külqabı)
+ *   oturacaq  → stul sayı (menyu)
+ *   banko     → banko/bar uzunluğu, metr (ekran)
+ */
+export const OLCU_ESASLARI = ['masa', 'oturacaq', 'banko'] as const
+export type OlcuEsas = typeof OLCU_ESASLARI[number]
+
+export const ESAS_ADI: Record<OlcuEsas, string> = {
+  masa: 'masa sayı', oturacaq: 'oturacaq sayı', banko: 'banko uzunluğu (m)',
+}
+
 export type SifarisSetri = {
   kat: SifarisKat
   ad: string
-  /** Sabit miqdar. `perMasa` varsa null. */
+  /** Sabit miqdar. Ölçüyə bağlıdırsa null. */
   say: number | null
   vahid: string
-  /** Masa sayına vurulur. Yeganə dəyişən budur. */
-  perMasa?: number
+  /** Ölçüyə bağlı sətir. `kat` VƏ YA `herBir` — ikisi birdən yox. */
+  olcu?: {
+    esas: OlcuEsas
+    /** baza × kat  (məs. masa × 1) */
+    kat?: number
+    /** baza ÷ herBir  (məs. hər 1,2 m-ə 1 ekran) */
+    herBir?: number
+    /** hesabın üstünə əlavə edilən sabit ehtiyat */
+    ehtiyat?: number
+    /** profil şərti — məs. külqabı yalnız terası olan yerə */
+    cond?: string
+  }
   /** Sifarişi kim verir — boşdursa Satın Alma. */
   dept?: string
   qeyd?: string
 }
 
-// ─── MASA SAYINA BAĞLI SƏTİRLƏR ─────────────────────────────────────────────
-// Sabit siyahıda «Duz qabı 100» və «Salfet qabı 50» yazılıb — bu rəqəmlər
-// təxminən 50 masalıq filial üçündür. 24 masalıq filiala da 100 duz qabı
-// getməsi ehtiyatın anbarda qalması deməkdir. Ona görə bu sətirlər masa
-// sayına bağlandı və nisbət olduğu kimi saxlanıldı (duz 2/masa, salfet 1/masa).
+// ─── ÖLÇÜYƏ BAĞLI SƏTİRLƏR ──────────────────────────────────────────────────
+// Sabit siyahıda bunlar hər filiala eyni miqdarda yazılırdı — 24 masalıq
+// filiala da 100 duz qabı, 50 külqabı, 40 menyu gedirdi və anbarda qalırdı.
+// İstifadəçi qərarı (10.09.2026) ilə üç ölçüyə bağlandı.
 //
 // ⚠ İSTİOT QABI 5 SİYAHININ HEÇ BİRİNDƏ YOXDUR. Siyahıda yalnız «Qara istiot
-// (ə) 1 kq» — yəni istiotun ÖZÜ var, qabı yox. Masaya qoyulacaq qab sifariş
-// edilmirdi. Duzla eyni nisbətlə əlavə edildi.
-export const SIFARIS_MASA: SifarisSetri[] = [
-  { kat: 'Qeyri-qida', ad: 'Duz qabı',    say: null, vahid: 'əd', perMasa: 2 },
-  { kat: 'Qeyri-qida', ad: 'İstiot qabı', say: null, vahid: 'əd', perMasa: 2,
-    qeyd: 'Siyahıda yox idi — duzla eyni nisbətdə əlavə edildi' },
-  { kat: 'Qeyri-qida', ad: 'Salfet qabı', say: null, vahid: 'əd', perMasa: 1 },
-  { kat: 'Qeyri-qida', ad: 'Masa stikeri', say: null, vahid: 'əd', perMasa: 1,
-    dept: 'Marketinq', qeyd: 'Dizayn və miqdarı Marketinq təsdiqləyir' },
+// (ə) 1 kq» — yəni istiotun ÖZÜ var, qabı yox. Masaya qoyulacaq qab heç vaxt
+// sifariş edilmirdi.
+export const SIFARIS_OLCULU: SifarisSetri[] = [
+  // ── masaya qoyulanlar: hər masaya 1 dəst ──
+  { kat: 'Qeyri-qida', ad: 'Duz qabı',    say: null, vahid: 'əd', olcu: { esas: 'masa', kat: 1 } },
+  { kat: 'Qeyri-qida', ad: 'İstiot qabı', say: null, vahid: 'əd', olcu: { esas: 'masa', kat: 1 },
+    qeyd: 'Siyahıda yox idi — duzla birlikdə əlavə edildi' },
+  { kat: 'Qeyri-qida', ad: 'Salfet qabı', say: null, vahid: 'əd', olcu: { esas: 'masa', kat: 1 } },
+  { kat: 'Qeyri-qida', ad: 'Dəmir zibilqabı stolüstü', say: null, vahid: 'əd',
+    olcu: { esas: 'masa', kat: 1 } },
+  { kat: 'Qeyri-qida', ad: 'Masa stikeri', say: null, vahid: 'əd', olcu: { esas: 'masa', kat: 1 },
+    dept: 'Marketinq', qeyd: 'Dizaynı və son miqdarı Marketinq verir' },
+
+  // Külqabı yalnız TERASA. Qapalı zalda siqaret yoxdur — 50 külqabı boş yatırdı.
+  // Masa sayı qədər + 4 ehtiyat (sınır, itir).
+  { kat: 'Qeyri-qida', ad: 'Dəmir külqabı', say: null, vahid: 'əd',
+    olcu: { esas: 'masa', kat: 1, ehtiyat: 4, cond: 'teras' },
+    qeyd: 'Yalnız terası olan filial' },
+
+  // ── oturacağa bağlı ──
+  // Menyu masaya yox, STULA bağlıdır: hər müştəri əlinə alır. Amma hamısı eyni
+  // anda gəlmədiyi üçün stulun yarısı kifayətdir — istifadəçi qərarı.
+  { kat: 'Qeyri-qida', ad: 'Menyu', say: null, vahid: 'əd',
+    olcu: { esas: 'oturacaq', kat: 0.5 },
+    qeyd: 'Oturacaq sayının yarısı — hamı eyni anda gəlmir' },
+
+  // ── bankoya bağlı ──
+  // Menyu ekranı banko uzunluğuna görə: hər 1,2 m-ə 1 ekran (43\" ekran
+  // təxminən 1 m enindədir, aralarında boşluqla). Banko ölçüsü girilməsə
+  // sətir qty=null qalır və qırmızı görünür.
+  { kat: 'Qeyri-qida', ad: 'Menyu ekranı (banko üstü)', say: null, vahid: 'əd',
+    olcu: { esas: 'banko', herBir: 1.2 }, dept: 'Bilgi İşlem',
+    qeyd: 'Hər 1,2 m bankoya 1 ekran' },
 ]
 
 export const SIFARIS_KATALOQ: SifarisSetri[] = [
@@ -222,7 +268,6 @@ export const SIFARIS_KATALOQ: SifarisSetri[] = [
   { kat: 'Qeyri-qida', ad: 'Çömçə böyük', say: 1, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Dəftər', say: 2, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Dəftər boyuk', say: 2, vahid: 'əd' },
-  { kat: 'Qeyri-qida', ad: 'Dəmir külqabı', say: 50, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Xətkeş (dəmir)', say: 1, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Pls Tas kiçik', say: 1, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Şaurma taxta kağızı', say: 780, vahid: 'əd' },
@@ -271,7 +316,6 @@ export const SIFARIS_KATALOQ: SifarisSetri[] = [
   { kat: 'Qeyri-qida', ad: 'Papaq Sarı', say: 5, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Ləyən (xəmir)', say: 1, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Marker', say: 10, vahid: 'əd' },
-  { kat: 'Qeyri-qida', ad: 'Menyu', say: 40, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Nəm salfet', say: 600, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Nərdivan', say: 1, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Osvejitel', say: 3, vahid: 'əd' },
@@ -350,7 +394,6 @@ export const SIFARIS_KATALOQ: SifarisSetri[] = [
   { kat: 'Qeyri-qida', ad: 'Pol əskisi', say: 4, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Tava', say: 2, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Pres aparatı', say: 1, vahid: 'əd' },
-  { kat: 'Qeyri-qida', ad: 'Dəmir zibilqabı stolüstü', say: 50, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Samovar 20lt', say: 1, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Ət vedrəsi', say: 1, vahid: 'əd' },
   { kat: 'Qeyri-qida', ad: 'Pingvin', say: 1500, vahid: 'əd' },
@@ -555,33 +598,52 @@ export function tekrarSetirleri(setirler: readonly SifarisSetri[] = SIFARIS_KATA
 
 export type YaradilanSifaris = {
   kat: SifarisKat; ad: string; vahid: string; dept: string
-  /** Masa sayı girilməyibsə `perMasa` sətirlərində null qalır — sifariş verilə bilməz. */
+  /** Ölçü girilməyibsə null qalır — sifariş verilə bilməz. */
   qty: number | null
-  perMasa: number | null
+  /** UI-da «masa × 1» kimi göstərilən izah. */
+  olcuEtiket: string | null
   qeyd: string | null
 }
 
+/** Girilən ölçülər. Boş olan sahə null. */
+export type Olculer = { masa: number | null; oturacaq: number | null; banko: number | null }
+
 const VARSAYILAN_DEPT = 'Satın Alma'
 
+/** «masa × 1 + 4» kimi oxunaqlı izah — rəqəmin haradan gəldiyi gizlənmir. */
+export function olcuEtiketi(o: NonNullable<SifarisSetri['olcu']>): string {
+  const baza = o.esas
+  const govde = o.kat != null ? `${baza} × ${o.kat}` : `hər ${o.herBir} ${baza}`
+  return o.ehtiyat ? `${govde} + ${o.ehtiyat}` : govde
+}
+
+function olcuHesabla(o: NonNullable<SifarisSetri['olcu']>, olculer: Olculer): number | null {
+  const baza = olculer[o.esas]
+  if (baza == null || baza <= 0) return null
+  const esas = o.kat != null ? baza * o.kat : baza / o.herBir!
+  return Math.ceil(esas) + (o.ehtiyat ?? 0)
+}
+
 /**
- * Profil + masa sayı → sifariş siyahısı.
+ * Profil + ölçülər → sifariş siyahısı.
  *
- * Masa sayı verilməyibsə `perMasa` sətirləri qty=null ilə YARADILIR (silinmir) —
- * belə olanda siyahıda görünür və «masa sayı girilməyib» kimi qırmızı qalır.
- * Sətri tamamilə çıxarsaq unudulur və filial duz qabısız açılır.
+ * Ölçü verilməyibsə sətir qty=null ilə YARADILIR (silinmir) — belə olanda
+ * siyahıda qırmızı görünür. Sətri tamamilə çıxarsaq unudulur və filial duz
+ * qabısız açılır.
+ *
+ * Profil şərti tutmayan ölçülü sətir (məs. terası yoxdursa külqabı) ÜMUMİYYƏTLƏ
+ * yaradılmır — orada «yox» cavabı bəllidir, gözləmək lazım deyil.
  */
-export function sifarisYarat(p: AcilisProfil, masaSayi: number | null): YaradilanSifaris[] {
-  const hamisi = [...SIFARIS_KATALOQ, ...SIFARIS_MASA]
+export function sifarisYarat(p: AcilisProfil, olculer: Olculer): YaradilanSifaris[] {
   const out: YaradilanSifaris[] = []
-  for (const r of hamisi) {
+  for (const r of [...SIFARIS_KATALOQ, ...SIFARIS_OLCULU]) {
     if (!sertUygun(SIFARIS_KAT_SERT[r.kat], p)) continue
-    const perMasa = r.perMasa ?? null
-    const qty = perMasa != null
-      ? (masaSayi != null && masaSayi > 0 ? Math.ceil(perMasa * masaSayi) : null)
-      : r.say
+    if (r.olcu?.cond && !sertUygun(r.olcu.cond, p)) continue
     out.push({
       kat: r.kat, ad: r.ad, vahid: r.vahid, dept: r.dept ?? VARSAYILAN_DEPT,
-      qty, perMasa, qeyd: r.qeyd ?? null,
+      qty: r.olcu ? olcuHesabla(r.olcu, olculer) : r.say,
+      olcuEtiket: r.olcu ? olcuEtiketi(r.olcu) : null,
+      qeyd: r.qeyd ?? null,
     })
   }
   const sira = (k: SifarisKat) => SIFARIS_KATLAR.indexOf(k)

@@ -213,6 +213,7 @@ export const ACILIS_SABLON: AcilisSablon[] = [
   { gate: 'G5', offset: null, dept: 'Satın Alma', task: 'İlk sifarişlərin verilməsi (xammal, qablaşdırma)', cond: null, note: null },
   { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Arxa giriş qapısına pəncərə + milçək toru (sineklik)', cond: null, note: 'UNUDULDU — HACCP' },
   { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Giriş/çıxış EXIT və təhlükə işıqları', cond: null, note: 'UNUDULDU — yanğın tələbi' },
+  { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Davlumbaz altı işıqlandırma', cond: null, note: 'UNUDULDU — davlumbaz altı iş səthi qaranlıq qalır' },
   { gate: 'G5', offset: null, dept: 'İnşaat', task: 'Teras üçün tente / çətir konstruksiyası', cond: 'teras', note: 'UNUDULDU' },
   { gate: 'G5', offset: null, dept: 'İnşaat', task: 'İnşaat müqaviləsi: gecikmə cəzası + proyektə uyğunluq + material legandı + sığorta bildirişi', cond: null, note: 'El Kitabı §6' },
   { gate: 'G5', offset: null, dept: 'Maliyyə', task: 'İnşaat ödənişi: BAŞLAMADAN ödəmə yox · %10 təminat 1–2 ay saxlanılır', cond: null, note: 'El Kitabı §6 — xırda əksiklər bitsin deyə' },
