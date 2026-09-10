@@ -2,10 +2,11 @@ import { auth } from '@/auth'
 import { redirect, notFound } from 'next/navigation'
 import { and, eq, asc, desc } from 'drizzle-orm'
 import { db } from '@/db'
-import { openings, opening_tasks, opening_files } from '@/db/schema/acilis'
+import { openings, opening_tasks, opening_files, opening_orders } from '@/db/schema/acilis'
 import { createFileDownloadUrl } from '@/lib/r2'
 import DetayClient, { type Vezife, type Layihe } from './detay-client'
 import { type Fayl } from './fayllar'
+import { type SifarisSetriDb } from './sifaris'
 
 export const metadata = { title: 'Açılış detayı — OCAQ' }
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,7 @@ export default async function AcilisDetayPage({ params }: { params: Promise<{ id
     hasTerrace: op.has_terrace, hasGarden: op.has_garden, hasSeating: op.has_seating,
     hasPizza: op.has_pizza, hasDelivery: op.has_delivery, hasGas: op.has_gas,
     hasGenerator: op.has_generator, wasCafe: op.was_cafe, decisionNote: op.decision_note,
+    tableCount: op.table_count,
   }
   // Fayllar serverdə oxunur — brauzerdə effekt ilə çəkmək kaskad render yaradır
   // və siyahı bir anlıq boş görünür. Endirmə linki 5 dəqiqəlikdir, səhifə
@@ -45,11 +47,28 @@ export default async function AcilisDetayPage({ params }: { params: Promise<{ id
     })))
   } catch { fayllar = [] }   // R2 və ya cədvəl yoxdursa səhifə sınmasın
 
+  // Sifariş cədvəli 0022 migration-dan sonra var — işlədilməyibsə səhifə sınmasın
+  let sifarisler: SifarisSetriDb[] = []
+  try {
+    const so = await db.select().from(opening_orders)
+      .where(eq(opening_orders.opening_id, id))
+      .orderBy(asc(opening_orders.kat), asc(opening_orders.ad))
+    sifarisler = so.map(r => ({
+      id: r.id, kat: r.kat, ad: r.ad, vahid: r.vahid, dept: r.dept,
+      qty: r.qty, perMasa: r.per_masa, qtyManual: r.qty_manual,
+      status: r.status, qeyd: r.qeyd,
+    }))
+  } catch (e) {
+    // Səbəb gizlədilmir (AGENTS.md «xəta udma») — serverin logunda görünsün
+    console.error('[acilis] sifariş siyahısı oxunmadı:', e)
+  }
+
   const vezifeler: Vezife[] = rows.map(r => ({
     id: r.id, gate: r.gate, dept: r.dept, task: r.task, note: r.note, cond: r.cond,
     dueDate: r.due_date, status: r.status, comment: r.comment,
   }))
 
   return <DetayClient layihe={layihe} vezifeler={vezifeler} fayllar={fayllar}
+                      sifarisler={sifarisler}
                       canManage={session.user.role === 'super_admin'} />
 }

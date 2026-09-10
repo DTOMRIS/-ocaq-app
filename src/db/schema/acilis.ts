@@ -43,6 +43,9 @@ export const openings = pgTable('openings', {
   has_coffee:  boolean('has_coffee').notNull().default(true),    // Metropark: NO
   multi_floor: boolean('multi_floor').notNull().default(false),  // Səbail 1, Qala
   has_bar:     boolean('has_bar').notNull().default(false),      // Qala, Ciabatta
+  // Sifariş siyahısının YEGANƏ dəyişəni: duz/istiot/salfet qabı və masa
+  // stikeri buna görə hesablanır. Mimari proyektdən ƏL İLƏ girilir.
+  table_count: integer('table_count'),
   is_merge:    boolean('is_merge').notNull().default(false),     // Hüseyn Cavid 2
   in_park:     boolean('in_park').notNull().default(false),      // Hüseyn Cavid 2
 
@@ -140,4 +143,40 @@ export const opening_dept_contacts = pgTable('opening_dept_contacts', {
   created_at: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('odc_uq').on(t.tenant_id, t.dept, t.email),
+])
+
+/**
+ * Yeni filial sifarişi — şablondan KOPYALANMIŞ sətirlər.
+ *
+ * NİYƏ KOPYALANIR: sifariş verildikdən sonra şəbəkə standartı dəyişsə (məsələn
+ * pizza taxtası 40 → 30) KEÇMİŞ açılışın sifarişi dəyişməməlidir; «nə sifariş
+ * etdik, nə gəldi» sualının cavabı budur.
+ *
+ * `qty_manual` — sətir əl ilə düzəldilibsə TƏKRAR generasiya ona toxunmur.
+ * Bu olmasa masa sayı yenilənəndə anbarın düzəltdiyi miqdar səssizcə silinir.
+ */
+export const opening_orders = pgTable('opening_orders', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  tenant_id:  uuid('tenant_id').notNull().references(() => tenants.id),
+  opening_id: uuid('opening_id').notNull().references(() => openings.id, { onDelete: 'cascade' }),
+
+  kat:   text('kat').notNull(),          // Qida | Qeyri-qida | Bar | Fırın
+  ad:    text('ad').notNull(),
+  vahid: text('vahid').notNull().default('əd'),
+  dept:  text('dept').notNull().default('Satın Alma'),
+
+  // Masa sayı girilməyibsə `per_masa` sətirlərində NULL qalır — sifariş bloklanır
+  qty:       numeric('qty', { precision: 12, scale: 2 }),
+  per_masa:  numeric('per_masa', { precision: 6, scale: 2 }),
+  qty_manual: boolean('qty_manual').notNull().default(false),
+
+  status: text('status').notNull().default('planlandi'),
+  // planlandi | sifaris_verildi | geldi | lazim_deyil
+  qeyd:   text('qeyd'),
+
+  updated_at: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('oo_uq').on(t.opening_id, t.kat, t.ad),
+  index('oo_open_idx').on(t.opening_id, t.kat),
+  index('oo_dept_idx').on(t.tenant_id, t.dept, t.status),
 ])

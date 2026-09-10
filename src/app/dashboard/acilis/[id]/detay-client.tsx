@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Fayllar, { type Fayl } from './fayllar'
+import Sifaris, { type SifarisSetriDb } from './sifaris'
 
 export type Layihe = {
   id: string; name: string; address: string | null; zone: string | null; format: string
@@ -11,7 +12,7 @@ export type Layihe = {
   m2Inside: string | null; m2Terrace: string | null; m2Garden: string | null; seats: number | null
   hasTerrace: boolean; hasGarden: boolean; hasSeating: boolean; hasPizza: boolean
   hasDelivery: boolean; hasGas: boolean; hasGenerator: boolean; wasCafe: boolean
-  decisionNote: string | null
+  decisionNote: string | null; tableCount: number | null
 }
 export type Vezife = {
   id: string; gate: string; dept: string; task: string; note: string | null
@@ -43,8 +44,9 @@ const ST_RENG: Record<string, string> = {
   tetbiq_olunmur: 'bg-slate-50 text-slate-400',
 }
 
-export default function DetayClient({ layihe, vezifeler, fayllar, canManage }:
-  { layihe: Layihe; vezifeler: Vezife[]; fayllar: Fayl[]; canManage: boolean }) {
+export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, canManage }:
+  { layihe: Layihe; vezifeler: Vezife[]; fayllar: Fayl[]
+    sifarisler: SifarisSetriDb[]; canManage: boolean }) {
   const router = useRouter()
   const [dept, setDept] = useState<string>('')
   const [gate, setGate] = useState<string>('')
@@ -144,6 +146,9 @@ export default function DetayClient({ layihe, vezifeler, fayllar, canManage }:
       </div>
 
       <Fayllar openingId={layihe.id} fayllar={fayllar} canManage={canManage} />
+
+      <Sifaris openingId={layihe.id} masaSayi={layihe.tableCount}
+               setirler={sifarisler} canManage={canManage} />
 
       {/* ── Departament xülasəsi ── */}
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
