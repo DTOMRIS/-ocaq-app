@@ -194,7 +194,10 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
 
       <Sifaris openingId={layihe.id} setirler={sifarisler} canManage={canManage}
                masaSayi={layihe.tableCount} oturacaqSayi={layihe.seats}
-               bankoUzunlugu={layihe.counterLenM} />
+               bankoUzunlugu={layihe.counterLenM}
+               profil={{ teras: layihe.hasTerrace, bagca: layihe.hasGarden,
+                         oturma: layihe.hasSeating, pizza: layihe.hasPizza,
+                         catdirilma: layihe.hasDelivery, format: layihe.format }} />
 
       {/* ── Departament xülasəsi ── */}
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

@@ -28,9 +28,11 @@ const KAT_IZAH: Record<SifarisKat, string> = {
   'Fırın': 'Pizza · lahmacun · pide — yalnız fırını olan filiala',
 }
 
-export default function Sifaris({ openingId, setirler, canManage, masaSayi, oturacaqSayi, bankoUzunlugu }:
+export default function Sifaris(props:
   { openingId: string; setirler: SifarisSetriDb[]; canManage: boolean
-    masaSayi: number | null; oturacaqSayi: number | null; bankoUzunlugu: string | null }) {
+    masaSayi: number | null; oturacaqSayi: number | null; bankoUzunlugu: string | null
+    profil: Record<string, boolean | string> }) {
+  const { openingId, setirler, canManage, masaSayi, oturacaqSayi, bankoUzunlugu } = props
   const router = useRouter()
   const [masa, setMasa] = useState(masaSayi != null ? String(masaSayi) : '')
   const [oturacaq, setOturacaq] = useState(oturacaqSayi != null ? String(oturacaqSayi) : '')
@@ -48,13 +50,17 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
   const onizleme = useMemo(() => {
     const say = (v: string) => (v.trim() === '' ? null : Number(v))
     const o: Olculer = { masa: say(masa), oturacaq: say(oturacaq), banko: say(banko) }
-    return SIFARIS_OLCULU.map(r => {
+    return SIFARIS_OLCULU.filter(r => {
+      // Şərti tutmayan sətir siyahıda YARANMIR → önizləmədə də görünməməlidir
+      const c = r.olcu!.cond
+      return !c || props.profil[c] === true
+    }).map(r => {
       const baza = o[r.olcu!.esas]
       const qty = baza == null || baza <= 0 ? null
         : Math.ceil(r.olcu!.kat != null ? baza * r.olcu!.kat : baza / r.olcu!.herBir!) + (r.olcu!.ehtiyat ?? 0)
       return { ad: r.ad, qty, etiket: olcuEtiketi(r.olcu!), cond: r.olcu!.cond ?? null }
     })
-  }, [masa, oturacaq, banko])
+  }, [masa, oturacaq, banko, props.profil])
 
   /** Departament üzrə göndəriləcək sətir sayı («lazım deyil» sayılmır). */
   const deptler = useMemo(() => {
@@ -80,7 +86,11 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
   }).filter(x => x.hamisi > 0), [setirler])
 
   async function yarat() {
-    setBusy('yarat'); setXeta(null)
+    const bos = onizleme.filter(o => o.qty == null)
+    if (bos.length && !confirm(
+      `${bos.length} sətrin miqdarı hesablana bilmir — ölçü boşdur:\n  · ${bos.map(o => `${o.ad} (${o.etiket})`).join('\n  · ')}\n\n` +
+      'Bu sətirlər siyahıya MİQDARSIZ düşəcək və sifariş göndərilə bilməyəcək.\n\nYenə də davam edilsin?')) return
+    setBusy('yarat'); setXeta(null); setMesaj(null)
     try {
       const r = await fetch(`/api/dashboard/acilis/${openingId}/sifaris`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -152,10 +162,16 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
           </p>
         </div>
         {setirler.length > 0 && (
-          <button onClick={csvYukle}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-            CSV yüklə
-          </button>
+          <div className="flex gap-2">
+            <a href={`/dashboard/acilis/${openingId}/sifaris/cap`} target="_blank" rel="noopener"
+               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+              Çap / PDF
+            </a>
+            <button onClick={csvYukle}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+              Excel (CSV)
+            </button>
+          </div>
         )}
       </div>
 

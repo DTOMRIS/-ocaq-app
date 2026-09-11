@@ -258,12 +258,13 @@ test('tikinti zənciri: müqavilə → yerləşim → proyekt → təsdiq → t�
   const muq = tap(/Kirayə müqaviləsi hazırlanır/)
   const yer = tap(/sahədə funksiya və yerləşimi/)
   const pro = tap(/İnşaat proyekti çıxarılır/)
-  const tes = tap(/Mimari layihə komanda tərəfindən/)
+  const tes = tap(/Mimari layihə rəhbərlik tərəfindən/)
   const teh = tap(/Yer tikinti departamentinə təhvil/)
   for (const [ad, t] of Object.entries({ muq, yer, pro, tes, teh })) assert.ok(t, `yoxdur: ${ad}`)
   assert.equal(muq!.gate, 'G2')
   // yerləşim OPS-un, proyekt İnşaatın işidir — qarışdırılmasın
   assert.equal(yer!.dept, 'OPS')
+  assert.equal(tes!.dept, 'Rəhbərlik')     // son imza rəhbərlikdədir
   assert.equal(pro!.dept, 'İnşaat')
   assert.equal(teh!.dept, 'OPS')
   // sıra qeydlərdə nömrələnib (ekranda departament üzrə çeşidləndiyi üçün)
@@ -273,8 +274,8 @@ test('tikinti zənciri: müqavilə → yerləşim → proyekt → təsdiq → t�
 })
 
 test('barmaq izi: cihaz işçi qeydiyyatından ƏVVƏL qurulur', () => {
-  const cihaz = ACILIS_SABLON.find(t => /Barmaq izi \(PDKS\) cihazı/.test(t.task))
-  const isci  = ACILIS_SABLON.find(t => /barmaq izi sistemində qeydiyyatdan/.test(t.task))
+  const cihaz = ACILIS_SABLON.find(t => /Barmaq izi cihazı/.test(t.task))
+  const isci  = ACILIS_SABLON.find(t => /barmaq izi sistemə yazılır/.test(t.task))
   assert.ok(cihaz && isci)
   assert.equal(cihaz.dept, 'Bilgi İşlem')
   assert.equal(isci.dept, 'İK')
@@ -294,4 +295,16 @@ test('Wolt/Bolt: şəbəkə hesabı var, filial ona əlavə edilir', () => {
 test('İK istirahət günü və masa nömrələri vəzifə siyahısında deyil', () => {
   assert.ok(!ACILIS_SABLON.some(t => t.task === 'Komanda istirahət günü'))
   assert.ok(!ACILIS_SABLON.some(t => t.task === 'Masa nömrələri'))
+})
+
+test('əksiklər siyahısı həm açılır, həm BAĞLANIR', () => {
+  const ac = ACILIS_SABLON.find(t => /əksiklər siyahısı verildi/.test(t.task))
+  const bagla = ACILIS_SABLON.find(t => /Əksiklər siyahısındakı bütün maddələr/.test(t.task))
+  assert.ok(ac && bagla, 'siyahı açılır amma bağlanmır')
+  // bağlama açılışa DAHA YAXIN olmalıdır (offset kiçik = açılışa yaxın)
+  assert.ok(bagla.offset! < ac.offset!)
+})
+
+test('qısaltma işlədilmir — «PDKS» kimi sözlər sadə dildə yazılır', () => {
+  for (const t of ACILIS_SABLON) assert.ok(!/PDKS/.test(t.task), t.task)
 })
