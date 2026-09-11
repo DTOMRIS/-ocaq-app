@@ -205,7 +205,31 @@ export default async function AnalitikaPage({ searchParams }: {
      from d left join i on i.dt = d.dt order by d.dt`, [...args],
   )).map(r => ({ date: s(r.dt).slice(0, 10), dayAmount: n(r.day_amt), itemAmount: n(r.item_amt) }))
 
+  // ── QARIŞMA DEDEKTORU — çift sayımın YEGANƏ ETİBARLI ƏLAMƏTİ ──────────────
+  //
+  // 🔴 11.09.2026, uçdan-uca testdə tapıldı: məbləğ nisbəti çift sayımı TUTMUR.
+  // Real rəqəmlərlə: köhnə PRODMIX (964 000 ₼) + yeni DT (2 866 138 ₼) =
+  // 3 830 138 ₼ ↔ gün cədvəli 3 833 665 ₼ → örtmə %99,9. Yəni ciro İKİQAT
+  // sayılır, amma gün cəmini AŞMADIĞI üçün heç bir hədd tutmur.
+  //
+  // Kəsin əlamət `item_code` sxemidir:
+  //   DT Məhsul → item_code = MƏHSULUN ADI   (kod == ad)
+  //   PRODMIX   → item_code = MƏHSULUN KODU  (kod != ad)
+  // Eyni məhsul adında HƏR İKİ növ sətir varsa — iki mənbə qarışıb, şübhə yox.
+  // Ölçüldü: təmiz halda 0, qarışıq halda 4 (real avqust datası).
+  const [mix] = rowsOf(await sqlClient.query(
+    `select count(*)::int as n from (
+       select item_name
+       from analytics_item_fact
+       where tenant_id=$1 and filial=any($2::text[]) and business_date between $3 and $4
+         and line_kind='product'
+       group by item_name
+       having bool_or(item_code = item_name) and bool_or(item_code <> item_name)
+     ) t`, [...args],
+  ))
+
   const coverage = {
+    mixedItems: n(mix?.n),
     itemAmount: n(cover?.amount),
     itemDays: n(cover?.days),
     dayAmount: n(sum?.amount),

@@ -6,6 +6,53 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### ✅ 11.09.2026 — UÇDAN-UCA TEST: düzəliş işləyir, İKİ YENİ SƏHV TAPILDI
+
+Real avqust DT faylı (389 678 xam sətir) → real parser → **real SQL** → real
+**PostgreSQL 16** → real analitika sorğusu ilə tam axın işlədildi.
+
+#### Nəticə — düzəliş işləyir
+
+| Addım | Nəticə |
+|---|---|
+| ① Yükləmədən əvvəl (köhnə PRODMIX qalıqları) | 124 sətir · 261 020 ₼ |
+| ② DT yazıldı, süpürmədən ƏVVƏL | 68 918 sətir · **3 127 158 ₼ — ÇİFT SAYIM** |
+| ③ Süpürmədən SONRA | **68 794 sətir · 279 məhsul · 31 gün · 2 866 138,44 ₼** ✅ |
+
+Analitika sorğusu (səhifədəki SQL-in eynisi):
+
+| Məhsul | Ədəd | Ciro | Ciro payı | Ort.qiymət | Kod |
+|---|---|---|---|---|---|
+| SHAURMA LAVAŞDA BÖYÜK | 31 156 | 384 445 ₼ | **%13,41** | 12,34 ₼ | **1** |
+| ÇAY DƏSTGAHI | 6 705 | 200 222 ₼ | %6,99 | 29,86 ₼ | **1** |
+
+Hər məhsulda `kod = 1` — qarışma yoxdur.
+
+#### 🔴 Testin tapdığı 1-ci səhv — DOĞRU yükləmədə də HƏYƏCAN verirdi
+
+Örtmə nisbəti **%74,76** çıxdı (məhsul 2 866 138 ↔ gün cədvəli 3 833 665).
+Bu **normaldır**: kombo/set məbləği ayrı-ayrı məhsullara düşmür. Lakin
+xəbərdarlıq həddi **%5** idi → istifadəçi faylı MÜKƏMMƏL yükləyəndən sonra da
+sarı «natamam» bandını görəcəkdi və «yenə olmadı» deyəcəkdi. Həmişə yanan
+xəbərdarlıq xəbərdarlıq olmaqdan çıxır.
+
+Hədd yenidən quruldu: **<%60 həyəcan** · **%60–95 sakit boz qeyd** ·
+gün əskikdirsə həmişə həyəcan. Sınıq halda örtmə %25,15 idi → yenə tutulur.
+
+#### 🔴 Testin tapdığı 2-ci səhv — məbləğ nisbəti çift sayımı TUTMUR
+
+Real rəqəmlərlə: köhnə PRODMIX (964 000 ₼) + yeni DT (2 866 138 ₼) =
+3 830 138 ₼ ↔ gün cədvəli 3 833 665 ₼ → örtmə **%99,9**. Ciro İKİQAT sayılır,
+amma gün cəmini aşmadığı üçün **heç bir məbləğ həddi tutmur**.
+
+Kəsin əlamət `item_code` sxemidir: DT → `kod == ad`, PRODMIX → `kod != ad`.
+Eyni məhsul adında hər iki növ sətir varsa qarışma şübhəsizdir. Analitika
+səhifəsinə dedektör əlavə olundu (`having bool_or(kod=ad) and bool_or(kod<>ad)`).
+Ölçüldü: **təmiz halda 0 · qarışıq halda 4**.
+
+`npm test` **278/278** · typecheck təmiz · `next build` keçdi.
+
+
 ### 🔴 08.09.2026 — «ciro payı» yanlış: KÖK SƏBƏB + STRUKTUR HƏLL
 
 **Şikayət:** ekranda 135 952 ₼ → **%14,1**. Halbuki avqustun məhsul cirosu

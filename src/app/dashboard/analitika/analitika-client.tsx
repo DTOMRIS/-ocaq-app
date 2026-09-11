@@ -81,6 +81,8 @@ export default function AnalitikaClient({
   branchRegion?: Record<string, string | null>
   /** İki fakt cədvəlinin eyni dövrü nə qədər örtdüyü — natamamlıq xəbərdarlığı. */
   coverage?: {
+    /** İki mənbənin qarışdığı məhsul sayı — çift sayımın kəsin əlaməti. */
+    mixedItems?: number
     itemAmount: number; itemDays: number; dayAmount: number; dayDays: number
     days?: Array<{ date: string; dayAmount: number; itemAmount: number }>
   }
@@ -111,9 +113,32 @@ export default function AnalitikaClient({
   // Struktur həll `detail-upload.tsx`-dədir (gün əvəzləmə); bu isə KEÇMİŞ
   // qarışıq data üçün toru: rəqəm «məqbul» görünsə də səssiz qalmasın.
   const covOver = covGap != null && covGap < -0.01
-  const covWarn = !!cov && cov.dayAmount > 0 &&
-    ((covGap != null && covGap > 0.05) || covOver ||
-     (cov.dayDays > 0 && cov.itemDays < cov.dayDays))
+
+  // 🔴 11.09.2026 — %5 HƏDDİ YANLIŞ İDİ: DOĞRU YÜKLƏMƏDƏ DƏ HƏYƏCAN VERİRDİ.
+  //
+  // Məhsul hesabatı şəbəkə cirosunun HAMISINI ÖRTMÜR və heç vaxt örtməyəcək:
+  // kombo/set məbləği ayrı-ayrı məhsullara düşmür, bir filial hesabatda yoxdur.
+  // Real avqust datası ilə ölçüldü (uçdan-uca test, PostgreSQL 16):
+  //   məhsul 2 866 138,44 ₼ ↔ gün cədvəli 3 833 665,53 ₼ = **%74,76**
+  // Yəni TAM DÜZGÜN yükləmədə belə boşluq ~%25-dir. %5 həddi ilə sarı həyəcan
+  // HƏMİŞƏ çıxırdı → istifadəçi faylı düzgün yükləyib yenə «olmadı» görürdü.
+  // Xəbərdarlıq həmişə yananda xəbərdarlıq olmaqdan çıxır.
+  //
+  // İndi ayırd edilir:
+  //   • ÖRTMƏ < %60  → həqiqətən natamam (həyəcan)   — sınıq halda ~%25 idi
+  //   • %60–%95      → struktur boşluq (sakit qeyd)  — normal hal ~%75
+  //   • gün əskikdirsə → həmişə həyəcan (məbləğdən asılı olmayaraq)
+  //   • > %101       → çift sayım (həyəcan)
+  const COV_FLOOR = 0.60
+  const covRatio = cov && cov.dayAmount > 0 ? cov.itemAmount / cov.dayAmount : null
+  const covShort = covRatio != null && covRatio < COV_FLOOR
+  // QARIŞMA — məbləğ nisbətindən ASILI DEYİL. Çift sayım gün cəmini aşmaya
+  // bilər (real hal: örtmə %99,9) və onda heç bir məbləğ həddi tutmur.
+  const covMixed = (cov?.mixedItems ?? 0) > 0
+  const covMissingDays = !!cov && cov.dayDays > 0 && cov.itemDays < cov.dayDays
+  const covWarn = !!cov && cov.dayAmount > 0 && (covShort || covOver || covMissingDays || covMixed)
+  /** Normal struktur boşluq — həyəcan deyil, izah. */
+  const covNote = !covWarn && covRatio != null && covRatio < 0.95
   const totalQty = products.reduce((s, p) => s + p.qty, 0)
   const receipts = summary?.receipts ?? 0
 
@@ -415,11 +440,28 @@ export default function AnalitikaClient({
           «Ciro payı» məhsul cəmi üzərindən hesablanır. Məhsul cədvəli gün
           cədvəlindən az doludursa faiz DÜZGÜN hesablanır, amma NATAMAM bazadan —
           və bu, ekranda yazılmasa istifadəçini yanlış qərara aparır. */}
+      {/* NORMAL HAL — həyəcan YOX, izah VAR.
+          Məhsul hesabatı cironun ~%75-ni örtür (kombo/set məbləği ayrı-ayrı
+          məhsullara düşmür). Bunu yazmasaq istifadəçi «niyə 2,8 mln, halbuki
+          ciro 3,8 mln?» deyir və datanı əskik sanır. Boz rəngdədir ki sarı
+          həyəcanla qarışmasın. */}
+      {covNote && cov && !covWarn && (
+        <div style={{ ...card, background: '#f7f6f3', borderColor: '#e6e1d7', padding: '10px 15px', marginBottom: 12, fontSize: 12, color: '#6b655c', lineHeight: 1.65 }}>
+          Məhsul cədvəli <b>{money(cov.itemAmount)}</b> · gün cədvəli <b>{money(cov.dayAmount)}</b>
+          {covRatio != null && <> — örtmə <b>{pct(covRatio)}</b></>}.
+          Bu <b>normaldır</b>: kombo/set məbləği ayrı-ayrı məhsullara bölünmür.
+          «Ciro payı» məhsul cəmi üzərindən hesablanır.
+        </div>
+      )}
       {covWarn && cov && (
         <div style={{ ...card, background: '#fdf6e9', borderColor: '#e8dcc0', padding: '12px 15px', marginBottom: 12, fontSize: 12.5, color: '#4d483f', lineHeight: 1.7 }}>
-          <b>{covOver
+          <b>{covMixed
+            ? `⚠ ÇİFT SAYIM: ${int(cov.mixedItems ?? 0)} məhsulda iki fərqli mənbənin sətri yan-yana durur.`
+            : covOver
             ? '⚠ Məhsul cəmi gün cirosunu AŞIR — bu mümkün deyil, çox güman ÇİFT SAYIM var.'
-            : '⚠ Məhsul datası bu dövrü tam örtmür — «ciro payı» natamam bazadan hesablanır.'}</b>
+            : covMissingDays && !covShort
+              ? '⚠ Bəzi günlərin məhsul datası YOXDUR — «ciro payı» əskik bazadan hesablanır.'
+              : '⚠ Məhsul datası bu dövrü tam örtmür — «ciro payı» natamam bazadan hesablanır.'}</b>
           <div style={{ marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
             Məhsul cədvəli: <b>{money(cov.itemAmount)}</b>
             {cov.itemDays > 0 && <> · {int(cov.itemDays)} gün</>}
@@ -434,9 +476,9 @@ export default function AnalitikaClient({
             )}
           </div>
           <div style={{ marginTop: 6, color: '#6b655c' }}>
-            {covOver
+            {covMixed || covOver
               ? 'Eyni günə iki fərqli mənbədən məhsul datası yazılıb (PRODMIX + DT). Həmin ayın məhsul faylını YENİDƏN yüklə — yükləmə həmin günləri əvəz edir və təkrar sətirlər təmizlənir.'
-              : 'Faizlər öz aralarında doğrudur, lakin şəbəkə cirosuna görə deyil.'}
+              : 'Faizlər öz aralarında doğrudur, lakin şəbəkə cirosuna görə deyil. Gözlənilən örtmə ~%75-dir; bundan xeyli aşağıdırsa məhsul faylı natamam yüklənib.'}
           </div>
           {(() => {
             const dd = cov.days ?? []
