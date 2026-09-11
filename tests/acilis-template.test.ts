@@ -167,7 +167,7 @@ test('açılış günü tədbiri planlanır (son həftədə montajın altında q
   for (const x of gun0) assert.equal(x.due, '2026-10-15')
   const t = new Set(v.map(x => x.task))
   assert.ok(t.has('Tort və lent kəsimi mərasimi'))
-  assert.ok(t.has('DJ və musiqi proqramı bağlanır'))
+  assert.ok(t.has('DJ və musiqi proqramı sifariş edilir, tarix təsdiqlənir'))
   assert.ok(t.has('Shaurma №1 brend geyimində 2 hostes təyin edilir'))
 })
 
@@ -233,5 +233,14 @@ test('sifariş kataloqundakı məhsul vəzifə kimi təkrarlanmır', () => {
   for (const yasaq of ['Duz qabı, bibər qabı', 'Masa üstü balaca zibil qabı',
                        'Tualet avadanlıqları, zibil qabları, küllüklər']) {
     assert.ok(!ACILIS_SABLON.some(t => t.task === yasaq), `kataloqla təkrarlanır: ${yasaq}`)
+  }
+})
+
+test('«bağlanır» yalnız fiziki bağlantı üçün işlədilir, sifariş/müqavilə üçün yox', () => {
+  // Azərbaycanca «bağlanır» = qapanır. «DJ bağlanır» sifariş kimi oxunmur.
+  for (const t of ACILIS_SABLON) {
+    if (!/bağlanır/.test(t.task)) continue
+    assert.match(t.task, /sistemə bağlanır|bağlantılar/,
+      `mənası qarışıq: ${t.task}`)
   }
 })

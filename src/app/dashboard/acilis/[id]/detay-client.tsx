@@ -76,6 +76,39 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
   const bitdi = vezifeler.filter(v => v.status === 'bitdi').length
   const faiz = hamisi ? Math.round((bitdi / hamisi) * 100) : 0
 
+  /**
+   * Vəzifə siyahısını cari şablonla uyğunlaşdırır.
+   * ƏVVƏL dryRun ilə nə olacağı göstərilir — kor-koranə silmə olmasın.
+   */
+  async function sablonlaUygunlasdir() {
+    setBusy('sync')
+    try {
+      const on = await fetch(`/api/dashboard/acilis/${layihe.id}/sync?dryRun=1`, { method: 'POST' })
+      const p = await on.json()
+      if (!on.ok) throw new Error(p.error ?? 'Xəta')
+
+      const yox = p.elave.length + p.silinecek.length + p.yenilenecek + p.saxlanilan.length === 0
+      if (yox) { alert('Siyahı artıq şablonla eynidir — dəyişiklik yoxdur.'); return }
+
+      const sr = (b: string, l: string[]) => l.length ? `\n${b} (${l.length}):\n  · ${l.slice(0, 12).join('\n  · ')}${l.length > 12 ? `\n  … və ${l.length - 12} sətir` : ''}` : ''
+      const metn = [
+        sr('ƏLAVƏ EDİLƏCƏK', p.elave),
+        sr('SİLİNƏCƏK (üzərində iş yoxdur)', p.silinecek),
+        p.yenilenecek ? `\nQEYD/TARİX YENİLƏNƏCƏK: ${p.yenilenecek} sətir` : '',
+        sr('SAXLANILACAQ (şablonda yoxdur, amma üzərində iş var — əl ilə baxın)', p.saxlanilan),
+      ].filter(Boolean).join('\n')
+
+      if (!confirm(`Şablonla uyğunlaşdırma:\n${metn}\n\nStatus, şərh və məsul şəxs TOXUNULMUR.\n\nDavam edilsin?`)) return
+
+      const r = await fetch(`/api/dashboard/acilis/${layihe.id}/sync`, { method: 'POST' })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error ?? 'Xəta')
+      router.refresh()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Naməlum xəta')   // xəta udulmur
+    } finally { setBusy(null) }
+  }
+
   async function statusDeyis(taskId: string, status: string) {
     setBusy(taskId)
     try {
@@ -143,6 +176,18 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
           })}
         </div>
         <p className="mt-3 text-xs text-slate-500">{GATE_SERT[layihe.gate]}</p>
+        {canManage && (
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <button onClick={() => void sablonlaUygunlasdir()} disabled={busy === 'sync'}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+              {busy === 'sync' ? 'yoxlanılır…' : 'Şablonla uyğunlaşdır'}
+            </button>
+            <span className="ml-2 text-xs text-slate-500">
+              Vəzifələr açılış yaradılanda kopyalanır. Şablon sonradan düzəlsə bu siyahı
+              köhnə qalır — düymə onu yeniləyir. Status və şərhlərə toxunmur.
+            </span>
+          </div>
+        )}
       </div>
 
       <Fayllar openingId={layihe.id} fayllar={fayllar} canManage={canManage} />
