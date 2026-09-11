@@ -100,9 +100,11 @@ test('bir ölçü girilsə yalnız ona bağlı sətirlər dolur', () => {
 })
 
 test('ölçü etiketi rəqəmin haradan gəldiyini göstərir', () => {
-  assert.equal(olcuEtiketi({ esas: 'masa', kat: 1 }), 'masa × 1')
-  assert.equal(olcuEtiketi({ esas: 'masa', kat: 1, ehtiyat: 4 }), 'masa × 1 + 4')
-  assert.equal(olcuEtiketi({ esas: 'banko', herBir: 1.2 }), 'hər 1.2 banko')
+  assert.equal(olcuEtiketi({ esas: 'masa', kat: 1 }), 'masa başına 1')
+  assert.equal(olcuEtiketi({ esas: 'masa', kat: 1, ehtiyat: 4 }), 'masa başına 1 + 4 ehtiyat')
+  assert.equal(olcuEtiketi({ esas: 'banko', herBir: 1.2 }), 'hər 1.2 m banko üçün 1')
+  // «×» işarəsi işlənmir — «Duz qabı X» adlı ayrı məhsulla qarışırdı
+  for (const r of SIFARIS_OLCULU) assert.ok(!olcuEtiketi(r.olcu!).includes('×'), r.ad)
 })
 
 test('sabit sətirlər ölçüdən asılı deyil', () => {

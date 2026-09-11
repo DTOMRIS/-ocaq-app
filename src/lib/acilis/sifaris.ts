@@ -38,6 +38,11 @@ export const SIFARIS_KAT_SERT: Record<SifarisKat, string | null> = {
 export const OLCU_ESASLARI = ['masa', 'oturacaq', 'banko'] as const
 export type OlcuEsas = typeof OLCU_ESASLARI[number]
 
+/** Etiketdə işlənən qısa ad. */
+export const ESAS_QISA: Record<OlcuEsas, string> = {
+  masa: 'masa', oturacaq: 'oturacaq', banko: 'm banko',
+}
+
 export const ESAS_ADI: Record<OlcuEsas, string> = {
   masa: 'masa sayı', oturacaq: 'oturacaq sayı', banko: 'banko uzunluğu (m)',
 }
@@ -662,7 +667,7 @@ export type YaradilanSifaris = {
   kat: SifarisKat; ad: string; vahid: string; dept: string
   /** Ölçü girilməyibsə null qalır — sifariş verilə bilməz. */
   qty: number | null
-  /** UI-da «masa × 1» kimi göstərilən izah. */
+  /** UI-da «masa başına 1» kimi göstərilən izah. */
   olcuEtiket: string | null
   qeyd: string | null
 }
@@ -672,11 +677,18 @@ export type Olculer = { masa: number | null; oturacaq: number | null; banko: num
 
 const VARSAYILAN_DEPT = 'Satın Alma'
 
-/** «masa × 1 + 4» kimi oxunaqlı izah — rəqəmin haradan gəldiyi gizlənmir. */
+/**
+ * «masa başına 1 + 4 ehtiyat» kimi izah — rəqəmin haradan gəldiyi gizlənmir.
+ *
+ * NİYƏ «×» İŞARƏSİ YOX: əvvəl «masa × 1» yazılırdı və məhsul adı ilə birlikdə
+ * kopyalananda «Duz qabı X» kimi oxunurdu — siyahıda ELƏ ADLI ayrı məhsul var
+ * («Duz qabı X», «Fri setkası X»), ona görə ikisi qarışırdı.
+ */
 export function olcuEtiketi(o: NonNullable<SifarisSetri['olcu']>): string {
-  const baza = o.esas
-  const govde = o.kat != null ? `${baza} × ${o.kat}` : `hər ${o.herBir} ${baza}`
-  return o.ehtiyat ? `${govde} + ${o.ehtiyat}` : govde
+  const govde = o.kat != null
+    ? `${ESAS_QISA[o.esas]} başına ${o.kat}`
+    : `hər ${o.herBir} ${ESAS_QISA[o.esas]} üçün 1`
+  return o.ehtiyat ? `${govde} + ${o.ehtiyat} ehtiyat` : govde
 }
 
 /**
