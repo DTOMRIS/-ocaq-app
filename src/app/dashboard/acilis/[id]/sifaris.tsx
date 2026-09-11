@@ -23,6 +23,7 @@ const ST_RENG: Record<string, string> = {
 }
 const KAT_IZAH: Record<SifarisKat, string> = {
   'Qida': 'Ərzaq və içki — açılış günü təzə gəlməlidir',
+  'Razin istehsalat': 'Mərkəzi mətbəxdən yarımfabrikat — xəmir, şorba, salat, sous',
   'Qeyri-qida': 'Zal, təmizlik, qab-qacaq, forma',
   'Bar': 'Ayran, çay, kofe, dondurma',
   'Fırın': 'Pizza · lahmacun · pide — yalnız fırını olan filiala',
@@ -247,7 +248,7 @@ export default function Sifaris(props:
       {setirler.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">
           Siyahı hələ yaradılmayıb. Ölçüləri girib düyməni basın — 4 kateqoriyada
-          441 standart sətir + ölçüyə bağlı 9 sətir yaranacaq.
+          490 standart sətir + ölçüyə bağlı 9 sətir yaranacaq.
         </p>
       ) : (
         <>

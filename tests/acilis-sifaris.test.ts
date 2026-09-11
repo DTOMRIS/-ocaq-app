@@ -14,8 +14,8 @@ const BOS_OLCU: Olculer = { masa: null, oturacaq: null, banko: null }
 const OLCU = (o: Partial<Olculer>): Olculer => ({ ...BOS_OLCU, ...o })
 
 test('kataloq 445 sabit sətirdir — zal-mətbəx Fırın-ın alt çoxluğu olduğu üçün çıxarıldı', () => {
-  assert.equal(SIFARIS_KATALOQ.length, 441)
-  assert.deepEqual([...SIFARIS_KATLAR], ['Qida', 'Qeyri-qida', 'Bar', 'Fırın'])
+  assert.equal(SIFARIS_KATALOQ.length, 490)
+  assert.deepEqual([...SIFARIS_KATLAR], ['Qida', 'Razin istehsalat', 'Qeyri-qida', 'Bar', 'Fırın'])
 })
 
 test('hər sətrin adı, vahidi və miqdarı var', () => {
@@ -117,7 +117,7 @@ test('pizza yoxdursa Fırın kateqoriyası göndərilmir (peçka + 850 lahmacun 
   const ile = sifarisYarat(PIZZALI, OLCU({ masa: 20 })), siz = sifarisYarat(PIZZASIZ, OLCU({ masa: 20 }))
   assert.ok(ile.some(r => r.kat === 'Fırın'))
   assert.equal(siz.filter(r => r.kat === 'Fırın').length, 0)
-  assert.equal(ile.length - siz.length, 56)
+  assert.equal(ile.length - siz.length, 61)   // Fırın 56 + Razin-in 5 pizza sətri
   for (const k of ['Qida', 'Qeyri-qida', 'Bar'] as const) assert.equal(SIFARIS_KAT_SERT[k], null)
 })
 
@@ -147,4 +147,35 @@ test('0 masa = «lazım deyil», boş masa = «ölçülməyib» — ikisi fərql
   // Boş qalsa — hələ ölçülməyib, qırmızı qalır
   const bos = sifarisYarat(PIZZALI, BOS_OLCU)
   assert.equal(bos.find(r => r.ad === 'Duz qabı')?.qty, null)
+})
+
+test('Razin istehsalat: mərkəzi mətbəx siyahısı var və şorba hər filiala gedir', () => {
+  const razin = SIFARIS_KATALOQ.filter(r => r.kat === 'Razin istehsalat')
+  assert.equal(razin.length, 29)
+  // Açılış günü olmazsa olmazlar — şərtsiz
+  for (const ad of ['Şaurma sousu tədarük', 'TOYUQ ŞORBASI tədarük', 'Ət qıyma tədarük']) {
+    const r = razin.find(x => x.ad === ad)
+    assert.ok(r, `yoxdur: ${ad}`)
+    assert.equal(r.cond, undefined, `${ad} şərtsiz olmalıdır`)
+  }
+  // Xəmir və pizza sousu yalnız pizzası olan filiala
+  for (const ad of ['XƏMİR (Sekret) (Pizza 22 sm) 140 qr', 'KƏLƏM PİZZA tədarük']) {
+    assert.equal(razin.find(x => x.ad === ad)?.cond, 'pizza', ad)
+  }
+})
+
+test('kağızdan gələn sətirlər əlavə edildi', () => {
+  const tap = (ad: string) => SIFARIS_KATALOQ.find(r => r.ad === ad)
+  assert.equal(tap('Armudu stəkan')?.say, 72)          // 36 → 72, istifadəçi təsdiqi
+  assert.equal(tap('Çörək qabı')?.say, 20)             // «Görək» deyil — Çörək
+  for (const ad of ['Şar', 'Şar başlığı', 'Şar çubuğu', 'Şar dolduran aparat',
+                    'Nəlbəki', 'Cezve', 'Blender', 'Su bakalı', 'Personal Çaynik',
+                    'Podnos balaca pls', 'Podnos böyük pls', 'Limon qabı']) {
+    const r = tap(ad)
+    assert.ok(r, `yoxdur: ${ad}`)
+    assert.equal(r.kat, 'Bar', ad)
+  }
+  // Kağızda olmayan, amma istifadəçinin saxlanmasını dediyi sətirlər
+  for (const ad of ['Podnos taxta', 'Desert qabı', 'Lokum qabı', 'Peçka (Fırın)',
+                    'Şaurma əti tədarük', 'Mini Ekler']) assert.ok(tap(ad), `silinib: ${ad}`)
 })

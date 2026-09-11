@@ -17,7 +17,7 @@
 
 import { type AcilisProfil, sertUygun } from './template'
 
-export const SIFARIS_KATLAR = ['Qida', 'Qeyri-qida', 'Bar', 'Fırın'] as const
+export const SIFARIS_KATLAR = ['Qida', 'Razin istehsalat', 'Qeyri-qida', 'Bar', 'Fırın'] as const
 export type SifarisKat = typeof SIFARIS_KATLAR[number]
 
 /**
@@ -26,7 +26,7 @@ export type SifarisKat = typeof SIFARIS_KATLAR[number]
  * filiala gedir; lazımsız sətir UI-da «lazım deyil» edilir (gizli məntiq yox).
  */
 export const SIFARIS_KAT_SERT: Record<SifarisKat, string | null> = {
-  'Qida': null, 'Qeyri-qida': null, 'Bar': null, 'Fırın': 'pizza',
+  'Qida': null, 'Razin istehsalat': null, 'Qeyri-qida': null, 'Bar': null, 'Fırın': 'pizza',
 }
 
 /**
@@ -60,6 +60,8 @@ export type SifarisSetri = {
     /** profil şərti — məs. külqabı yalnız terası olan yerə */
     cond?: string
   }
+  /** Sətir səviyyəsində profil şərti (kateqoriya şərtinə ƏLAVƏ). */
+  cond?: string
   /** Sifarişi kim verir — boşdursa Satın Alma. */
   dept?: string
   qeyd?: string
@@ -109,6 +111,64 @@ export const SIFARIS_OLCULU: SifarisSetri[] = [
 ]
 
 export const SIFARIS_KATALOQ: SifarisSetri[] = [
+
+  // ── 11.09.2026 — damğalı kağız siyahıdan əlavə edilənlər ──────────────────
+  // Excel-də yox idi, Mərkəzi Anbarın təsdiqlədiyi çap siyahısında var.
+  // Miqdarlar kağızdan oxundu; şübhəli olanlar `qeyd` ilə işarələnib.
+  { kat: 'Qeyri-qida', ad: 'Çörək qabı', say: 20, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Stəkan 750 ml (Coca-Cola)', say: 500, vahid: 'əd', qeyd: 'Kağız siyahıdan əlavə edildi 11.09.2026 — miqdarı təsdiqləyin' },
+  { kat: 'Bar', ad: 'Qazan elektrik', say: 1, vahid: 'əd', qeyd: 'Kağız siyahıdan əlavə edildi 11.09.2026 — miqdarı təsdiqləyin' },
+  { kat: 'Bar', ad: 'Streç böyük', say: 1, vahid: 'əd', qeyd: 'Kağız siyahıdan əlavə edildi 11.09.2026 — miqdarı təsdiqləyin' },
+  { kat: 'Bar', ad: 'Personal Çaynik', say: 2, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Blender', say: 1, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Limon qabı', say: 72, vahid: 'əd', qeyd: 'Kağız siyahıdan əlavə edildi 11.09.2026 — miqdarı təsdiqləyin' },
+  { kat: 'Bar', ad: 'Nəlbəki', say: 48, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Podnos balaca pls', say: 10, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Podnos böyük pls', say: 10, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Su bakalı', say: 12, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Truboçka', say: 2, vahid: 'Paket 500' },
+  { kat: 'Bar', ad: 'Cezve', say: 7, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Qaz balonu (yandıran üçün)', say: 1, vahid: 'əd', qeyd: 'Kağız siyahıdan əlavə edildi 11.09.2026 — miqdarı təsdiqləyin' },
+  { kat: 'Bar', ad: 'Pepsi bakalı', say: 1, vahid: 'əd', qeyd: 'Kağız siyahıdan əlavə edildi 11.09.2026 — miqdarı təsdiqləyin' },
+  { kat: 'Bar', ad: 'Kofe qaşığı dəmir', say: 5, vahid: 'əd', qeyd: 'Kağız siyahıdan əlavə edildi 11.09.2026 — miqdarı təsdiqləyin' },
+  // Şar dəsti BARIN daimi siyahısındadır — açılış dekorasiyası ayrı işdir (G6)
+  { kat: 'Bar', ad: 'Şar dolduran aparat', say: 1, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Şar', say: 1, vahid: 'Paket 200' },
+  { kat: 'Bar', ad: 'Şar başlığı', say: 1, vahid: 'Paket 100' },
+  { kat: 'Bar', ad: 'Şar çubuğu', say: 1, vahid: 'Paket 100' },
+
+  // ── RAZİN İSTEHSALAT — mərkəzi mətbəxdən gələn yarımfabrikat ─────────────
+  // Bu siyahı Excel dəstində YOX İDİ. Olmasa filial açılış günü xəmirsiz,
+  // şorbasız, salatsız və şaurma sousu olmadan açılır.
+  { kat: 'Razin istehsalat', ad: 'Can əti pizza üçün tədarük', say: 2, vahid: 'kq' },
+  { kat: 'Razin istehsalat', ad: 'Şərbət tədarük', say: 1, vahid: '2 lt' },
+  { kat: 'Razin istehsalat', ad: 'Tomat sous (sekret) tədarük', say: 1, vahid: '2 kq' },
+  { kat: 'Razin istehsalat', ad: 'XƏMİR (Sekret) (Pizza, Pide) 100 qr', say: 48, vahid: 'əd', cond: 'pizza' },
+  { kat: 'Razin istehsalat', ad: 'XƏMİR (Sekret) (Pizza 22 sm) 140 qr', say: 40, vahid: 'əd', cond: 'pizza' },
+  { kat: 'Razin istehsalat', ad: 'XƏMİR (Sekret) (Pizza 30 sm, Pide) 195 qr', say: 80, vahid: 'əd', cond: 'pizza' },
+  { kat: 'Razin istehsalat', ad: 'Xüsusi Sous pizza (sekret) tədarük', say: 3, vahid: '2 kq', cond: 'pizza' },
+  { kat: 'Razin istehsalat', ad: 'DOĞRAMAC tədarük', say: 4, vahid: 'Banka 2 lt' },
+  { kat: 'Razin istehsalat', ad: 'DOVĞA tədarük', say: 3, vahid: 'Banka 2 lt' },
+  { kat: 'Razin istehsalat', ad: 'MƏRCİMƏK ŞORBASI tədarük', say: 6, vahid: 'Banka 2 lt' },
+  { kat: 'Razin istehsalat', ad: 'SARIMSAQ YAĞI tədarük', say: 1, vahid: '2 lt' },
+  { kat: 'Razin istehsalat', ad: 'TOMAT ŞORBASI tədarük', say: 5, vahid: 'Banka 2 lt' },
+  { kat: 'Razin istehsalat', ad: 'TOYUQ ŞORBASI tədarük', say: 5, vahid: 'Banka 2 lt' },
+  { kat: 'Razin istehsalat', ad: 'YAYLA ŞORBASI tədarük', say: 3, vahid: 'Banka 2 lt' },
+  { kat: 'Razin istehsalat', ad: 'Paytaxt salatı tədarük', say: 8, vahid: 'pors' },
+  { kat: 'Razin istehsalat', ad: 'Əzmə badımcan salatı tədarük', say: 4, vahid: 'pors' },
+  { kat: 'Razin istehsalat', ad: 'Qarğıdalı salatı tədarük', say: 6, vahid: 'pors' },
+  { kat: 'Razin istehsalat', ad: 'Toyuq salat mayonezdə tədarük', say: 6, vahid: 'pors' },
+  { kat: 'Razin istehsalat', ad: 'İngilis salatı tədarük', say: 6, vahid: 'pors' },
+  { kat: 'Razin istehsalat', ad: 'Toyuq salat yağda tədarük', say: 10, vahid: 'pors' },
+  { kat: 'Razin istehsalat', ad: 'Toyuq kroket tədarük', say: 240, vahid: 'əd' },
+  { kat: 'Razin istehsalat', ad: 'Mimoza salatı tədarük', say: 8, vahid: 'pors' },
+  { kat: 'Razin istehsalat', ad: 'KƏLƏM PİZZA tədarük', say: 4, vahid: 'kq', cond: 'pizza' },
+  { kat: 'Razin istehsalat', ad: 'Şaurma sousu tədarük', say: 4, vahid: '12 kq' },
+  { kat: 'Razin istehsalat', ad: 'Toyuq file tədarük (Pizza, Pide)', say: 2, vahid: '2.5 kq' },
+  { kat: 'Razin istehsalat', ad: 'Sezar file tədarük (Sezar Pizza və Rulo)', say: 5, vahid: 'kq' },
+  { kat: 'Razin istehsalat', ad: 'Sezar Sousu tədarük', say: 3, vahid: '0.900 qr' },
+  { kat: 'Razin istehsalat', ad: 'Reyhan Z', say: 2, vahid: '2 lt' },
+  { kat: 'Razin istehsalat', ad: 'Ət qıyma tədarük', say: 1, vahid: '25 kq' },
 
   // ── QIDA — «Yeni Filial (qida).xlsx» (128 sətir) ──
   { kat: 'Qida', ad: 'Acı bibər (ə)', say: 3, vahid: 'Banka 290 q' },
@@ -421,7 +481,7 @@ export const SIFARIS_KATALOQ: SifarisSetri[] = [
   { kat: 'Qeyri-qida', ad: 'Zibil paketi 50x60', say: 10, vahid: 'əd' },
 
   // ── BAR — «Yeni Filial (Bar qeyri qida).xlsx» (80 sətir) ──
-  { kat: 'Bar', ad: 'Armudu stəkan', say: 36, vahid: 'əd' },
+  { kat: 'Bar', ad: 'Armudu stəkan', say: 72, vahid: 'əd' },
   { kat: 'Bar', ad: 'Ayran aparatı', say: 1, vahid: 'əd' },
   { kat: 'Bar', ad: 'Ayran vedrəsi', say: 2, vahid: 'əd' },
   { kat: 'Bar', ad: 'Ayran qarışdıran', say: 1, vahid: 'əd' },
@@ -648,6 +708,7 @@ export function sifarisYarat(p: AcilisProfil, olculer: Olculer): YaradilanSifari
   const out: YaradilanSifaris[] = []
   for (const r of [...SIFARIS_KATALOQ, ...SIFARIS_OLCULU]) {
     if (!sertUygun(SIFARIS_KAT_SERT[r.kat], p)) continue
+    if (r.cond && !sertUygun(r.cond, p)) continue
     if (r.olcu?.cond && !sertUygun(r.olcu.cond, p)) continue
     out.push({
       kat: r.kat, ad: r.ad, vahid: r.vahid, dept: r.dept ?? VARSAYILAN_DEPT,
