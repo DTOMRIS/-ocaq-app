@@ -37,6 +37,7 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
   const [banko, setBanko] = useState(bankoUzunlugu != null ? String(Number(bankoUzunlugu)) : '')
   const [busy, setBusy] = useState<string | null>(null)
   const [xeta, setXeta] = useState<string | null>(null)
+  const [mesaj, setMesaj] = useState<string | null>(null)
   const [acik, setAcik] = useState<SifarisKat | null>(null)
   const [gizle, setGizle] = useState(true)     // «gəldi» olanları gizlə
 
@@ -54,6 +55,19 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
       return { ad: r.ad, qty, etiket: olcuEtiketi(r.olcu!), cond: r.olcu!.cond ?? null }
     })
   }, [masa, oturacaq, banko])
+
+  /** Departament üzrə göndəriləcək sətir sayı («lazım deyil» sayılmır). */
+  const deptler = useMemo(() => {
+    const m = new Map<string, { dept: string; say: number; eksik: number }>()
+    for (const r of setirler) {
+      if (r.status === 'lazim_deyil') continue
+      const e = m.get(r.dept) ?? { dept: r.dept, say: 0, eksik: 0 }
+      e.say++
+      if (r.qty == null) e.eksik++
+      m.set(r.dept, e)
+    }
+    return [...m.values()].sort((a, b) => b.say - a.say)
+  }, [setirler])
 
   const kats = useMemo(() => SIFARIS_KATLAR.map(k => {
     const rows = setirler.filter(r => r.kat === k)
@@ -92,6 +106,24 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
       router.refresh()
     } catch (e) {
       setXeta(e instanceof Error ? e.message : 'Naməlum xəta')
+    } finally { setBusy(null) }
+  }
+
+  /** Departamentin sətirlərini e-poçtla göndər və «sifariş verildi» et. */
+  async function deptGonder(dept: string, say: number) {
+    if (!confirm(`«${dept}» üçün ${say} sətir e-poçtla göndəriləcək və «sifariş verildi» olacaq.\n\nDavam edilsin?`)) return
+    setBusy(`gonder:${dept}`); setXeta(null); setMesaj(null)
+    try {
+      const r = await fetch(`/api/dashboard/acilis/${openingId}/sifaris/gonder`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dept }),
+      })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error ?? 'Xəta')
+      setMesaj(`${dept}: ${j.setir} sətir göndərildi → ${(j.emails ?? []).join(', ')}`)
+      router.refresh()
+    } catch (e) {
+      setXeta(e instanceof Error ? e.message : 'Naməlum xəta')   // səbəb gizlədilmir
     } finally { setBusy(null) }
   }
 
@@ -164,6 +196,29 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
       </div>
 
       {xeta && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{xeta}</p>}
+      {mesaj && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{mesaj}</p>}
+
+      {/* ── Sifarişi departamentə göndər ── */}
+      {deptler.length > 0 && (
+        <div className="mt-3 rounded-lg border border-slate-200 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Sifarişi göndər</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Siyahı e-poçtun İÇİNDƏ cədvəl kimi gedir (qoşma yox — telefonda açılmır) və
+            sətirlər «sifariş verildi» olur. Miqdarı boş sətir varsa göndəriş dayanır.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {deptler.map(d => (
+              <button key={d.dept} disabled={!canManage || busy === `gonder:${d.dept}` || d.say === 0}
+                      onClick={() => void deptGonder(d.dept, d.say)}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40">
+                {busy === `gonder:${d.dept}` ? 'göndərilir…' : `${d.dept} → göndər`}
+                <span className="ml-1.5 text-xs text-slate-500 tabular-nums">{d.say} sətir</span>
+                {d.eksik > 0 && <span className="ml-1.5 text-xs font-semibold text-rose-600">{d.eksik} miqdarsız</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {setirler.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">

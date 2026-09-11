@@ -92,7 +92,9 @@ test('yaşanmış problemlər şablonda var (bir daha unudulmasın)', () => {
     'Arxa giriş qapısına pəncərə + milçək toru (sineklik)',
     'Milçək üçün ultraviole cihazı (içəri)',
     'UPS cihazları (kassa + POS + soyuducu)',
-    'Qəhvə filtr sistemi',                          // qəhvə xətti olan filialda
+    'Su analizi — filtr seçimi bundan sonra',
+    // TƏK filtr — qəhvə üçün ayrı sistem alınmır (istifadəçi qərarı 11.09.2026)
+    'Su filtr sistemi — TƏK sistem, bütün bağlantılar planlanır',
     'Cola premix sistemi və qurulumu',
     'Açılışdan ƏVVƏL dərmanlama (ilaçlama) icra olunur',
     'QİDA sifarişləri verilir — SON TARİX',
@@ -177,4 +179,59 @@ test('avadanlıq kataloqu — say və şərt', () => {
   const bar = AVADANLIQ.find(a => a.ad === 'Vitrin bar soyuducu (kiçik)')!
   assert.equal(bar.cond, 'bar')
   assert.equal(avadanliqSiyahisi(MALL).some(a => a.ad === 'Vitrin bar soyuducu (kiçik)'), false)
+})
+
+// ── 11.09.2026 istifadəçi düzəlişləri — geri dönməsin ─────────────────────
+
+test('təkrarlanan vəzifə yoxdur (eyni qapı + departament + mətn)', () => {
+  const gorulen = new Set<string>()
+  for (const t of ACILIS_SABLON) {
+    const k = `${t.gate}|${t.dept}|${t.task}`
+    assert.ok(!gorulen.has(k), `təkrar: ${k}`)
+    gorulen.add(k)
+  }
+})
+
+test('qəhvə üçün AYRI filtr yoxdur — tək su filtri', () => {
+  const filtr = ACILIS_SABLON.filter(t => /filtr/i.test(t.task))
+  assert.equal(filtr.length, 2)                       // su analizi + tək filtr
+  assert.ok(!ACILIS_SABLON.some(t => t.task === 'Qəhvə filtr sistemi'))
+  // su analizi filtrdən ƏVVƏL gəlməlidir — analizsiz filtr seçilmir
+  const iAnaliz = ACILIS_SABLON.findIndex(t => t.task.startsWith('Su analizi'))
+  const iFiltr = ACILIS_SABLON.findIndex(t => t.task.startsWith('Su filtr'))
+  assert.ok(iAnaliz >= 0 && iAnaliz < iFiltr)
+})
+
+test('iş saatları stikeri tək sətirdir (G5 + G6 təkrarı birləşdirildi)', () => {
+  const saat = ACILIS_SABLON.filter(t => /iş saatları|saatların/i.test(t.task))
+  assert.equal(saat.length, 1)
+  assert.equal(saat[0].gate, 'G5')
+})
+
+test('SMM: səhifə açma vəzifəsi yoxdur, reklam mətni reklamdan əvvəldir', () => {
+  assert.ok(!ACILIS_SABLON.some(t => /səhifələrinin açılması/i.test(t.task)))
+  const iMetn = ACILIS_SABLON.findIndex(t => /SMM reklam mətni/i.test(t.task))
+  const iRek  = ACILIS_SABLON.findIndex(t => t.task === 'SMM reklamının verilməsi')
+  assert.ok(iMetn >= 0 && iRek >= 0 && iMetn < iRek, 'mətn reklamdan sonra gəlir')
+  assert.ok(ACILIS_SABLON.some(t => /«Tezliklə» baneri/.test(t.task)))
+})
+
+test('bayraq sifariş edilmir — el ilanı ayrı, şar açılışda', () => {
+  assert.ok(!ACILIS_SABLON.some(t => /bayraq/i.test(t.task)))
+  assert.ok(ACILIS_SABLON.some(t => t.task === 'El ilanı — dizayn, çap və paylanma'))
+  assert.ok(ACILIS_SABLON.some(t => /şar dekorasiyası/i.test(t.task)))
+})
+
+test('canlı çiçək marketinqin deyil, zalı olan filialındır', () => {
+  const c = ACILIS_SABLON.find(t => /Canlı çiçək/i.test(t.task))
+  assert.ok(c)
+  assert.notEqual(c.dept, 'Marketinq')
+  assert.equal(c.cond, 'oturma')
+})
+
+test('sifariş kataloqundakı məhsul vəzifə kimi təkrarlanmır', () => {
+  for (const yasaq of ['Duz qabı, bibər qabı', 'Masa üstü balaca zibil qabı',
+                       'Tualet avadanlıqları, zibil qabları, küllüklər']) {
+    assert.ok(!ACILIS_SABLON.some(t => t.task === yasaq), `kataloqla təkrarlanır: ${yasaq}`)
+  }
 })
