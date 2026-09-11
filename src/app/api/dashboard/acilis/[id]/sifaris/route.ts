@@ -70,6 +70,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         kat: r.kat, ad: r.ad, vahid: r.vahid, dept: r.dept,
         qty: r.qty == null ? null : String(r.qty),
         olcu_etiket: r.olcuEtiket,
+        // Ölçü 0 → məhsul bu filiala lazım deyil (masasız mall-da duz qabı)
+        status: r.qty === 0 ? 'lazim_deyil' : 'planlandi',
         qeyd: r.qeyd,
       }))).onConflictDoUpdate({
         target: [opening_orders.opening_id, opening_orders.kat, opening_orders.ad],
@@ -79,6 +81,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                         when excluded.olcu_etiket is null then ${opening_orders.qty}
                         else excluded.qty end`,
           olcu_etiket: sql`excluded.olcu_etiket`,
+          // Ölçü 0 olanda «lazım deyil», 0-dan böyük olanda geri «planlandı».
+          // Əl ilə qoyulmuş statusa toxunmuruq (qty_manual).
+          status: sql`case when ${opening_orders.qty_manual} then ${opening_orders.status}
+                           when excluded.olcu_etiket is null then ${opening_orders.status}
+                           when excluded.qty = 0 then 'lazim_deyil'
+                           when ${opening_orders.status} = 'lazim_deyil' then 'planlandi'
+                           else ${opening_orders.status} end`,
           updated_at: new Date(),
         },
       })

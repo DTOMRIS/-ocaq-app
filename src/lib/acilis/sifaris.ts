@@ -619,9 +619,17 @@ export function olcuEtiketi(o: NonNullable<SifarisSetri['olcu']>): string {
   return o.ehtiyat ? `${govde} + ${o.ehtiyat}` : govde
 }
 
+/**
+ * BOŞ ilə SIFIR fərqlidir:
+ *   baza = null → «hələ ölçülməyib» → qty null → qırmızı, sifariş bloklanır
+ *   baza = 0    → «yoxdur» (mall-da masa yoxdursa duz qabı da lazım deyil)
+ *                 → qty 0 → sətir «lazım deyil» olur, sifarişi BLOKLAMIR
+ * İkisini eyni saysaq masasız filial heç vaxt sifariş göndərə bilməz.
+ */
 function olcuHesabla(o: NonNullable<SifarisSetri['olcu']>, olculer: Olculer): number | null {
   const baza = olculer[o.esas]
-  if (baza == null || baza <= 0) return null
+  if (baza == null || baza < 0) return null
+  if (baza === 0) return 0
   const esas = o.kat != null ? baza * o.kat : baza / o.herBir!
   return Math.ceil(esas) + (o.ehtiyat ?? 0)
 }

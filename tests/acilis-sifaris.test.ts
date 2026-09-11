@@ -134,3 +134,17 @@ test('açar İ/I/ı tələsinə düşmür', () => {
   assert.equal(sifarisAcar('İstiot qabı'), sifarisAcar('istiot qabi'))
   assert.equal(sifarisAcar('Duz qabı'), sifarisAcar('DUZ QABI'))
 })
+
+test('0 masa = «lazım deyil», boş masa = «ölçülməyib» — ikisi fərqlidir', () => {
+  // Masasız mall filialı: duz qabı lazım deyil, amma sifariş BLOKLANMAMALIDIR
+  const sifir = sifarisYarat(PIZZALI, OLCU({ masa: 0, oturacaq: 0, banko: 3.6 }))
+  assert.equal(sifir.find(r => r.ad === 'Duz qabı')?.qty, 0)
+  assert.equal(sifir.find(r => r.ad === 'Masa stikeri')?.qty, 0)
+  assert.equal(sifir.find(r => r.ad === 'Menyu')?.qty, 0)
+  assert.equal(sifir.find(r => r.ad === 'Menyu ekranı (banko üstü)')?.qty, 3)
+  assert.equal(sifir.filter(r => r.qty == null).length, 0, 'sıfır ölçü sifarişi bloklamamalıdır')
+
+  // Boş qalsa — hələ ölçülməyib, qırmızı qalır
+  const bos = sifarisYarat(PIZZALI, BOS_OLCU)
+  assert.equal(bos.find(r => r.ad === 'Duz qabı')?.qty, null)
+})

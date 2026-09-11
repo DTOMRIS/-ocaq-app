@@ -56,7 +56,8 @@ export default function Sifaris(props:
       return !c || props.profil[c] === true
     }).map(r => {
       const baza = o[r.olcu!.esas]
-      const qty = baza == null || baza <= 0 ? null
+      const qty = baza == null || baza < 0 ? null
+        : baza === 0 ? 0      // «0 masa» = lazım deyil, «boş» deyil
         : Math.ceil(r.olcu!.kat != null ? baza * r.olcu!.kat : baza / r.olcu!.herBir!) + (r.olcu!.ehtiyat ?? 0)
       return { ad: r.ad, qty, etiket: olcuEtiketi(r.olcu!), cond: r.olcu!.cond ?? null }
     })
@@ -187,6 +188,7 @@ export default function Sifaris(props:
               <span className="block text-xs text-slate-500 mb-1">{etiket}</span>
               <input type="number" min={0} step={addim} value={deyer} disabled={!canManage}
                      onChange={e => setDeyer(e.target.value)} placeholder={ph}
+                     title="Boş = hələ ölçülməyib (sifariş bloklanır) · 0 = yoxdur (o sətirlər lazım deyil)" 
                      className={`w-32 rounded-lg border px-3 py-1.5 text-sm tabular-nums ${
                        deyer.trim() === '' ? 'border-rose-300 bg-rose-50' : 'border-slate-300'}`} />
             </label>
@@ -200,11 +202,17 @@ export default function Sifaris(props:
           )}
         </div>
 
+        <p className="mt-2 text-[11px] text-slate-500">
+          Boş buraxmaq «hələ ölçülməyib» deməkdir — sifariş bloklanır.
+          Yoxdursa <b>0</b> yazın: məsələn masasız mall filialında 0 masa → duz qabı,
+          salfet qabı və masa stikeri «lazım deyil» olur və sifarişi dayandırmır.
+        </p>
+
         {/* Düyməyə basmadan nə çıxacağı görünür */}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
           {onizleme.map(o => (
-            <span key={o.ad} className={o.qty == null ? 'text-rose-600' : ''}>
-              {o.ad} <b className="tabular-nums">{o.qty ?? '—'}</b>
+            <span key={o.ad} className={o.qty == null ? 'text-rose-600' : o.qty === 0 ? 'text-slate-400' : ''}>
+              {o.ad} <b className="tabular-nums">{o.qty == null ? '—' : o.qty === 0 ? 'lazım deyil' : o.qty}</b>
               <span className="text-slate-400"> ({o.etiket}{o.cond ? `, ${o.cond}` : ''})</span>
             </span>
           ))}
