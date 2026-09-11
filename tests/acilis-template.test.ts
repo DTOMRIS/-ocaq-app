@@ -240,7 +240,58 @@ test('«bağlanır» yalnız fiziki bağlantı üçün işlədilir, sifariş/mü
   // Azərbaycanca «bağlanır» = qapanır. «DJ bağlanır» sifariş kimi oxunmur.
   for (const t of ACILIS_SABLON) {
     if (!/bağlanır/.test(t.task)) continue
-    assert.match(t.task, /sistemə bağlanır|bağlantılar/,
+    assert.match(t.task, /(sistemə|şəbəkəyə|filtrə) bağlanır|bağlantılar/,
       `mənası qarışıq: ${t.task}`)
   }
+})
+
+test('şablonda «UNUDULDU» etiketi qalmır', () => {
+  // Siyahıda olan iş artıq unudulmur — etiket yalnız gözü yorur (11.09.2026)
+  for (const t of ACILIS_SABLON) {
+    assert.ok(!/UNUDULDU/.test(t.note ?? ''), `${t.task}: ${t.note}`)
+    assert.ok(!/UNUDULDU/.test(t.task), t.task)
+  }
+})
+
+test('tikinti zənciri: müqavilə → yerləşim → proyekt → təsdiq → təhvil', () => {
+  const tap = (re: RegExp) => ACILIS_SABLON.find(t => re.test(t.task))
+  const muq = tap(/Kirayə müqaviləsi hazırlanır/)
+  const yer = tap(/sahədə funksiya və yerləşimi/)
+  const pro = tap(/İnşaat proyekti çıxarılır/)
+  const tes = tap(/Mimari layihə komanda tərəfindən/)
+  const teh = tap(/Yer tikinti departamentinə təhvil/)
+  for (const [ad, t] of Object.entries({ muq, yer, pro, tes, teh })) assert.ok(t, `yoxdur: ${ad}`)
+  assert.equal(muq!.gate, 'G2')
+  // yerləşim OPS-un, proyekt İnşaatın işidir — qarışdırılmasın
+  assert.equal(yer!.dept, 'OPS')
+  assert.equal(pro!.dept, 'İnşaat')
+  assert.equal(teh!.dept, 'OPS')
+  // sıra qeydlərdə nömrələnib (ekranda departament üzrə çeşidləndiyi üçün)
+  for (const [n, t] of [[2, yer], [3, pro], [4, tes], [5, teh]] as const) {
+    assert.match(t!.note ?? '', new RegExp(`^${n}-c[üı]? ?addım|^${n}-ci addım`), `${t!.task}: ${t!.note}`)
+  }
+})
+
+test('barmaq izi: cihaz işçi qeydiyyatından ƏVVƏL qurulur', () => {
+  const cihaz = ACILIS_SABLON.find(t => /Barmaq izi \(PDKS\) cihazı/.test(t.task))
+  const isci  = ACILIS_SABLON.find(t => /barmaq izi sistemində qeydiyyatdan/.test(t.task))
+  assert.ok(cihaz && isci)
+  assert.equal(cihaz.dept, 'Bilgi İşlem')
+  assert.equal(isci.dept, 'İK')
+  // offset = açılışa neçə gün qalmış → böyük offset ƏVVƏL gəlir
+  assert.ok(cihaz.offset! > isci.offset!, 'cihaz işçi qeydiyyatından sonra qurulur')
+})
+
+test('Wolt/Bolt: şəbəkə hesabı var, filial ona əlavə edilir', () => {
+  for (const ad of ['Wolt', 'Bolt Food']) {
+    const t = ACILIS_SABLON.find(x => x.task.includes(ad))
+    assert.ok(t, ad)
+    assert.match(t.task, /əlavə edildi/, `${ad}: hələ «hesab açıldı» yazır`)
+    assert.equal(t.cond, 'catdirilma')
+  }
+})
+
+test('İK istirahət günü və masa nömrələri vəzifə siyahısında deyil', () => {
+  assert.ok(!ACILIS_SABLON.some(t => t.task === 'Komanda istirahət günü'))
+  assert.ok(!ACILIS_SABLON.some(t => t.task === 'Masa nömrələri'))
 })

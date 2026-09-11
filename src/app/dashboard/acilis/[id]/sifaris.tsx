@@ -223,7 +223,7 @@ export default function Sifaris({ openingId, setirler, canManage, masaSayi, otur
       {setirler.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">
           Siyahı hələ yaradılmayıb. Ölçüləri girib düyməni basın — 4 kateqoriyada
-          441 standart sətir + ölçüyə bağlı 8 sətir yaranacaq.
+          441 standart sətir + ölçüyə bağlı 9 sətir yaranacaq.
         </p>
       ) : (
         <>

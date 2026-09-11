@@ -81,6 +81,8 @@ export const SIFARIS_OLCULU: SifarisSetri[] = [
   { kat: 'Qeyri-qida', ad: 'Salfet qabı', say: null, vahid: 'əd', olcu: { esas: 'masa', kat: 1 } },
   { kat: 'Qeyri-qida', ad: 'Dəmir zibilqabı stolüstü', say: null, vahid: 'əd',
     olcu: { esas: 'masa', kat: 1 } },
+  { kat: 'Qeyri-qida', ad: 'Masa nömrələri', say: null, vahid: 'əd', olcu: { esas: 'masa', kat: 1 },
+    qeyd: 'Vəzifə siyahısından bura köçürüldü — masa sayına bağlıdır' },
   { kat: 'Qeyri-qida', ad: 'Masa stikeri', say: null, vahid: 'əd', olcu: { esas: 'masa', kat: 1 },
     dept: 'Marketinq', qeyd: 'Dizaynı və son miqdarı Marketinq verir' },
 

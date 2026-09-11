@@ -37,7 +37,7 @@ test('eyni kateqoriyada eyni ad iki dəfə yoxdur (unique açar sınmasın)', ()
 })
 
 test('ölçülü sətirlər: 8 ədəd, hər birinin bazası var, sabit miqdarı yoxdur', () => {
-  assert.equal(SIFARIS_OLCULU.length, 8)
+  assert.equal(SIFARIS_OLCULU.length, 9)
   for (const r of SIFARIS_OLCULU) {
     assert.ok(r.olcu, r.ad)
     assert.equal(r.say, null, `${r.ad} həm sabit, həm ölçülü ola bilməz`)
@@ -49,7 +49,7 @@ test('ölçülü sətirlər: 8 ədəd, hər birinin bazası var, sabit miqdarı 
   assert.equal(SIFARIS_OLCULU.find(r => r.ad === 'Masa stikeri')?.dept, 'Marketinq')
 })
 
-test('masaya bağlı 5 sətir: 24 masa → hər biri 24', () => {
+test('masaya bağlı 6 sətir: 24 masa → hər biri 24', () => {
   const out = sifarisYarat(PIZZALI, OLCU({ masa: 24 }))
   const tap = (ad: string) => out.find(r => r.ad === ad)?.qty
   assert.equal(tap('Duz qabı'), 24)
@@ -57,6 +57,7 @@ test('masaya bağlı 5 sətir: 24 masa → hər biri 24', () => {
   assert.equal(tap('Salfet qabı'), 24)
   assert.equal(tap('Dəmir zibilqabı stolüstü'), 24)
   assert.equal(tap('Masa stikeri'), 24)
+  assert.equal(tap('Masa nömrələri'), 24)
 })
 
 test('menyu OTURACAĞA bağlıdır, masaya yox — 60 stul → 30 menyu', () => {
@@ -88,7 +89,7 @@ test('ölçü girilməyibsə sətir SİLİNMİR, qty null qalır — unudulması
   const duz = out.find(r => r.ad === 'Duz qabı')
   assert.ok(duz, 'duz qabı siyahıdan düşüb')
   assert.equal(duz.qty, null)
-  assert.equal(out.filter(r => r.qty == null).length, 8)
+  assert.equal(out.filter(r => r.qty == null).length, 9)
 })
 
 test('bir ölçü girilsə yalnız ona bağlı sətirlər dolur', () => {
