@@ -6,6 +6,58 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 12.09.2026 (gecə, 5) — JURNAL EKRANI və GİRİŞ AXINI
+
+İstifadəçi tutdu: «log qismi yox, admin səhifəsi yox». Haqlı idi — bir commit
+əvvəl «rollar tamamdır» yazmışdım, halbuki bunu YOXLAYACAQ ekran yox idi.
+
+#### 🔴 Giriş ÜMUMİYYƏTLƏ qeyd edilmirdi
+`audit_logs` cədvəli 28 növ hadisəni yazırdı və `/api/audit-logs` ucu da vardı,
+lakin **heç bir səhifə onu göstərmirdi** — sistem qeyd tuturdu, kimsə oxuya
+bilmirdi. Üstəlik şemada nümunə olaraq `'user.login'` yazılıb, amma heç bir
+kod onu YAZMIRDI.
+
+#### Yeni: `/dashboard/jurnal` (super_admin)
+İki suala cavab verir:
+
+**① Kim nə vaxt girib** — rol üzrə kart: «son 7 gündə girən / hamısı» və
+`N nəfər HEÇ VAXT girməyib` qırmızı xəbərdarlığı. Altında istifadəçi siyahısı,
+son giriş «bu gün / 3 gün əvvəl / heç vaxt», rəngli (≤7 yaşıl, ≤30 sarı,
+sonra qırmızı). `staff` siyahıya girmir — işçi OCAQ-a girmir.
+
+**② Nə baş verib** — hadisə jurnalı. 30 kod insan dilinə çevrildi
+(`user.invite.delivery_failed` → «dəvət e-poçtu çatmadı»). Süzgəclər ünvanda.
+
+Aralıq BAZA vaxtından hesablanır (`now() - make_interval`), server vaxtından
+yox — iki saat fərqli olsa sərhəddəki qeydlər görünməzdi.
+
+`auth.ts`: uğurlu girişdə `user.login`, uğursuzda `user.login.failed`.
+Uğursuz cəhd də yazılır — «hesabım açılmır» şikayətində səbəbi göstərən yeganə
+iz odur. **Jurnal xətası girişi BLOKLAMIR** (baza bir anlıq cavab verməsə bütün
+şəbəkə sistemə girə bilməzdi) — «xəta udma» qaydasına bilərəkdən qoyulmuş
+yeganə istisna, səbəbi kodda yazılıb.
+
+#### «Şifrəmi unutdum» — axın var idi, üç boşluq tapıldı
+Mövcud qurğu düzgündür: login səhifəsində link, bir dəfəlik heşlənmiş token,
+1 saat, saatda 3 sorğu, istifadəçi olmasa da eyni cavab, poçt getməsə səbəb.
+
+**🔴 İstifadəçidən iki dəfə şifrə istənirdi:** admin sıfırlayır →
+`must_change_password = true` → istifadəçi müvəqqəti şifrə əvəzinə «şifrəmi
+unutdum» ilə ÖZ şifrəsini qoyur → bayraq hələ `true` → middleware onu yenidən
+«şifrəni dəyiş» ekranına atırdı. İndi bayraq da təmizlənir.
+
+**Müddəti bitmiş link «indi nə edim?» sualını cavabsız qoyurdu** — səbəb açıq
+yazılır və «Yeni sıfırlama linki istə» düyməsi çıxır.
+
+**Sıfırlama jurnalda görünmürdü** — `user.password.reset.request` (IP + cihaz)
+və `user.password.reset.done` əlavə edildi.
+
+Müddət 1 SAAT saxlanıldı: dəvət linkini 7 günə uzatdım (müdir e-poçtu gec
+açır), sıfırlama isə fərqlidir — insan onu MƏHZ İNDİ istəyir və gözləyir.
+
+npm test 330/330 · typecheck təmiz · lint 0 xəta · build keçdi
+
+
 ### 12.09.2026 (gecə, 4) — ROL DENETİMİ: ÖLÜ MENYU SƏTRİ TAPILDI
 
 İstifadəçi soruşdu: «rollar tamamdırmı, filial/bölgə müdiri rahat girirmi?»

@@ -1,6 +1,6 @@
 # OCAQ sistem ağacı
 
-Son güncelleme: 12 Eylül 2026 · `main` e325c44
+Son güncelleme: 12 Eylül 2026 (gecə) · `main` 771c591
 
 ## Ürün ve veri sahipliği
 
@@ -71,6 +71,7 @@ OCAQ portalı
 │
 └── QURULUŞ
     ├── /dashboard/branches · /regions · /settings
+    ├── /dashboard/jurnal    kim girir · nə dəyişir (yalnız super_admin)
     └── /admin/**  (menyuda YOXDUR — bax «bilinən boşluqlar»)
 ```
 
@@ -78,12 +79,12 @@ OCAQ portalı
 
 | Ölçü | Dəyər |
 |---|---|
-| Dashboard səhifəsi | 42 |
+| Dashboard səhifəsi | 43 |
 | Admin səhifəsi | 9 (menyuya bağlı deyil) |
-| API route | 57 |
+| API route | 58 |
 | Migration | 27 fayl (0001 nömrəsi iki dəfə) |
-| `src/lib` modulu | 40 |
-| Test faylı | 24 · **320 test, 320 keçir** |
+| `src/lib` modulu | 41 |
+| Test faylı | 25 · **330 test, 330 keçir** |
 | Lint | 0 xəta, 19 xəbərdarlıq |
 
 ## Migration zənciri
@@ -175,6 +176,7 @@ testlə örtüldü — sorğunun içindəki qərar test edilə bilmirdi.
 | İkon | SVG, 24×24 tor. **Emoji işlədilmir** (cihazdan-cihaza dəyişir) |
 | Silmə | Dərhal sil + 7 san «Geri al». Geri dönüşü olmayan işdə təsdiq qalır |
 | Filtr | Ünvanda saxlanılır (`?bolge=&ara=`) — link paylaşıla bilir |
+| Giriş | Dəvət linki **7 gün** · şifrə sıfırlama **1 saat** · giriş cəhdləri jurnala yazılır |
 
 ## Bilinən boşluqlar (12.09.2026 denetimi)
 
@@ -186,6 +188,7 @@ testlə örtüldü — sorğunun içindəki qərar test edilə bilmirdi.
 | ~~Ölü kod~~ | **12.09 qərarı:** `upload-flow.tsx` SİLİNDİ (yalnız redirect səhifəsinin yanında qalmışdı, heç bir dəyər daşımırdı). Qalan üçü «⚠️ ARXİV» başlığı ilə işarələndi, silinmədi: `api/dashboard/panel` (AGENTS.md route qoruması), `api/dashboard/kasa-banka` (Unibank/ATB HTML parseri BAŞQA YERDƏ YOXDUR), `parse-delivery.ts` (kanal analizi portala gələndə təməl) |
 | ~~Həftəlik xülasə cron-u~~ | **12.09-da quruldu:** `vercel.json` → hər bazar ertəsi 06:00 UTC (Bakı 10:00) `/api/cron/acilis-digest`. **QURAŞDIRMA TƏLƏB ETMİR** — `x-vercel-cron` başlığı ilə işləyir. `CRON_SECRET` istəyə bağlı sərtləşdirmədir |
 | «Geri al» yalnız departament e-poçtunda | Sifariş sətri, hədəf, şikayət hələ dönüşsüz |
+| Nümunə modullar yazılmayıb | `kasa` (kassa sayımı) və `ekipman` (nasazlıq bileti) real ehtiyacdır — istifadəçi qərarı 12.09: «kasa işi qalsın şimdilik» |
 | ~~CI yoxdur~~ | **12.09-da quruldu:** `.github/workflows/yoxlama.yml` — hər push/PR-da lint + typecheck + test. `build` CI-da işlədilmir (env sirləri GitHub-a daşınmasın); o, hər halda Vercel deploy-da işləyir |
 
 ## Altın veri kuralı
