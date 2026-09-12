@@ -1,3 +1,10 @@
+/**
+ * ⚠️ ARXİV — HEÇ BİR YERDƏN İMPORT EDİLMİR (yoxlanıldı 12.09.2026).
+ *
+ * Wolt/Bolt çatdırılma ayrışdırması. Hazırda delivery payı `parse-daily` və
+ * `parse-sales-detail` içindən hesablanır. Bu modul kanal analizi portala
+ * gətiriləndə təməl ola bilər — ona görə silinmir, işarələnir.
+ */
 // ─── Delivery (kanal) parser'ı — Python `kanal_analisti.py` portu (add-only) ────
 // Girdi: "ödəniş növü" Excel-i — sətir: [filial, tip, tutar]. Tip: Wolt/Bolt/Yango/
 // Storefront/Delivery/Seabreeze. Nəticə: filial başına total/wolt/bolt/deliv + deliveryPayı.

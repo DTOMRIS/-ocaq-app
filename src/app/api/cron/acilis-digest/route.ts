@@ -20,17 +20,26 @@ const BASE = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? 'https://ocaq.d
  *
  * Cədvəl: `vercel.json` → hər bazar ertəsi 06:00 UTC (Bakı 10:00).
  *
- * TƏNZİMLƏNMƏYİBSƏ SƏSSİZ KEÇMİR: `CRON_SECRET` yoxdursa 503 qaytarır.
- * «İşləyir» sanıb heç nə göndərməmək ən pis haldır.
+ * ── NİYƏ QURAŞDIRMA TƏLƏB ETMİR ──
+ * İstifadəçi qərarı (12.09.2026): «cron işinə girməyəcəyəm». Yəni uc heç bir
+ * env dəyişəni GÖZLƏMƏMƏLİDİR — quraşdırma tələb edən avtomatlaşdırma qurulmur
+ * və heç olmayandan pis olur («var» sanılır, işləmir). İki yol qəbul edilir:
+ *   ① `x-vercel-cron` başlığı — Vercel öz cron çağırışlarına bunu qoyur
+ *   ② `Bearer <CRON_SECRET>` — sonradan sərtləşdirmək istəyən üçün, məcburi deyil
+ *
+ * BAŞLIQ SAXTALANA BİLƏR — bilirik. Zərər həddi ölçüldü:
+ *   · uc heç bir MƏZMUN qaytarmır — nə vəzifə mətni, nə e-poçt ünvanı (yalnız say)
+ *   · poçt YALNIZ artıq təyin edilmiş DAXİLİ departament ünvanlarına gedir
+ *   · gecikən/yaxın iş yoxdursa ÜMUMİYYƏTLƏ susur (`digestHtml` boş qaytarır)
+ *   · heç bir data DƏYİŞMİR — yalnız oxunur
+ * Ən pis hal: kimsə şirkətin öz departamentinə artıq bir xülasə göndərir.
+ * Sirr sızmır. Bunun qarşılığı: istifadəçidən heç nə istənilmir.
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (!secret) {
-    return NextResponse.json({
-      error: 'CRON_SECRET təyin edilməyib — həftəlik xülasə göndərilmir. Vercel env-də əlavə edin.',
-    }, { status: 503 })
-  }
-  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
+  const vercelCron = req.headers.get('x-vercel-cron') != null
+  const bearerOk = !!secret && req.headers.get('authorization') === `Bearer ${secret}`
+  if (!vercelCron && !bearerOk) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

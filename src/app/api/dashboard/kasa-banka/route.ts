@@ -1,3 +1,13 @@
+/**
+ * ⚠️ ARXİV — HEÇ BİR YERDƏN ÇAĞIRILMIR (yoxlanıldı 12.09.2026).
+ *
+ * UI yalnız `/api/dashboard/kasa-banka/save`-i işlədir. LAKİN bu faylın içindəki
+ * Unibank/ATB HTML çıxarış parseri BAŞQA YERDƏ YOXDUR — silinsə həmin məntiq
+ * itər. Ona görə saxlanılır.
+ *
+ * Dəyişiklik lazımdırsa əvvəlcə parserin `src/lib/analytics/`-ə köçürülməsi
+ * planlanmalıdır; bu faylı birbaşa genişləndirmək kod borcunu artırır.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { auth } from '@/auth'

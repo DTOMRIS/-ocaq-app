@@ -1,3 +1,14 @@
+/**
+ * ⚠️ ARXİV — HEÇ BİR YERDƏN ÇAĞIRILMIR (yoxlanıldı 12.09.2026).
+ *
+ * Panel ekranı Excel-i BRAUZERDƏ parse edir və nəticəni
+ * `/api/dashboard/analytics/panel-save`-ə göndərir. Bu uc həmin işin server
+ * variantıdır və istifadədən qalıb.
+ *
+ * NİYƏ SİLİNMİR: `AGENTS.md` §2 route silməyi qadağan edir; üstəlik burada
+ * `parseDaily` axınının server tərəfi var və fayl gələcəkdə serverdə işlənəcəksə
+ * təməl ola bilər. Dəyişiklik panel EKRANINDA edilir, burada yox.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { auth } from '@/auth'

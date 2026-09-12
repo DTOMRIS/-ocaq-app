@@ -6,6 +6,22 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 12.09.2026 (gecə, 2) — ÖLÜ KOD: biri silindi, üçü «ARXİV» işarələndi
+
+İstifadəçi «sən qərar ver» dedi. Qərar risk səviyyəsinə görə ayrıldı:
+
+| Fayl | Qərar | Səbəb |
+|---|---|---|
+| `analitika/yukle/upload-flow.tsx` | **SİLİNDİ** | Səhifəsi artıq `redirect`-dir; komponent heç bir yerdən çağırılmır və route deyil — `AGENTS.md` qorumasına düşmür |
+| `api/dashboard/panel/route.ts` | ARXİV başlığı | Route-dur → `AGENTS.md` §2. Üstəlik `parseDaily`-nin SERVER variantıdır; fayl gələcəkdə serverdə işlənəcəksə təməl |
+| `api/dashboard/kasa-banka/route.ts` | ARXİV başlığı | İçindəki **Unibank/ATB HTML çıxarış parseri başqa yerdə YOXDUR** — silinsə məntiq itər |
+| `analytics/parse-delivery.ts` | ARXİV başlığı | Kanal analizi (Wolt/Bolt) portala gətiriləndə təməl olacaq |
+
+Hər üç faylın başında indi nə üçün saxlanıldığı və dəyişikliyin HARADA
+edilməli olduğu yazılıb — «burada iş görülür» sanıb səhv yeri düzəltmək
+riski aradan qaldırıldı.
+
+
 ### 12.09.2026 (gecə) — BOŞLUQLAR: CI · cron · admin ekranları
 
 Denetimdə sadalanan boşluqlardan üçü bağlandı.
@@ -31,8 +47,18 @@ Köhnəsini cron-a uyğunlaşdırmaq panel düyməsini sındırardı.
 
 Məntiq `lib/acilis/digest.ts`-ə köçürüldü və hər iki uc onu çağırır — iki nüsxə
 ayrı-ayrı köhnəlməsin.
-`CRON_SECRET` yoxdursa uc **503** qaytarır. «İşləyir» sanıb heç nə göndərməmək
-ən pis haldır. Bir tenant sınsa qalanları dayanmır, səbəb hesabatda qalır.
+**Quraşdırma tələb etmir** (istifadəçi qərarı: «cron işinə girməyəcəyəm»).
+Uc `x-vercel-cron` başlığını qəbul edir — Vercel öz cron çağırışlarına onu
+qoyur. `CRON_SECRET` istəyə bağlı sərtləşdirmədir, məcburi deyil.
+
+Başlıq saxtalana bilər — bilirik, zərər həddi ölçüldü: uc heç bir MƏZMUN
+qaytarmır (nə vəzifə mətni, nə e-poçt ünvanı), poçt yalnız artıq təyin edilmiş
+DAXİLİ ünvanlara gedir, gecikən iş yoxdursa ümumiyyətlə susur, heç bir data
+dəyişmir. Ən pis hal: şirkətin öz departamentinə artıq bir xülasə.
+Qarşılığında istifadəçidən heç nə istənilmir — **quraşdırma tələb edən
+avtomatlaşdırma qurulmur və «var» sanıldığı üçün heç olmayandan pisdir.**
+
+Bir tenant sınsa qalanları dayanmır, səbəb hesabatda qalır.
 
 #### `/admin/**` — MENYUYA ƏLAVƏ EDİLMƏDİ (qərar)
 Denetim «9 səhifə menyuda yoxdur» demişdi. Yoxlandı:
