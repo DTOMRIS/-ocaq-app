@@ -369,7 +369,7 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
 
       {/* ── Vəzifələr ── */}
       <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[820px] text-sm kart-cedvel">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left">
               <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Qapı</th>
@@ -384,17 +384,17 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
               const gecikdi = v.status !== 'bitdi' && v.status !== 'tetbiq_olunmur' && v.dueDate && v.dueDate < bugun
               return (
                 <tr key={v.id} className="border-b border-slate-100 last:border-0 align-top">
-                  <td className="px-3 py-2 font-mono text-xs text-slate-500">{v.gate}</td>
-                  <td className={`px-3 py-2 font-mono text-xs whitespace-nowrap ${gecikdi ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
+                  <td data-label="Qapı" className="px-3 py-2 font-mono text-xs text-slate-500">{v.gate}</td>
+                  <td data-label="Son tarix" className={`px-3 py-2 font-mono text-xs whitespace-nowrap ${gecikdi ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
                     {v.dueDate ? new Date(v.dueDate).toLocaleDateString('az-AZ') : '—'}
                   </td>
-                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{v.dept}</td>
-                  <td className="px-3 py-2 text-slate-900">
+                  <td data-label="Departament" className="px-3 py-2 text-slate-600 whitespace-nowrap">{v.dept}</td>
+                  <td data-label="Vəzifə" className="px-3 py-2 text-slate-900">
                     {v.task}
                     {v.note && <span className="block text-xs text-slate-400 mt-0.5">{v.note}</span>}
                     {v.cond && <span className="inline-block mt-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">şərt: {v.cond}</span>}
                   </td>
-                  <td className="px-3 py-2">
+                  <td data-label="Status" className="px-3 py-2">
                     <select value={v.status} disabled={busy === v.id}
                             onChange={e => statusDeyis(v.id, e.target.value)}
                             className={`rounded px-2 py-1 text-xs font-semibold border-0 ${ST_RENG[v.status] ?? ''}`}>

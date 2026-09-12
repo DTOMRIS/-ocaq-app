@@ -109,3 +109,77 @@ body {
   /* Çekmece çubuğun ÜSTÜNDƏ açılsın */
   .dashboard-drawer-layer { z-index: 100; }
 }
+
+
+/* ─── DAR EKRANDA CƏDVƏL → KART ────────────────────────────────────────────
+   PROBLEM: telefonda 7 sütunlu cədvəl yana sürüşür. İstifadəçi filialı görür,
+   rəqəmi görmür; rəqəmi görəndə filialın adını itirir. Sürüşdürməli olduğu
+   üçün müqayisə edə bilmir.
+
+   HƏLL: hər sətir bir karta çevrilir, hər xana «etiket → dəyər» sətri olur.
+   Etiket `data-label` atributundan gəlir — başlıq sətri gizlənir, amma
+   ekran oxuyucu üçün DOM-da qalır (görmə məhdudiyyəti olan istifadəçi
+   cədvəli itirmir).
+
+   İstifadə: <table className="kart-cedvel"> + hər <td data-label="Satış">
+   `!important` lazımdır: xanalarda inline `style` var və o, adi siniflərdən
+   güclüdür. Yalnız ≤640px — masaüstü cədvəl toxunulmamış qalır. */
+@media (max-width: 640px) {
+  .kart-cedvel { min-width: 0 !important; width: 100%; }
+  .kart-cedvel thead {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .kart-cedvel, .kart-cedvel tbody, .kart-cedvel tr, .kart-cedvel td { display: block; width: 100%; }
+  .kart-cedvel tr {
+    border: 1px solid #e6e1d7; border-radius: 12px; margin-bottom: 8px;
+    background: #fff !important; overflow: hidden;
+  }
+  .kart-cedvel td {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    text-align: right !important; padding: 7px 12px !important;
+    border-bottom: 1px solid #f4f0e8 !important; white-space: normal !important;
+  }
+  .kart-cedvel tr td:last-child { border-bottom: 0 !important; }
+  .kart-cedvel td::before {
+    content: attr(data-label); flex: none; text-align: left;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: #8b8378;
+  }
+  /* Birinci xana kartın BAŞLIĞIDIR — etiketsiz, böyük, solda */
+  .kart-cedvel td:first-child {
+    justify-content: flex-start; text-align: left !important;
+    font-size: 15px !important; font-weight: 700 !important;
+    background: #faf7f1; border-bottom: 1px solid #e6e1d7 !important;
+  }
+  .kart-cedvel td:first-child::before { content: none; }
+  /* Dəyəri boş olan sətir kartda yer tutmasın */
+  .kart-cedvel td[data-bos="1"] { display: none; }
+}
+
+
+/* ─── «GERİ AL» ZOLAĞI ─────────────────────────────────────────────────────
+   Alt hərəkət çubuğunun ÜSTÜNDƏ dayanır ki, telefonda onu örtməsin. */
+.ocaq-toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 120; display: flex; align-items: center; gap: 12px;
+  max-width: min(560px, calc(100vw - 24px));
+  padding: 11px 12px 11px 16px; border-radius: 12px;
+  background: #26221d; color: #fff; font-size: 13.5px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+}
+.ocaq-toast-metn { flex: 1; min-width: 0; }
+.ocaq-toast-geri {
+  flex: none; border: 0; border-radius: 8px; cursor: pointer;
+  padding: 6px 12px; min-height: 34px;
+  background: #F2A81D; color: #26221d; font: 600 13px/1 inherit;
+}
+.ocaq-toast-bagla {
+  flex: none; border: 0; background: transparent; color: rgba(255,255,255,.6);
+  font-size: 18px; line-height: 1; cursor: pointer; padding: 4px 2px;
+}
+@media (max-width: 767px) {
+  /* alt çubuq 52px + təhlükəsiz sahə → zolaq onun üstündə qalsın */
+  .ocaq-toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
+}

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import GeriAlToast from '@/components/geri-al-toast'
 
 export type DeptSetir = {
   id: string; openingId: string; opening: string; openDate: string | null
@@ -42,6 +43,7 @@ export default function DeptClient({ setirler, avadanliq, kontaktlar = [], canMa
   const [yeniEmail, setYeniEmail] = useState('')
   const [kBusy, setKBusy] = useState(false)
   const [kXeta, setKXeta] = useState<string | null>(null)
+  const [geriAl, setGeriAl] = useState<{ dept: string; email: string } | null>(null)
 
   /**
    * Departament e-poçtunu əlavə et / sil.
@@ -61,6 +63,9 @@ export default function DeptClient({ setirler, avadanliq, kontaktlar = [], canMa
       const j = await r.json()
       if (!r.ok) throw new Error(j.error ?? 'Xəta')
       if (!remove) { setYeniDept(''); setYeniEmail('') }
+      // Silmə DƏRHAL olur, sonra «geri al» təklif edilir — «Əminsiniz?»
+      // pəncərəsi oxunmadan keçilir, yəni qorumur.
+      setGeriAl(remove ? { dept, email } : null)
       router.refresh()
     } catch (e) {
       setKXeta(e instanceof Error ? e.message : 'Naməlum xəta')   // xəta udulmur
@@ -202,6 +207,14 @@ export default function DeptClient({ setirler, avadanliq, kontaktlar = [], canMa
         <p className="mt-2 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
           {gonderme}
         </p>
+      )}
+
+      {geriAl && (
+        <GeriAlToast
+          mesaj={`${geriAl.email} silindi (${geriAl.dept})`}
+          onGeriAl={() => { const g = geriAl; setGeriAl(null); return kontaktYaz(g.dept, g.email) }}
+          onBagla={() => setGeriAl(null)}
+        />
       )}
 
       {/* ── Departament e-poçtları ── */}

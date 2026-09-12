@@ -337,7 +337,7 @@ export default function Sifaris(props:
 
                   {acildi && (
                     <div className="overflow-x-auto border-t border-slate-100">
-                      <table className="w-full min-w-[720px] text-sm">
+                      <table className="w-full min-w-[720px] text-sm kart-cedvel">
                         <thead>
                           <tr className="bg-slate-50 text-left">
                             <th className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Məhsul</th>
@@ -349,7 +349,7 @@ export default function Sifaris(props:
                         <tbody>
                           {gorunen.map(r => (
                             <tr key={r.id} className="border-b border-slate-100 last:border-0">
-                              <td className="px-3 py-1.5 text-slate-900">
+                              <td data-label="Məhsul" className="px-3 py-1.5 text-slate-900">
                                 {r.ad}
                                 {r.olcuEtiket && (
                                   <span className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-50 text-sky-700">
@@ -364,7 +364,7 @@ export default function Sifaris(props:
                                 )}
                                 {r.qeyd && <span className="block text-xs text-slate-400 mt-0.5">{r.qeyd}</span>}
                               </td>
-                              <td className="px-3 py-1.5">
+                              <td data-label="Miqdar" className="px-3 py-1.5">
                                 <input defaultValue={r.qty ?? ''} type="number" min={0} step="0.01"
                                        disabled={!canManage || busy === r.id}
                                        onBlur={e => {
@@ -374,8 +374,8 @@ export default function Sifaris(props:
                                        className={`w-24 rounded border px-2 py-1 text-sm tabular-nums ${
                                          r.qty == null ? 'border-rose-300 bg-rose-50' : 'border-slate-200'}`} />
                               </td>
-                              <td className="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{r.vahid}</td>
-                              <td className="px-3 py-1.5">
+                              <td data-label="Vahid" className="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{r.vahid}</td>
+                              <td data-label="Status" className="px-3 py-1.5">
                                 <select value={r.status} disabled={!canManage || busy === r.id}
                                         onChange={e => void setirYenile(r.id, { status: e.target.value })}
                                         className={`rounded px-2 py-1 text-xs font-semibold border-0 ${ST_RENG[r.status] ?? ''}`}>

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, type CSSProperties } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect, type CSSProperties } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, parseYearMatrix, mergeYearMatrix, yoyFromYearMatrix, type PlanResult, type YoyResult, type YearMatrix } from '@/lib/analytics/parse-daily'
 import DetailUpload from './detail-upload'
 import BoyumeBlok from './boyume-blok'
@@ -84,11 +84,18 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
-  const [bolgeF, setBolgeF] = useState<string>('')     // bölgə filtresi
-  const [yoyDown, setYoyDown] = useState(false)         // yalnız keçən ilə görə düşənlər
+  // ── FİLTRLƏR ÜNVANDA SAXLANILIR ───────────────────────────────────────────
+  // NİYƏ: əvvəl filtr yalnız yaddaşda idi. Bölgəni seçib linki göndərəndə
+  // qarşı tərəf FİLTRSİZ görürdü; geri düyməsi filtri geri qaytarmırdı;
+  // səhifə yenilənəndə seçim itirdi. İndi ünvanda qalır — link paylaşıla bilir,
+  // geri düyməsi işləyir, F5 seçimi pozmur.
+  const sp = useSearchParams()
+  const pathname = usePathname()
+  const [bolgeF, setBolgeF] = useState<string>(sp.get('bolge') ?? '')
+  const [yoyDown, setYoyDown] = useState(sp.get('dusen') === '1')
   const [sortK, setSortK] = useState<string>('Satış')   // tablo sıralaması
   const [sortAsc, setSortAsc] = useState(false)
-  const [ara, setAra] = useState('')                    // filial arama
+  const [ara, setAra] = useState(sp.get('ara') ?? '')   // filial axtarışı
   const inputRef = useRef<HTMLInputElement>(null)
 
   function add(list: FileList | null) { if (list) { setFiles(p => [...p, ...Array.from(list)]); setErr(null) } }
@@ -160,6 +167,23 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     if (t && d) return { pct: (d.gun && d.days.length ? b.total / d.gun * daysInMonth : b.total) / t }
     return { pct: null }
   }
+  // Yazı sahəsi hər hərfdə ünvana yazsa tarixçə zibillənir → 350 ms gecikmə.
+  // `replace` işlədilir ki, geri düyməsi hər hərfi bir addım saymasın.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const q = new URLSearchParams(Array.from(sp.entries()))
+      const yaz = (k: string, v: string) => { if (v) q.set(k, v); else q.delete(k) }
+      yaz('bolge', bolgeF)
+      yaz('ara', ara.trim())
+      yaz('dusen', yoyDown ? '1' : '')
+      const teze = q.toString()
+      if (teze !== sp.toString()) {
+        router.replace(`${pathname}${teze ? `?${teze}` : ''}`, { scroll: false })
+      }
+    }, 350)
+    return () => clearTimeout(t)
+  }, [bolgeF, ara, yoyDown, sp, pathname, router])
+
   const netYoyPct = yoy && yoy.network.y2025 ? yoy.network.y2026 / yoy.network.y2025 - 1 : null
 
   // Böyümə ayırıcısının girdisi. `yoy.branches` onsuz da filial → {2025, 2026}
@@ -563,12 +587,18 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             {bolgeler.map(b => (
               <button key={b} onClick={() => setBolgeF(b)} style={{ ...card, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', background: bolgeF === b ? RCOL[b] ?? '#26221d' : '#fff', color: bolgeF === b ? '#fff' : '#26221d', border: '1px solid #e6e1d7' }}>{b}</button>
             ))}
+            {(bolgeF || ara.trim() || yoyDown) && (
+              <button onClick={() => { setBolgeF(''); setAra(''); setYoyDown(false) }}
+                      style={{ ...card, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', background: '#fff', color: '#8b8378', border: '1px dashed #cfc7b8' }}>
+                ✕ Filtrləri təmizlə
+              </button>
+            )}
             {yoy && <button onClick={() => setYoyDown(v => !v)} style={{ ...card, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', background: yoyDown ? '#c8102e' : '#fff', color: yoyDown ? '#fff' : '#c8102e', border: '1px solid #f0c9cf', marginLeft: 4 }}>📉 Keçən ilə düşənlər</button>}
           </div>
 
           <div style={{ ...card, overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
-              <table className="ptbl" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
+              <table className="ptbl kart-cedvel" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: plan ? 620 : 480 }}>
                 <thead><tr>
                   {tblCols.map((h, i) => (
                     <th key={h} onClick={() => toggleSort(h)} title="Sırala"
@@ -584,14 +614,14 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
                     const zebra = idx % 2 ? '#fdfbf7' : '#fff'
                     return (
                       <tr key={b.filial} style={{ background: zebra }}>
-                        <td style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #efeae0' }}>{b.filial}</td>
-                        <td style={{ padding: '8px 10px', color: '#8b8378', borderBottom: '1px solid #efeae0' }}>{b.bolge ?? '—'}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{money(b.total)}</td>
-                        {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', color: '#8b8378', fontVariantNumeric: 'tabular-nums' }}>{planByFilial[b.filial] ? money(planByFilial[b.filial]) : '—'}</td>}
-                        {hasTarget && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
-                        {yoy && <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: yp == null ? '#8b8378' : yp >= 0 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{yp != null ? (yp >= 0 ? '+' : '') + Math.round(yp * 100) + '%' : '—'}</td>}
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{b.wolt ? `${money(b.wolt)} · ${(b.wolt / b.total * 100).toFixed(1)}%` : '—'}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{b.bolt ? `${money(b.bolt)} · ${(b.bolt / b.total * 100).toFixed(1)}%` : '—'}</td>
+                        <td data-label="Filial" style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #efeae0' }}>{b.filial}</td>
+                        <td data-label="Bölgə" style={{ padding: '8px 10px', color: '#8b8378', borderBottom: '1px solid #efeae0' }}>{b.bolge ?? '—'}</td>
+                        <td data-label="Satış" style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{money(b.total)}</td>
+                        {hasTarget && <td data-label="Hədəf" style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', color: '#8b8378', fontVariantNumeric: 'tabular-nums' }}>{planByFilial[b.filial] ? money(planByFilial[b.filial]) : '—'}</td>}
+                        {hasTarget && <td data-label="Hədəf%" style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: pp == null ? '#8b8378' : pp >= 0.98 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{pp != null ? Math.round(pp * 100) + '%' : '—'}</td>}
+                        {yoy && <td data-label="Keçən ilə" style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #efeae0', fontWeight: 700, color: yp == null ? '#8b8378' : yp >= 0 ? '#1c7a4e' : '#c8102e', fontVariantNumeric: 'tabular-nums' }}>{yp != null ? (yp >= 0 ? '+' : '') + Math.round(yp * 100) + '%' : '—'}</td>}
+                        <td data-label="Wolt" data-bos={b.wolt ? undefined : '1'} style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{b.wolt ? `${money(b.wolt)} · ${(b.wolt / b.total * 100).toFixed(1)}%` : '—'}</td>
+                        <td data-label="Bolt" data-bos={b.bolt ? undefined : '1'} style={{ padding: '8px 10px', textAlign: 'right', color: '#8b8378', borderBottom: '1px solid #efeae0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{b.bolt ? `${money(b.bolt)} · ${(b.bolt / b.total * 100).toFixed(1)}%` : '—'}</td>
                       </tr>
                     )
                   })}
