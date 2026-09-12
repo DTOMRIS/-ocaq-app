@@ -1,4 +1,5 @@
 import Link from "next/link"
+import MenyuIkon from "@/components/menyu-ikonlari";
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { openings, opening_tasks } from '@/db/schema/acilis'
@@ -659,27 +660,27 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
           role === 'branch_manager'
-            ? { href: "/dashboard/vardiya-checklist", icon: "✅", title: "KXT doldur" }
-            : { href: "/dashboard/checklists", icon: "📋", title: "KXT izləmə" },
-          { href: "/dashboard/vardiya-liderliyi", icon: "◆", title: "Növbə liderliyi" },
-          { href: "/dashboard/hr", icon: "📋", title: "HR" },
-          { href: "/dashboard/bildirisler", icon: "🔔", title: "Bildirişlər" },
-          { href: "/dashboard/sales", icon: "₼", title: "Satış Hədəfi" },
-          { href: "/dashboard/complaints", icon: "🚨", title: "Şikayətlər" },
-          { href: "/dashboard/staff", icon: "⊙", title: "Personel" },
+            ? { href: "/dashboard/vardiya-checklist", icon: "siyahi", title: "KXT doldur" }
+            : { href: "/dashboard/checklists", icon: "siyahi", title: "KXT izləmə" },
+          { href: "/dashboard/vardiya-liderliyi", icon: "liderlik", title: "Növbə liderliyi" },
+          { href: "/dashboard/hr", icon: "komanda", title: "HR" },
+          { href: "/dashboard/bildirisler", icon: "zeng", title: "Bildirişlər" },
+          { href: "/dashboard/sales", icon: "hedef", title: "Satış Hədəfi" },
+          { href: "/dashboard/complaints", icon: "sikayet", title: "Şikayətlər" },
+          { href: "/dashboard/staff", icon: "shexs", title: "Personel" },
           ...(role === 'super_admin' || role === 'region_manager' ? [
-            { href: "/dashboard/branches", icon: "🏪", title: "Filiallar" },
-            { href: "/dashboard/regions", icon: "◉", title: "Bölgələr" },
+            { href: "/dashboard/branches", icon: "magaza", title: "Filiallar" },
+            { href: "/dashboard/regions", icon: "bolge", title: "Bölgələr" },
           ] : []),
           ...(role === 'super_admin' ? [
-            { href: "/dashboard/team", icon: "✉", title: "Hesab və dəvət" },
-            { href: "/dashboard/settings", icon: "⚙", title: "Parametrlər" },
+            { href: "/dashboard/team", icon: "zerf", title: "Hesab və dəvət" },
+            { href: "/dashboard/settings", icon: "ayar", title: "Parametrlər" },
           ] : []),
         ].map((item) => (
           <Link key={item.href} href={item.href}
             className="ocaq-kart ocaq-kart-link flex items-center gap-2.5 p-3 text-sm font-semibold text-slate-700 hover:text-[var(--ocaq-red)]">
-            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#faf7f1] text-base">
-              {item.icon}
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#faf7f1] text-slate-500">
+              <MenyuIkon ad={item.icon} size={17} />
             </span>
             <span className="truncate">{item.title}</span>
           </Link>

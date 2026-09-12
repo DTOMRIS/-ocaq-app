@@ -3,33 +3,35 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import MenyuIkon from '@/components/menyu-ikonlari'
 
 type NavItem = { href: string; icon: string; label: string; roles: string[] }
+// `icon` artıq emoji deyil, `menyu-ikonlari.tsx`-dəki SVG açarıdır.
 
 const NAV: NavItem[] = [
-  { href: '/dashboard', icon: '◈', label: 'İdarə paneli', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/analitika', icon: '📊', label: 'Analitika', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/panel', icon: '📈', label: 'Günlük Panel', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/saatlik', icon: '🕐', label: 'Saatlıq Satış', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/silinme', icon: '🗑', label: 'Silinmə Nəzarəti', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/kasa-banka', icon: '🏦', label: 'Kasa/Banka', roles: ['super_admin'] },
-  { href: '/dashboard/pul-axini', icon: '💸', label: 'Pul Axını', roles: ['super_admin'] },
-  { href: '/dashboard/acilis', icon: '🏗', label: 'Açılış Takibi', roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/menyu', icon: '🍔', label: 'Menü', roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/recetura', icon: '🧾', label: 'Reçetura', roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/promosyonlar', icon: '🎁', label: 'Promosyonlar', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/vardiya-liderliyi', icon: '◆', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/vardiya-checklist', icon: '✓', label: 'KXT doldur', roles: ['branch_manager'] },
-  { href: '/dashboard/checklists', icon: '📋', label: 'KXT izləmə', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/sales', icon: '₼', label: 'Satış hədəfi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/staff', icon: '⊙', label: 'Personel', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/team', icon: '✉', label: 'Hesab və dəvət', roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/hr', icon: '👤', label: 'HR prosesləri', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayətlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/bildirisler', icon: '🔔', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
-  { href: '/dashboard/branches', icon: '🏪', label: 'Filiallar', roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/regions', icon: '◉', label: 'Bölgələr', roles: ['super_admin', 'region_manager'] },
-  { href: '/dashboard/settings', icon: '⚙', label: 'Parametrlər', roles: ['super_admin'] },
+  { href: '/dashboard', icon: 'panel', label: 'İdarə paneli', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/analitika', icon: 'sutun', label: 'Analitika', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/panel', icon: 'qrafik', label: 'Günlük Panel', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/saatlik', icon: 'saat', label: 'Saatlıq Satış', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/silinme', icon: 'zibil', label: 'Silinmə Nəzarəti', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/kasa-banka', icon: 'banka', label: 'Kasa/Banka', roles: ['super_admin'] },
+  { href: '/dashboard/pul-axini', icon: 'axin', label: 'Pul Axını', roles: ['super_admin'] },
+  { href: '/dashboard/acilis', icon: 'bina', label: 'Açılış Takibi', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/menyu', icon: 'menyu', label: 'Menü', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/recetura', icon: 'recetura', label: 'Reçetura', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/promosyonlar', icon: 'promo', label: 'Promosyonlar', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/vardiya-liderliyi', icon: 'liderlik', label: 'Növbə liderliyi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/vardiya-checklist', icon: 'siyahi', label: 'KXT doldur', roles: ['branch_manager'] },
+  { href: '/dashboard/checklists', icon: 'siyahi', label: 'KXT izləmə', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/sales', icon: 'hedef', label: 'Satış hədəfi', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/staff', icon: 'shexs', label: 'Personel', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/team', icon: 'zerf', label: 'Hesab və dəvət', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/hr', icon: 'komanda', label: 'HR prosesləri', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/complaints', icon: 'sikayet', label: 'Şikayətlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/bildirisler', icon: 'zeng', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
+  { href: '/dashboard/branches', icon: 'magaza', label: 'Filiallar', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/regions', icon: 'bolge', label: 'Bölgələr', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/settings', icon: 'ayar', label: 'Parametrlər', roles: ['super_admin'] },
 ]
 
 
@@ -122,9 +124,9 @@ export default function Sidebar({ role, onNavigate }: { role: string; onNavigate
                 width: 3, height: 18, borderRadius: '0 3px 3px 0', background: '#F2A81D',
               }} />}
               <span style={{
-                color: active ? '#F2A81D' : 'rgba(255,255,255,0.34)',
-                fontSize: '15px', width: '20px', textAlign: 'center', flexShrink: 0,
-              }}>{item.icon}</span>
+                color: active ? '#F2A81D' : 'rgba(255,255,255,0.40)',
+                display: 'flex', width: '20px', justifyContent: 'center', flexShrink: 0,
+              }}><MenyuIkon ad={item.icon} /></span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
             </Link>
           )
