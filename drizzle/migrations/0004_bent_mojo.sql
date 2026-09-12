@@ -1,3 +1,13 @@
+-- 0004 — bildiriş · növbə brifinqi · checklist idempotentliyi
+--
+-- ⚠️ BU MIGRATION MÖVCUD SƏTİRLƏRİ DƏYİŞİR (sətir 63–64 UPDATE) → SNAPSHOT.
+-- Backfill: köhnə checklist sətirlərinə `business_date` (Bakı vaxtı ilə) və
+-- `idempotency_key` (`legacy:<id>`) doldurulur. Yalnız NULL olanlara toxunur,
+-- yəni təkrar işlədilsə no-op-dur.
+-- Tarixi qeyd: bu fayl `drizzle-kit`-in ixracıdır; başlıq 12.09.2026-da
+-- əlavə edildi (SQL DƏYİŞMƏDİ, yalnız şərh) — migration intizamı testi
+-- destruktiv/UPDATE fayllarda xəbərdarlıq tələb edir.
+
 CREATE TYPE "public"."notification_audience" AS ENUM('all', 'role', 'region', 'branch', 'selected');--> statement-breakpoint
 CREATE TYPE "public"."notification_type" AS ENUM('urgent', 'info', 'task', 'promo');--> statement-breakpoint
 CREATE TYPE "public"."shift_briefing_status" AS ENUM('draft', 'completed');--> statement-breakpoint

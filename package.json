@@ -16,7 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "npx tsx src/db/seed.ts",
     "db:reset-admin": "npx tsx src/db/reset-admin.ts",
-    "db:import-staff": "npx tsx src/db/import-staff.ts"
+    "db:import-staff": "npx tsx src/db/import-staff.ts",
+    "db:status": "node scripts/migration-status.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",

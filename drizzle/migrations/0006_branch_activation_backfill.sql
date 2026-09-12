@@ -1,3 +1,10 @@
+-- 0006 — filial aktivləşmə tarixinin backfill-i
+--
+-- ⚠️ BU MIGRATION MÖVCUD SƏTİRLƏRİ DƏYİŞİR (UPDATE) → SNAPSHOT ALIN.
+-- Aktiv filiallara `activated_at = created_at` yazılır. Şərtli olduğu üçün
+-- təkrar işlədilməsi zərərsizdir.
+-- Başlıq 12.09.2026-da əlavə edildi (SQL DƏYİŞMƏDİ, yalnız şərh).
+
 UPDATE "branches"
 SET
 	"activated_at" = "created_at",

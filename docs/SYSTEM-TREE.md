@@ -126,10 +126,24 @@ migration-ları göstərir: onlardan ƏVVƏL Neon snapshot MƏCBURİDİR.
 > complaint · notification · shift). Cədvəl adları fərqli formatda yazıldığı
 > üçün yuxarıdakı avtomatik siyahıda görünmür.
 >
-> ⚠ **Bilinən problem:** `drizzle/migrations/meta/_journal.json` **0007-də
-> donub** — 18 migration rəsmi dəftərdə görünmür. Tətbiq vəziyyəti
-> `schema_migrations_manual` cədvəlində saxlanılır, lakin o cədvəl `src/db/schema`-da
-> təyin olunmayıb. Həmçinin `0001` nömrəsi iki faylda təkrarlanır.
+> **Journal 0007-də donub və DÜZƏLDİLMİR** — 19 migration orada görünmür.
+> Journal-ı geriyə doğru yazmaq `drizzle-kit`-i artıq tətbiq olunmuş
+> migration-ları yenidən işlətməyə sövq edə bilər. Onun yerinə:
+>
+> · ⛔ **`drizzle-kit migrate` İŞLƏDİLMİR** — journal-dakı 8-dən başqasını görmür
+> · Tətbiq YALNIZ `npm run db:migrate -- <fayl> --apply` ilə edilir
+> · Qeydiyyat `schema_migrations_manual` cədvəlindədir və artıq
+>   `src/db/schema/migrations.ts`-də TƏYİN olunub (Studio-da görünür)
+> · `npm run db:status` — diskdə nə var, bazada nə qeyd olunub, nə çatmır
+> · `npm run db:status -- --qeyd-et <fayl>` — artıq tətbiq olunmuş köhnə
+>   migration-ı SQL İŞLƏTMƏDƏN qeydə alır
+> · `0001` nömrəsi iki faylda təkrarlanır (tarixi hal). **Ad DƏYİŞDİRİLMİR** —
+>   qeydiyyat fayl adına bağlıdır, ad dəyişsə migration «tətbiq olunmayıb»
+>   görünər.
+>
+> İntizam artıq `tests/migration-files.test.ts` ilə qorunur: ad qaydası ·
+> nömrə boşluğu · yeni nömrə təkrarı · destruktiv/UPDATE fayllarda snapshot
+> xəbərdarlığı · `create table if not exists`.
 
 ## Təhlükəsizlik qatı
 
@@ -168,7 +182,7 @@ testlə örtüldü — sorğunun içindəki qərar test edilə bilmirdi.
 |---|---|
 | ~~`/admin/**` menyuda yoxdur~~ | **12.09 qərarı: MENYUYA ƏLAVƏ EDİLMİR.** 9 səhifədən yalnız `promosyonlar/yeni` real data oxuyur və o, artıq `/dashboard/promosyonlar`-dan əlçatandır. Qalanı nümunədir (0 fetch, 0 baza) — menyuya qoymaq işləməyən ekranı gözə soxmaq olardı. 5-nə xəbərdarlıq bloku qoyuldu, işləyən ekrana yönləndirir |
 | 6 nümunə ekran (`ekipman`, `kasa`, `haccp`, `fire`, `tahmin`, `menu`) | Baza yoxdur — girilən məlumat itir. Xəbərdarlıq bloku əlavə edildi, modul yazılmayıb |
-| Migration jurnalı 0007-də donub | Tətbiq vəziyyəti kodda izlənmir |
+| ~~Migration jurnalı 0007-də donub~~ | **12.09 qərarı: journal DÜZƏLDİLMİR** (geriyə yazmaq artıq tətbiq olunmuşları yenidən işlətmə riski yaradır). Əvəzinə: qeydiyyat cədvəli şemaya salındı, `npm run db:status` əlavə edildi, intizam 7 testlə qoruma altına alındı |
 | ~~Ölü kod~~ | **12.09 qərarı:** `upload-flow.tsx` SİLİNDİ (yalnız redirect səhifəsinin yanında qalmışdı, heç bir dəyər daşımırdı). Qalan üçü «⚠️ ARXİV» başlığı ilə işarələndi, silinmədi: `api/dashboard/panel` (AGENTS.md route qoruması), `api/dashboard/kasa-banka` (Unibank/ATB HTML parseri BAŞQA YERDƏ YOXDUR), `parse-delivery.ts` (kanal analizi portala gələndə təməl) |
 | ~~Həftəlik xülasə cron-u~~ | **12.09-da quruldu:** `vercel.json` → hər bazar ertəsi 06:00 UTC (Bakı 10:00) `/api/cron/acilis-digest`. **QURAŞDIRMA TƏLƏB ETMİR** — `x-vercel-cron` başlığı ilə işləyir. `CRON_SECRET` istəyə bağlı sərtləşdirmədir |
 | «Geri al» yalnız departament e-poçtunda | Sifariş sətri, hədəf, şikayət hələ dönüşsüz |

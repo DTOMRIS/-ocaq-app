@@ -6,6 +6,45 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 12.09.2026 (gecə, 3) — MIGRATION İNTİZAMI: jurnal boşluğu bağlandı
+
+**Journal DÜZƏLDİLMƏDİ — bu, qərardır.** `_journal.json` 0007-dədir və 19
+migration orada görünmür. Journal-ı geriyə doğru yazmaq `drizzle-kit`-i ARTIQ
+TƏTBİQ OLUNMUŞ migration-ları yenidən işlətməyə sövq edə bilər. Riski
+saxlamaqdansa yolu bağlamaq seçildi.
+
+#### Nə edildi
+
+· `schema_migrations_manual` **şemaya salındı** (`src/db/schema/migrations.ts`).
+  Cədvəl `apply-migration.mjs` tərəfindən onsuz da yaradılırdı, amma kodda
+  təyin olunmadığı üçün nə Studio-da görünürdü, nə də tipli oxuna bilirdi.
+
+· **`npm run db:status`** (yeni) — diskdə nə var, bazada nə qeyd olunub, nə
+  çatmır. Journal-da görünməyən fayllar ayrıca işarələnir. Nömrə təkrarını
+  və jurnal boşluğunu hər çağırışda xatırladır.
+  `-- --qeyd-et <fayl>` → artıq tətbiq olunmuş köhnə migration-ı **SQL
+  İŞLƏTMƏDƏN** qeydə alır (skriptdən əvvəl əl ilə işlədilənlər üçün).
+
+· **`tests/migration-files.test.ts`** (7 test) — intizam artıq kodla qorunur:
+  ad qaydası `NNNN_ad.sql` · nömrə boşluğu yoxdur · yeni nömrə təkrarı
+  olmasın (tarixi `0001` istisna, açıq yazılıb) · destruktiv ifadəsi olan
+  fayl başında SNAPSHOT xəbərdarlığı olmalıdır · `UPDATE` edən fayl da ·
+  0009-dan sonrakı hər `create table` **`if not exists`** olmalıdır (Neon HTTP
+  sürücüsündə tranzaksiya yoxdur, migration yarıda kəsilib TƏKRAR işlədilir).
+
+#### Test dərhal bir boşluq tapdı
+`0004_bent_mojo.sql` və `0006_branch_activation_backfill.sql` mövcud sətirləri
+UPDATE edir, lakin başlarında snapshot xəbərdarlığı YOX İDİ. İkisinə də başlıq
+əlavə edildi — **SQL DƏYİŞMƏDİ, yalnız şərh** (hər ikisi artıq tətbiq olunub;
+şərh ifadə sayını dəyişmir, ona görə qeydiyyat pozulmur).
+
+#### `0001` nömrə təkrarı — adı DƏYİŞDİRİLMİR
+`0001_cold_stature` + `0001_complaints`. Qeydiyyat FAYL ADINA bağlıdır; ad
+dəyişsə migration «tətbiq olunmayıb» görünər və kimsə onu yenidən işlədər.
+Test bu bir halı allowlist-ə salır, YENİ təkrarı isə bloklayır.
+
+npm test 327/327 · typecheck təmiz · lint 0 xəta
+
 ### 12.09.2026 (gecə, 2) — ÖLÜ KOD: biri silindi, üçü «ARXİV» işarələndi
 
 İstifadəçi «sən qərar ver» dedi. Qərar risk səviyyəsinə görə ayrıldı:
