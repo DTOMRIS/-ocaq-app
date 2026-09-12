@@ -8,7 +8,7 @@ import { analytics_ingest } from '@/db/schema/analytics'
 import { sales_targets } from '@/db/schema/sales'
 import { branches } from '@/db/schema/branches'
 import { accessibleBranchIds } from '@/lib/branch-access'
-import { canonBranchKey } from '@/lib/analytics/filial-map'
+import { canonBranchKey, tradeZone } from '@/lib/analytics/filial-map'
 import PanelClient from './panel-client'
 
 export const metadata = { title: 'Günlük Panel — OCAQ' }
@@ -285,8 +285,27 @@ export default async function PanelPage({ searchParams }: { searchParams: Promis
   // DƏRHAL bilinsin. Lokalda dəyişən yoxdur → 'local'.
   const buildSha = (process.env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 7) || 'local'
 
+  // ── TİCARƏT ZONASI ────────────────────────────────────────────────────────
+  // Mənbə sırası: BAZADAKI `branches.trade_zone` üstündür (0025-dən sonra
+  // filial əlavə ediləndə kod dəyişdirmək lazım olmasın deyə), yoxdursa
+  // `filial-map.ts`-dəki sabit siyahıya düşür.
+  const zonalar: Record<string, string> = {}
+  try {
+    const zrows = await db.select({ name: branches.name, zone: branches.trade_zone })
+      .from(branches).where(eq(branches.tenant_id, tenantId))
+    for (const r of zrows) {
+      const k = canonBranchKey(r.name)
+      const z = (r.zone ?? '').trim() || tradeZone(r.name)
+      if (k && z) zonalar[k] = z
+    }
+  } catch (e) {
+    // 0025 işlədilməyibsə səhifə sınmasın — zona bloku sadəcə görünmür
+    console.error('[panel] ticarət zonası oxunmadı:', e)
+  }
+
   return (
     <PanelClient
+      zonalar={zonalar}
       buildSha={buildSha}
       initial={initial}
       targets={targets}

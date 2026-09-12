@@ -4,6 +4,8 @@ import { useState, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseDaily, parseOlap, parseDailyWide, parsePlan, parseYoy, parseYearMatrix, mergeYearMatrix, yoyFromYearMatrix, type PlanResult, type YoyResult, type YearMatrix } from '@/lib/analytics/parse-daily'
 import DetailUpload from './detail-upload'
+import BoyumeBlok from './boyume-blok'
+import { type FilialDovr } from '@/lib/analytics/growth-split'
 import { computeAttainment, attainmentByRegion } from '@/lib/analytics/target-attainment'
 import { canonBranchKey } from '@/lib/analytics/filial-map'
 
@@ -63,8 +65,8 @@ function Chart({ d }: { d: Daily }) {
 
 type IngestRow = { period: string; engine: string; status: string; created: string; readable: boolean }
 
-export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [], factSource = false, buildSha = 'local', factCover = null }: {
-  initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null; inventory?: IngestRow[]
+export default function PanelClient({ initial, targets = {}, canUpload = false, savedAt = null, periods = [], selectedPeriod = null, inventory = [], factSource = false, buildSha = 'local', factCover = null, zonalar = {} }: {
+  initial?: { daily: unknown; plan: unknown; yoy?: unknown } | null; targets?: Record<string, number>; canUpload?: boolean; savedAt?: string | null; periods?: string[]; selectedPeriod?: string | null; inventory?: IngestRow[]; zonalar?: Record<string, string>
   /** Panel datası fakt cədvəlindən quruldu (blob-dan deyil) — mənbə göstərilir. */
   factSource?: boolean
   /** Canlıda işləyən build-in commit SHA-sı (qısa). «Köhnə paket» tələsi üçün. */
@@ -159,6 +161,15 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
     return { pct: null }
   }
   const netYoyPct = yoy && yoy.network.y2025 ? yoy.network.y2026 / yoy.network.y2025 - 1 : null
+
+  // Böyümə ayırıcısının girdisi. `yoy.branches` onsuz da filial → {2025, 2026}
+  // xəritəsidir; burada yalnız zona adı əlavə olunur.
+  const boyumeSetirleri: FilialDovr[] = yoy
+    ? Object.entries(yoy.branches).map(([filial, v]) => ({
+        filial, cari: v.y2026, kecen: v.y2025,
+        zona: zonalar[canonBranchKey(filial) ?? filial] ?? null,
+      }))
+    : []
   const branchYoy = (b: { filial: string }): number | null => {
     const yb = yoy?.branches[b.filial]
     return yb && yb.y2025 ? yb.y2026 / yb.y2025 - 1 : null
@@ -397,6 +408,9 @@ export default function PanelClient({ initial, targets = {}, canUpload = false, 
             {netYoyPct != null && <Tile k="Keçən ilə" v={(netYoyPct >= 0 ? '+' : '') + Math.round(netYoyPct * 100) + '%'} sub="2026 vs 2025" tone={netYoyPct >= 0 ? '#1c7a4e' : '#c8102e'} />}
             <Tile k="Delivery" v={d.toplam ? Math.round(deliv / d.toplam * 100) + '%' : '—'} sub={d.pay.own_delivery ? 'Wolt+Bolt+öz' : 'Wolt+Bolt'} />
           </div>
+
+          {/* ── BÖYÜMƏ AYIRICISI — tək «YoY %» rəqəmi yanıldıcıdır ─────────── */}
+          <BoyumeBlok setirler={boyumeSetirleri} />
 
           {/* ── HƏDƏFİ OLMAYAN FİLİALLAR — satış İTMİR, görünür ─────────────── */}
           {untargeted.length > 0 && hasTarget && (
