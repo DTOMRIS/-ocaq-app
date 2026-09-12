@@ -10,13 +10,32 @@
      "Checklistı Göndər"). Dəyər kod boyu hardcode edilmiş #C8102E ilə eynidir
      (137 yerdə: sidebar, cədvəllər) — yeni rəng deyil, mövcud rəngin tokeni. */
   --ocaq-red: #C8102E;
+
+  /* ── MARKA və SƏTH TOKENLƏRİ ──────────────────────────────────────────────
+     Rənglər kodda onsuz da işlənirdi, amma hər yerdə ayrıca yazılırdı. Token
+     olanda bir yerdən dəyişir və qaranlıq rejim üçün də yer açılır. */
+  --ocaq-gold:  #F2A81D;
+  --ocaq-ink:   #26221d;
+  --ocaq-ink-2: #6b6358;
+  --ocaq-ink-3: #8b8378;
+  --ocaq-cream: #faf7f1;
+  --ocaq-line:  #e6e1d7;
+  --ocaq-line-2:#efeae0;
+  --ocaq-green: #1c7a4e;
+
+  /* Hündürlük: kart düz sərhədlə «yapışdırılmış» görünür; iki qatlı yumşaq
+     kölgə onu səthdən qaldırır. Kölgə QARA deyil, mürəkkəb rəngindədir —
+     krem fonda boz kölgə çirkli görünür. */
+  --ocaq-shadow-1: 0 1px 2px rgba(38,34,29,.05), 0 1px 3px rgba(38,34,29,.04);
+  --ocaq-shadow-2: 0 2px 4px rgba(38,34,29,.05), 0 8px 20px -6px rgba(38,34,29,.10);
+  --ocaq-radius: 14px;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-sans: var(--font-sans-ocaq), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-mono-ocaq), "SFMono-Regular", Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,7 +48,27 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans-ocaq), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Rəqəmlər cədvəldə sütun-sütun düzülsün (maliyyə ekranı) */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.005em;
+}
+
+/* Başlıqlar: sıx hərf aralığı + sətir yığılması — «Filial adı çox uzundur»
+   halında söz ortasından qırılmasın. */
+h1, h2, h3 { letter-spacing: -.02em; text-wrap: balance; }
+
+/* Klaviatura ilə gəzən istifadəçi fokusun harada olduğunu GÖRMƏLİDİR.
+   Əvvəl brauzerin standart konturu bəzi düymələrdə görünmürdü. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ocaq-gold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* İncə sürüşmə zolağı — qalın boz zolaq krem interfeysdə kobud görünür */
+@supports (scrollbar-width: thin) {
+  * { scrollbar-width: thin; scrollbar-color: #d6cfc2 transparent; }
 }
 
 .dashboard-shell { display: flex; min-height: 100vh; background: #f9f9f9; }
@@ -84,7 +123,9 @@ body {
   .ocaq-bottomnav {
     display: grid; grid-template-columns: repeat(5, 1fr);
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
-    background: #1a1614; border-top: 1px solid rgba(255,255,255,.08);
+    background: rgba(26,22,20,.94); backdrop-filter: saturate(160%) blur(12px);
+    border-top: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 -6px 24px rgba(38,34,29,.18);
     /* iPhone-da alt «home» zolağının altına düşməmək üçün */
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -95,7 +136,14 @@ body {
     color: rgba(255,255,255,.62); text-decoration: none;
     font-family: inherit; -webkit-tap-highlight-color: transparent;
   }
+  .ocaq-bottomnav-item { position: relative; transition: color .15s; }
   .ocaq-bottomnav-item.is-active { color: #fff; }
+  /* Aktiv ekran yuxarıdan qızılı zolaqla işarələnir — rəng fərqi tək başına
+     kiçik ekranda zəif oxunur. */
+  .ocaq-bottomnav-item.is-active::before {
+    content: ''; position: absolute; top: 0; left: 22%; right: 22%; height: 2.5px;
+    border-radius: 0 0 3px 3px; background: #F2A81D;
+  }
   .ocaq-bottomnav-item.is-active .ocaq-bottomnav-icon { transform: translateY(-1px); }
   .ocaq-bottomnav-icon { font-size: 18px; line-height: 1; }
   .ocaq-bottomnav-label {
@@ -132,8 +180,9 @@ body {
   }
   .kart-cedvel, .kart-cedvel tbody, .kart-cedvel tr, .kart-cedvel td { display: block; width: 100%; }
   .kart-cedvel tr {
-    border: 1px solid #e6e1d7; border-radius: 12px; margin-bottom: 8px;
+    border: 1px solid var(--ocaq-line); border-radius: 14px; margin-bottom: 10px;
     background: #fff !important; overflow: hidden;
+    box-shadow: var(--ocaq-shadow-1);
   }
   .kart-cedvel td {
     display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
@@ -149,8 +198,11 @@ body {
   /* Birinci xana kartın BAŞLIĞIDIR — etiketsiz, böyük, solda */
   .kart-cedvel td:first-child {
     justify-content: flex-start; text-align: left !important;
-    font-size: 15px !important; font-weight: 700 !important;
-    background: #faf7f1; border-bottom: 1px solid #e6e1d7 !important;
+    font-size: 15.5px !important; font-weight: 700 !important;
+    letter-spacing: -.015em;
+    background: linear-gradient(180deg, #fdfbf7, var(--ocaq-cream));
+    border-bottom: 1px solid var(--ocaq-line) !important;
+    padding: 10px 14px !important;
   }
   .kart-cedvel td:first-child::before { content: none; }
   /* Dəyəri boş olan sətir kartda yer tutmasın */
@@ -182,4 +234,36 @@ body {
 @media (max-width: 767px) {
   /* alt çubuq 52px + təhlükəsiz sahə → zolaq onun üstündə qalsın */
   .ocaq-toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
+
+/* ─── KART SƏTHİ ──────────────────────────────────────────────────────────
+   Düz ağ + incə sərhəd kart səthə «yapışdırılmış» görünür. İki qatlı yumşaq
+   kölgə onu qaldırır; kölgə qara deyil, MÜRƏKKƏB rəngindədir — krem fonda
+   boz kölgə çirkli görünür. */
+.ocaq-kart {
+  background: #fff;
+  border: 1px solid var(--ocaq-line);
+  border-radius: var(--ocaq-radius);
+  box-shadow: var(--ocaq-shadow-1);
+}
+/* Kliklənən kart: barmaq/kursor altında qalxır — «bu toxunula bilər» siqnalı */
+.ocaq-kart-link {
+  transition: box-shadow .16s ease, transform .16s ease, border-color .16s ease;
+}
+.ocaq-kart-link:hover {
+  box-shadow: var(--ocaq-shadow-2);
+  transform: translateY(-1px);
+  border-color: #d8d0c0;
+}
+.ocaq-kart-link:active { transform: translateY(0); box-shadow: var(--ocaq-shadow-1); }
+@media (prefers-reduced-motion: reduce) {
+  .ocaq-kart-link, .ocaq-kart-link:hover { transition: none; transform: none; }
+}
+
+/* Böyük rəqəm — KPI kartlarının əsas elementi */
+.ocaq-reqem {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.03em;
+  font-weight: 800;
 }

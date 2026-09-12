@@ -27,15 +27,42 @@ type Daily = {
 }
 
 const money = (n?: number | null) => (n == null ? '—' : Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + '₼')
-const card: CSSProperties = { background: '#fff', border: '1px solid #e6e1d7', borderRadius: 14 }
+const card: CSSProperties = {
+  background: '#fff', border: '1px solid var(--ocaq-line)',
+  borderRadius: 'var(--ocaq-radius)', boxShadow: 'var(--ocaq-shadow-1)',
+}
 const RCOL: Record<string, string> = { 'İsmayıl': '#C8102E', 'Ramin': '#E07A1F', 'Ceyhun': '#F2A81D', 'Taleh': '#7A8B3F', 'Elnur': '#4A7A6A' }
 
+/**
+ * KPI plitəsi.
+ *
+ * Rəqəm ekranın ƏSAS məlumatıdır, ona görə ən böyük və ən sıx yazılır
+ * (26px, −1.2px aralıq). Etiket kiçik, böyük hərfli, geniş aralıqlı —
+ * rəqəmlə YARIŞMIR, onu adlandırır.
+ *
+ * Ton rəngi yalnız yuxarı zolaqda deyil, həm də rəqəmdə və çox yumşaq fon
+ * ləkəsində görünür: kart uzaqdan baxanda «yaxşı/pis» oxunsun.
+ */
 function Tile({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: string }) {
+  const t = tone ?? '#26221d'
   return (
-    <div style={{ ...card, padding: '12px 15px 13px', flex: 1, minWidth: 130, borderTop: `3px solid ${tone ?? '#e2dccf'}`, boxShadow: '0 1px 3px rgba(38,34,29,.04)' }}>
-      <div style={{ fontSize: 10.5, color: '#8b8378', textTransform: 'uppercase', letterSpacing: '.4px' }}>{k}</div>
-      <div style={{ fontSize: 21, fontWeight: 800, marginTop: 4, letterSpacing: '-.4px', color: tone ?? '#26221d', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-      {sub && <div style={{ fontSize: 11, color: '#8b8378', marginTop: 2 }}>{sub}</div>}
+    <div style={{
+      ...card, position: 'relative', overflow: 'hidden',
+      padding: '14px 16px 15px', flex: 1, minWidth: 136,
+    }}>
+      <span aria-hidden style={{
+        position: 'absolute', inset: '0 0 auto 0', height: 3,
+        background: tone ? `linear-gradient(90deg, ${t}, ${t}55)` : 'linear-gradient(90deg,#e2dccf,#f2eee5)',
+      }} />
+      {tone && (
+        <span aria-hidden style={{
+          position: 'absolute', right: -26, top: -26, width: 86, height: 86,
+          borderRadius: '50%', background: t, opacity: .05,
+        }} />
+      )}
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#8b8378', textTransform: 'uppercase', letterSpacing: '.09em' }}>{k}</div>
+      <div style={{ fontSize: 26, fontWeight: 800, marginTop: 5, letterSpacing: '-.03em', lineHeight: 1.05, color: t, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+      {sub && <div style={{ fontSize: 11.5, color: '#8b8378', marginTop: 4, lineHeight: 1.4 }}>{sub}</div>}
     </div>
   )
 }

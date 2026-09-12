@@ -517,10 +517,10 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {/* Mənbə: `/dashboard/panel` → «Günlük detay» (PRODMIX + ÇEK) yükləməsi.
             Data yoxdursa `—` qalır — uydurma rəqəm YOX (AGENTS.md). */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="ocaq-kart p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Ortalama Çek</p>
           <div className="flex items-end gap-1">
-            <span className={`text-2xl font-bold ${dayAvgCheck !== null ? 'text-slate-900' : 'text-slate-300'}`}>
+            <span className={`text-[28px] leading-none ocaq-reqem ${dayAvgCheck !== null ? 'text-slate-900' : 'text-slate-300'}`}>
               {dayAvgCheck !== null ? dayAvgCheck.toFixed(2) : NA}
             </span>
             {dayAvgCheck !== null && <span className="text-sm text-slate-400 mb-0.5">₼</span>}
@@ -535,10 +535,10 @@ export default async function DashboardPage() {
         {/* «Müştəri sayı» = unikal qəbz sayı. Bir qəbz = bir müştəri (istifadəçi
             təsdiqi 08.08.2026: «çek ise müşteri»). Ona görə Çek Sayı kartı ilə
             eyni mənbədən gəlir — fərq YALNIZ dövrdür (bu kart son gün, o kart ay). */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="ocaq-kart p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Müştəri Sayı</p>
           <div className="flex items-end gap-1">
-            <span className={`text-2xl font-bold ${dayReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
+            <span className={`text-[28px] leading-none ocaq-reqem ${dayReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
               {dayReceipts !== null ? fmt(dayReceipts) : NA}
             </span>
           </div>
@@ -547,10 +547,10 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="ocaq-kart p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Çek Sayı</p>
           <div className="flex items-end gap-1">
-            <span className={`text-2xl font-bold ${monthReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
+            <span className={`text-[28px] leading-none ocaq-reqem ${monthReceipts !== null ? 'text-slate-900' : 'text-slate-300'}`}>
               {monthReceipts !== null ? fmt(monthReceipts) : NA}
             </span>
           </div>
@@ -559,7 +559,7 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="ocaq-kart p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Checklist Skor</p>
           <div className="flex items-end gap-1">
             <span className="text-2xl font-bold text-emerald-700">{checklistAvg ?? NA}</span>
@@ -655,7 +655,7 @@ export default async function DashboardPage() {
       )}
 
       {/* ═══ TEZ KEÇİDLƏR ═══ */}
-      <h2 className="text-lg font-semibold text-slate-900 mb-3">Tez Keçidlər</h2>
+      <h2 className="text-[17px] font-bold tracking-tight text-slate-900 mb-3">Tez Keçidlər</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
           role === 'branch_manager'
@@ -677,9 +677,11 @@ export default async function DashboardPage() {
           ] : []),
         ].map((item) => (
           <Link key={item.href} href={item.href}
-            className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 hover:border-[var(--ocaq-red)] hover:shadow-sm transition-all text-sm font-medium text-slate-700 hover:text-[var(--ocaq-red)]">
-            <span className="text-lg">{item.icon}</span>
-            {item.title}
+            className="ocaq-kart ocaq-kart-link flex items-center gap-2.5 p-3 text-sm font-semibold text-slate-700 hover:text-[var(--ocaq-red)]">
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#faf7f1] text-base">
+              {item.icon}
+            </span>
+            <span className="truncate">{item.title}</span>
           </Link>
         ))}
       </div>

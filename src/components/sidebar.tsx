@@ -64,12 +64,14 @@ export default function Sidebar({ role, onNavigate }: { role: string; onNavigate
         padding: '20px 16px 12px',
         borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}>
-        <p style={{ color: '#C8102E', fontWeight: '700', fontSize: '16px', margin: 0 }}>
+        <p style={{ color: '#fff', fontWeight: 800, fontSize: '19px', margin: 0,
+          letterSpacing: '-.02em', display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span aria-hidden style={{ width: 7, height: 7, borderRadius: 2, background: '#C8102E', display: 'inline-block' }} />
           OCAQ
         </p>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: '3px 0 0',
-          letterSpacing: '1.5px', textTransform: 'uppercase' as const }}>
-          OCAQ Portal
+        <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: '10px', margin: '4px 0 0 14px',
+          letterSpacing: '.16em', textTransform: 'uppercase' as const, fontWeight: 600 }}>
+          Əməliyyat portalı
         </p>
       </div>
 
@@ -84,9 +86,10 @@ export default function Sidebar({ role, onNavigate }: { role: string; onNavigate
           placeholder="Menyuda axtar…"
           aria-label="Menyuda axtar"
           style={{
-            width: '100%', padding: '7px 10px', borderRadius: 7,
+            width: '100%', padding: '8px 11px', borderRadius: 9,
             border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)',
             color: '#fff', fontSize: 13, outline: 'none',
+            fontFamily: 'inherit', letterSpacing: '-.01em',
           }}
         />
       </div>
@@ -102,19 +105,27 @@ export default function Sidebar({ role, onNavigate }: { role: string; onNavigate
           const active = isActive(item.href)
           return (
             <Link key={item.href} href={item.href} onClick={onNavigate} style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '9px 10px', borderRadius: '6px', marginBottom: '2px',
+              position: 'relative',
+              display: 'flex', alignItems: 'center', gap: '11px',
+              padding: '9px 11px', borderRadius: '9px', marginBottom: '1px',
               textDecoration: 'none',
-              background: active ? 'rgba(200,16,46,0.15)' : 'transparent',
-              color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-              fontSize: '13px', fontWeight: active ? '500' : '400',
-              transition: 'all .15s',
+              background: active ? 'rgba(255,255,255,0.07)' : 'transparent',
+              color: active ? '#fff' : 'rgba(255,255,255,0.56)',
+              fontSize: '13px', fontWeight: active ? 600 : 450,
+              letterSpacing: '-.01em',
+              transition: 'background .15s, color .15s',
             }}>
+              {/* Aktiv sətir qızılı zolaqla işarələnir — yalnız fon fərqi
+                  qaranlıq menyuda zəif oxunur. */}
+              {active && <span aria-hidden style={{
+                position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+                width: 3, height: 18, borderRadius: '0 3px 3px 0', background: '#F2A81D',
+              }} />}
               <span style={{
-                color: active ? '#C8102E' : 'rgba(255,255,255,0.3)',
-                fontSize: '16px', width: '20px', textAlign: 'center',
+                color: active ? '#F2A81D' : 'rgba(255,255,255,0.34)',
+                fontSize: '15px', width: '20px', textAlign: 'center', flexShrink: 0,
               }}>{item.icon}</span>
-              {item.label}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
             </Link>
           )
         })}
