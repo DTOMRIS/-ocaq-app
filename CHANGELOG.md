@@ -6,6 +6,78 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 12.09.2026 — DENETİM: 4 agent taraması + tapılan xətaların bağlanması
+
+**Düzəldildi:**
+
+- **`promotions` cədvəlinin migration-ı YOX İDİ.** Şemada var (`src/db/schema/
+  promotions.ts`), amma yalnız `scripts/create-promotions.mjs` + `alter-
+  promotions.mjs` ilə qurulurdu — bu skriptlər `.env.local`-ı birbaşa oxuyur və
+  `apply-migration.mjs`-in dry-run/destruktiv qorumalarından KEÇMİR. Sıfırdan
+  qurulan mühitdə `/dashboard/promosyonlar` sınırdı. → `0024_promotions.sql`
+  (`if not exists`, mövcud prod-da no-op).
+- **`npm run lint` 5 XƏTA verirdi → 0.** `analitika-client.tsx`-də `SortTh`
+  komponenti render-in İÇİNDƏ təyin edilmişdi: hər render-də yeni komponent
+  tipi → React köhnə DOM-u atır, cədvəldə sıralama tıklananda fokus və sürüşmə
+  itirdi (`react-hooks/static-components`). Element qaytaran adi funksiyaya
+  çevrildi. `parse-menu.ts:16` prefer-const. `npm run check` artıq keçir.
+- **Departament e-poçtları üçün EKRAN YOX İDİ.** `digest` route-unda GET/PUT
+  yazılmışdı, amma heç bir səhifə çağırmırdı — `opening_dept_contacts` yalnız
+  əl ilə bazadan doldurula bilirdi. Bu, həm həftəlik xülasəni, həm də 11.09-da
+  qurulan SİFARİŞ GÖNDƏRİŞİNİ bloklayırdı. Açılış → Departament səhifəsinə
+  idarəetmə paneli əlavə edildi; ünvanı olmayan departament qırmızı
+  «sifariş göndərilə bilməz» xəbərdarlığı ilə görünür.
+
+**Tapılan, hələ bağlanmayan** (bax aşağıdakı «Qalıb» siyahısı):
+migration journal 0007-də donub (18 migration izlənmir) · təhlükəsizlik
+qatı (`branch-access`, `rbac`, `message-audience`, `encryption`, `rate-limit`)
+tamamilə testsiz · 6 mock səhifə canlıda (`ekipman`, `kasa`, `haccp`, `fire`,
+`tahmin`, `menu` — sıfır DB) · `/admin/**` menyusuz · ölü kod zənciri
+(`analitika/yukle` → `upload-flow.tsx` → `analytics/upload`) · `docs/SYSTEM-TREE.md`
+25.07-dən bəri yenilənməyib · CI yoxdur (`vercel.json`/workflow yox) → həftəlik
+xülasə cron-u heç qurulmayıb.
+
+**Başqa repolarda tapılanlar:**
+
+- `egitim-sistemi` — **Almila 02.06.2026-dan bəri toxunulmayıb** (101 gün).
+  `FAZA-2.0-almila-semantic-rag.md` «AÇIK, implement bekliyor». Qeydə alınmış
+  kök xəta: `getSalesKnowledgeBase()` yalnız seed kateqoriyaları çəkir → admin
+  paneldən əlavə edilən YENİ kateqoriyalar Almila-ya heç çatmır.
+- `egitim-sistemi` — **sertifikat endirmə düyməsi 3 həftədir səhv generatora
+  bağlı idi** (jsPDF, 3 rəng). Rəsmi dizayn 26–27.08-də hazırlanmışdı, panelə
+  bağlanmamışdı və o səhifəyə portaldan link yox idi. Düymə `/sertifika/<kod>`
+  çap səhifəsinə köçürüldü.
+- `shaurma-analiz-sistemi` — **son commit 28.07.2026, remote YOXDUR**, 28 fayl
+  versiyasız. `motor/et-verim/out/` qovluğu yox idi → bütün `report_*.py`
+  sınırdı; simvolik keçidlə bağlandı və işlədilib yoxlanıldı.
+- **`git fetch` refspec-i bir budağa daralmışdı** → `origin/main` lokalda köhnə
+  qalırdı (3 commit kor nöqtə). Düzəldildi.
+- **`main`-ə ikinci sessiya da yazır** (`claude/ocaq-deploy-modules-dccn6v`).
+
+
+Geniş tarama aparıldı (OCAQ + `shaurma-analiz-sistemi` + `egitim-sistemi` +
+keçmiş sessiya transkriptləri). Tapıntılar və görülən işlər:
+
+- **`git fetch` refspec-i sınıq idi** — yalnız bir budağa daralmışdı
+  (`feat/analytics-on-commercial`), ona görə `origin/main` lokalda köhnə qalırdı
+  (3 commit kor nöqtə). Push yanlış təməldən gedə bilərdi. Düzəldildi.
+- **`main`-ə ikinci sessiya da yazır** (`claude/ocaq-deploy-modules-dccn6v`,
+  `e543107`). Toqquşma olmadı, amma bilinməlidir.
+- **`egitim-sistemi`: sertifikat endirmə düyməsi 3 həftədir SƏHV generatora
+  bağlı idi.** Admin panelindəki düymə 23.08 tarixli `buildCertificatePdf`
+  (jsPDF, cəmi 3 rəng) çağırırdı. Rəsmi dizayn 26–27.08-də hazırlanmışdı
+  (krem zəmin, qara sol panel, qırmızı marka zolağı, 5 rəngli TƏLİM YOLU
+  pilləsi, QR, çift imza) — amma panelə BAĞLANMAMIŞDI və o səhifəyə portaldan
+  heç bir link yox idi. Düymə `/sertifika/<kod>` çap səhifəsinə köçürüldü;
+  köhnə generator «ARXİV» kimi işarələndi.
+- **`shaurma-analiz-sistemi/motor/et-verim/out/` qovluğu yox idi** → bütün
+  `report_*.py` faylları `FileNotFoundError` verirdi. JSON-lar
+  `ciktilar/2026-09-et-verim/veri/`-yə köçürülmüşdü. Simvolik keçidlə bağlandı,
+  `report_state2.py` işlədilib yoxlanıldı.
+- **⚠ `shaurma-analiz-sistemi`-də son commit 28.07.2026, remote YOXDUR.**
+  28 fayl (ət verim motoru, açılış, ay-kapanış, sentyabr çıxışları) versiyasız.
+  6 həftəlik iş tək nüsxə halında bir laptopdadır.
+
 ### ✅ 11.09.2026 — UÇDAN-UCA TEST: düzəliş işləyir, İKİ YENİ SƏHV TAPILDI
 
 Real avqust DT faylı (389 678 xam sətir) → real parser → **real SQL** → real
@@ -51,6 +123,94 @@ səhifəsinə dedektör əlavə olundu (`having bool_or(kod=ad) and bool_or(kod<
 Ölçüldü: **təmiz halda 0 · qarışıq halda 4**.
 
 `npm test` **278/278** · typecheck təmiz · `next build` keçdi.
+
+### 11.09.2026 — AÇILIŞ SİFARİŞİ: kataloq, ölçülər, göndəriş
+
+Yeni filial malzemə sifarişi açılış modulunun içinə gətirildi.
+Migration `0022_acilis_sifaris.sql` + `0023_acilis_olcu.sql` (ikisi də işlədildi).
+
+**Kataloq — 490 sabit sətir, 5 kateqoriya** (`src/lib/acilis/sifaris.ts`):
+Qida 128 · Razin istehsalat 29 · Qeyri-qida 179 · Bar 98 · Fırın 56.
+
+Mənbə 5 Excel + Mərkəzi Anbarın damğalı çap siyahıları. Tutuşdurmada tapılanlar:
+
+| Problem | Həll |
+|---|---|
+| «zal-mətbəx» faylının 52 sətrinin HAMISI «Fırın» faylında eyni miqdarla var | Ayrı kateqoriya SAXLANILMADI — yoxsa 52 məhsul iki dəfə sifariş edilirdi (lahmacun kağızı 850 → 1700) |
+| «Kofe Aparatı Okko» Bar-da iki dəfə (№70, №89) | 1 ədəd + qeyd. İki qəhvə maşını almaq əskik almaqdan bahadır |
+| «Piçer» iki dəfə — fərq vahid sütununda («300 ml»/«600 ml») | Ölçü ada köçürüldü; unique açar birini səssizcə udurdu |
+| RAZİN İSTEHSALAT siyahısı Excel dəstində ÜMUMİYYƏTLƏ yox idi | Əlavə edildi — olmasa filial xəmirsiz, şorbasız, şaurma sousu olmadan açılır |
+| Bar siyahısında 19 sətir əskik | Əlavə edildi (Şar dəsti, Cezve, Nəlbəki, Blender, Pepsi bakalı…) |
+
+**Üç ölçü — yeganə dəyişənlər:**
+
+```
+masa      → duz qabı · istiot qabı · salfet qabı · stolüstü zibilqabı ·
+            masa nömrələri · masa stikeri (hər biri masa başına 1)
+            dəmir külqabı: masa başına 1 + 4 ehtiyat, YALNIZ teras
+oturacaq  → menyu (oturacaq başına 0,5 — hamı eyni anda gəlmir)
+banko (m) → menyu ekranı (hər 1,2 m üçün 1)
+```
+
+`İstiot qabı` heç bir siyahıda YOX İDİ — yalnız istiotun özü vardı, qabı yox.
+
+**BOŞ ilə SIFIR fərqlidir:** boş = «hələ ölçülməyib» (qırmızı, göndəriş
+bloklanır); `0` = «yoxdur» (sətir «lazım deyil», bloklamır). Masasız mall
+filialı əks halda heç vaxt sifariş göndərə bilmirdi.
+
+**Göndəriş:** departament üzrə e-poçt (cədvəl poçtun İÇİNDƏ — qoşma telefonda
+açılmır) + `Çap / PDF` səhifəsi + Excel (CSV). İki yerdə DAYANIR: miqdarsız
+sətir varsa, departament e-poçtu yoxdursa. Poçt uğursuz olsa status dəyişmir.
+
+**Qorumalar:** 16 məhsul birdən çox siyahıdadır → cəm xəbərdarlığı.
+`qty_manual` — əl ilə düzəldilmiş sətrə təkrar generasiya toxunmur.
+Sətirlər `opening_orders`-a kopyalanır → şablon dəyişsə keçmiş sifariş qalır.
+
+### 11.09.2026 — AÇILIŞ ŞABLONU: təkrarlar təmizləndi, zəncir quruldu
+
+Şablon 213 → 216 vəzifə. İstifadəçi sətir-sətir yoxladı, tapılanlar:
+
+- **Təkrarlar silindi:** «iş saatları stikeri» G5+G6-da iki dəfə · «Qəhvə filtr
+  sistemi» ayrı alınırdı (indi TƏK su filtri, qəhvə/kola/buz ona bağlanır) ·
+  «Duz qabı, bibər qabı», «Masa üstü zibil qabı», «Tualet avadanlıqları» —
+  üçü də artıq sifariş kataloqunda sətir-sətir var idi.
+- **«UNUDULDU» etiketlərinin hamısı silindi** (13 sətir). Tiredən sonrakı izah
+  saxlanıldı. Test artıq şablonda bu sözə icazə vermir.
+- **«bağlanır» sözü düzəldildi** — azərbaycanca «qapanır» deməkdir, sifariş
+  kimi oxunmurdu. «Foto komandası bağlanır» → «sifariş edilir, tarix
+  təsdiqlənir». Fiziki bağlantı olan 3 yer toxunulmadı.
+- **Yeni: tikinti zənciri (5 addım)** — kirayə müqaviləsi → komandanın sahədə
+  funksiya/yerləşim təyini → mimari proyekt → **rəhbərlik təsdiqi** → yerin
+  tikinti departamentinə təhvili. Əvvəl proyekt komandanın girdisi olmadan
+  çıxarılırdı.
+- **Yeni: barmaq izi (giriş-çıxış qeydiyyatı)** — əvvəl cihaz (−7 gün),
+  sonra işçi qeydiyyatı (−5 gün). Sıra testlə qorunur.
+- **Yeni:** davlumbaz altı işıqlandırma · su analizi (filtrdən ƏVVƏL) ·
+  «Tezliklə» baneri · SMM reklam mətni (reklamdan əvvəl) · el ilanı ·
+  əksiklər siyahısının BAĞLANMASI.
+- **Düzəlişlər:** SMM səhifələri artıq var (açma vəzifəsi çıxarıldı) ·
+  Wolt/Bolt «hesab açıldı» → «filial mövcud hesaba əlavə edildi» ·
+  canlı çiçək Marketinq → OPS, şərt `oturma` · bayraq sifariş edilmir.
+
+**Yeni düymə: «Şablonla uyğunlaşdır».** Vəzifələr açılış yaradılanda
+kopyalanır (tarixçə qorunsun deyə), ona görə şablon düzəlişləri MÖVCUD
+açılışlara düşmürdü — istifadəçi ekranda köhnə sətirləri görməyə davam edirdi.
+Düymə əvvəl dryRun ilə nə əlavə/silinəcəyini göstərir, sonra təsdiq istəyir.
+Üzərində iş olan sətir SİLİNMİR, ayrıca sadalanır.
+
+### 09.09.2026 — SAATLIQ SATIŞ: ay seçicisi
+
+İki ay bir yerə toplanırdı: «2026-07-01 → 2026-08-31 · 60 gün · 7 796 778 ₼».
+Rəqəm doğru idi (3 963 112 + 3 833 666), amma «iyul necə idi?» sualına cavab
+vermirdi. Dövr seçicisi əlavə edildi; seçilməsə SON ay gəlir. «Bütün dövr»
+seçiləndə sarı xəbərdarlıq: «rəqəmlər cəmdir». Ay dəyişəndə seçilmiş gün
+təmizlənir.
+
+### 08.09.2026 — CASH FLOW və REÇETURA faylları XARİCİ QAPIDA tanınmırdı
+
+Parserlər düzgün idi və testdən keçirdi, lakin `DetailUpload` yalnız tanınan
+iiko tiplərini ötürürdü. Vərəq adına görə tanıma əlavə edildi (iiko yoxlamasından
+ƏVVƏL). Migration `0020_recipe_lines.sql` + `0021_cashflow_lines.sql`.
 
 
 ### 🔴 08.09.2026 — «ciro payı» yanlış: KÖK SƏBƏB + STRUKTUR HƏLL

@@ -205,8 +205,17 @@ export default function AnalitikaClient({
     return { netRate, price, list, total: list.reduce((s, x) => s + x.gapAmount, 0) }
   }, [upsellItem, attach, branchRows, enriched])
 
-  const SortTh = ({ k, children, align = 'right' }: { k: typeof sortK; children: React.ReactNode; align?: 'left' | 'right' }) => (
+  /**
+   * Çeşidləmə başlığı.
+   *
+   * NİYƏ KOMPONENT DEYİL, FUNKSİYA: komponent render-in İÇİNDƏ təyin edilsə
+   * hər render-də YENİ komponent tipi yaranır — React köhnə DOM-u atıb yenisini
+   * qurur, cədvəldə fokus və sürüşmə itir (react-hooks/static-components).
+   * Elementi qaytaran adi funksiya bu problemi yaratmır.
+   */
+  const sortTh = (k: typeof sortK, children: React.ReactNode, align: 'left' | 'right' = 'right') => (
     <th
+      key={k}
       style={{ ...th, textAlign: align, cursor: 'pointer' }}
       onClick={() => { if (sortK === k) setAsc(!asc); else { setSortK(k); setAsc(false) } }}
     >
@@ -531,13 +540,13 @@ export default function AnalitikaClient({
         <div style={{ overflowX: 'auto' }}>
           <table className="atbl" style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead><tr>
-              <SortTh k="name" align="left">Məhsul</SortTh>
+              {sortTh('name', 'Məhsul', 'left')}
               <th style={{ ...th, textAlign: 'center' }}>Kvadrant</th>
-              <SortTh k="qty">Ədəd</SortTh>
-              <SortTh k="amount">Ciro</SortTh>
+              {sortTh('qty', 'Ədəd')}
+              {sortTh('amount', 'Ciro')}
               <th style={{ ...th, textAlign: 'right' }}>Ciro payı</th>
               <th style={{ ...th, textAlign: 'right' }}>Orta qiymət</th>
-              <SortTh k="attach">Ədəd/çek</SortTh>
+              {sortTh('attach', 'Ədəd/çek')}
               <th style={{ ...th, textAlign: 'right' }}>Filial</th>
             </tr></thead>
             <tbody>

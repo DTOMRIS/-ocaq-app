@@ -13,7 +13,7 @@ export type MenuResult = {
 
 function num(s: unknown): number | null {
   if (typeof s === 'number') return isFinite(s) ? s : null
-  let t = String(s ?? '').replace(/[₼%\s    ]/g, '').replace(/,(\d{3})/g, '$1').replace(',', '.')
+  const t = String(s ?? '').replace(/[₼%\s    ]/g, '').replace(/,(\d{3})/g, '$1').replace(',', '.')
   const n = parseFloat(t)
   return isFinite(n) ? n : null
 }

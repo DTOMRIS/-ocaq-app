@@ -2,9 +2,9 @@ import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { eq, and, ne } from 'drizzle-orm'
 import { db } from '@/db'
-import { openings, opening_tasks } from '@/db/schema/acilis'
+import { openings, opening_tasks, opening_dept_contacts } from '@/db/schema/acilis'
 import { avadanliqSiyahisi, type AcilisProfil, type AcilisFormat } from '@/lib/acilis/template'
-import DeptClient, { type DeptSetir, type AvadSetir } from './dept-client'
+import DeptClient, { type DeptSetir, type AvadSetir, type Kontakt } from './dept-client'
 
 export const metadata = { title: 'Departament siyahısı — OCAQ' }
 export const dynamic = 'force-dynamic'
@@ -16,6 +16,16 @@ export default async function DepartamentPage() {
 
   let setirler: DeptSetir[] = []
   let avadanliq: AvadSetir[] = []
+  // Kontaktlar SERVERDƏ oxunur — brauzerdə effektlə çəkmək kaskad render yaradır
+  // və siyahı bir anlıq boş görünür (06.09 dərsi, `fayllar.tsx`).
+  let kontaktlar: Kontakt[] = []
+  try {
+    const cs = await db.select().from(opening_dept_contacts)
+      .where(eq(opening_dept_contacts.tenant_id, tenantId))
+    kontaktlar = cs.filter(c => c.is_active).map(c => ({ id: c.id, dept: c.dept, email: c.email }))
+  } catch (e) {
+    console.error('[acilis] departament kontaktları oxunmadı:', e)
+  }
 
   try {
     // Yalnız DAVAM EDƏN açılışlar — bağlananın siyahısı iş yükü deyil
@@ -63,6 +73,6 @@ export default async function DepartamentPage() {
       a.kat.localeCompare(b.kat) || a.ad.localeCompare(b.ad))
   } catch { setirler = []; avadanliq = [] }
 
-  return <DeptClient setirler={setirler} avadanliq={avadanliq}
+  return <DeptClient setirler={setirler} avadanliq={avadanliq} kontaktlar={kontaktlar}
                      canManage={session.user.role === 'super_admin'} />
 }

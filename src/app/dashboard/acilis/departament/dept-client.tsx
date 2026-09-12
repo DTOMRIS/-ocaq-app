@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export type DeptSetir = {
   id: string; openingId: string; opening: string; openDate: string | null
@@ -9,6 +10,10 @@ export type DeptSetir = {
   dueDate: string | null; status: string
 }
 export type AvadSetir = { kat: string; ad: string; filiallar: string[]; sayPerFilial: number | null }
+export type Kontakt = { id: string; dept: string; email: string }
+
+/** Sifariş göndərişi və həftəlik xülasə bu departamentlərə gedir. */
+const SIFARIS_DEPT = ['Satın Alma', 'Marketinq', 'Bilgi İşlem'] as const
 
 const ST_ADI: Record<string, string> = {
   gozleyir: 'gözləyir', davam_edir: 'davam edir', bitdi: 'bitdi',
@@ -29,9 +34,38 @@ function yukle(ad: string, metn: string) {
   URL.revokeObjectURL(a.href)
 }
 
-export default function DeptClient({ setirler, avadanliq, canManage = false }:
-  { setirler: DeptSetir[]; avadanliq: AvadSetir[]; canManage?: boolean }) {
+export default function DeptClient({ setirler, avadanliq, kontaktlar = [], canManage = false }:
+  { setirler: DeptSetir[]; avadanliq: AvadSetir[]; kontaktlar?: Kontakt[]; canManage?: boolean }) {
+  const router = useRouter()
   const [gonderme, setGonderme] = useState<string | null>(null)
+  const [yeniDept, setYeniDept] = useState('')
+  const [yeniEmail, setYeniEmail] = useState('')
+  const [kBusy, setKBusy] = useState(false)
+  const [kXeta, setKXeta] = useState<string | null>(null)
+
+  /**
+   * Departament e-poçtunu əlavə et / sil.
+   *
+   * NİYƏ VACİBDİR: həm həftəlik xülasə, həm də sifariş göndərişi
+   * (`/api/dashboard/acilis/[id]/sifaris/gonder`) BU cədvələ baxır. Ünvan
+   * yoxdursa göndəriş «e-poçt təyin edilməyib» deyə dayanır. Əvvəl cədvəl
+   * yalnız əl ilə bazadan doldurula bilirdi — ekran yox idi.
+   */
+  async function kontaktYaz(dept: string, email: string, remove = false) {
+    setKBusy(true); setKXeta(null)
+    try {
+      const r = await fetch('/api/dashboard/acilis/digest', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dept, email, remove }),
+      })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error ?? 'Xəta')
+      if (!remove) { setYeniDept(''); setYeniEmail('') }
+      router.refresh()
+    } catch (e) {
+      setKXeta(e instanceof Error ? e.message : 'Naməlum xəta')   // xəta udulmur
+    } finally { setKBusy(false) }
+  }
 
   async function xulaseGonder(dryRun: boolean) {
     setGonderme('...')
@@ -168,6 +202,73 @@ export default function DeptClient({ setirler, avadanliq, canManage = false }:
         <p className="mt-2 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
           {gonderme}
         </p>
+      )}
+
+      {/* ── Departament e-poçtları ── */}
+      {canManage && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Departament e-poçtları</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Həftəlik xülasə VƏ sifariş göndərişi bu ünvanlara gedir. Ünvan
+            yoxdursa göndəriş dayanır və «e-poçt təyin edilməyib» xətası verir.
+            Bir departamentə birdən çox ünvan yazıla bilər.
+          </p>
+
+          {kXeta && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{kXeta}</p>}
+
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="text-sm">
+              <span className="block text-xs text-slate-500 mb-1">Departament</span>
+              <input list="dept-siyahi" value={yeniDept} onChange={e => setYeniDept(e.target.value)}
+                     placeholder="Satın Alma" disabled={kBusy}
+                     className="w-44 rounded-lg border border-slate-300 px-3 py-1.5 text-sm" />
+              <datalist id="dept-siyahi">
+                {[...new Set([...SIFARIS_DEPT, ...deptler])].map(d => <option key={d} value={d} />)}
+              </datalist>
+            </label>
+            <label className="text-sm">
+              <span className="block text-xs text-slate-500 mb-1">E-poçt</span>
+              <input type="email" value={yeniEmail} onChange={e => setYeniEmail(e.target.value)}
+                     placeholder="satinalma@shaurma.az" disabled={kBusy}
+                     className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-sm" />
+            </label>
+            <button onClick={() => void kontaktYaz(yeniDept.trim(), yeniEmail.trim())}
+                    disabled={kBusy || !yeniDept.trim() || !yeniEmail.trim()}
+                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {kBusy ? 'gözləyin…' : 'Əlavə et'}
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-1.5">
+            {SIFARIS_DEPT.map(d => {
+              const list = kontaktlar.filter(k => k.dept === d)
+              return (
+                <div key={d} className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="w-28 shrink-0 font-medium text-slate-700">{d}</span>
+                  {list.length === 0
+                    ? <span className="text-xs font-semibold text-rose-600">⚠ ünvan yoxdur — sifariş göndərilə bilməz</span>
+                    : list.map(k => (
+                        <span key={k.id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs">
+                          {k.email}
+                          <button onClick={() => void kontaktYaz(k.dept, k.email, true)} disabled={kBusy}
+                                  title="sil" className="text-slate-400 hover:text-rose-600">×</button>
+                        </span>
+                      ))}
+                </div>
+              )
+            })}
+            {kontaktlar.filter(k => !SIFARIS_DEPT.includes(k.dept as typeof SIFARIS_DEPT[number])).map(k => (
+              <div key={k.id} className="flex items-center gap-2 text-sm">
+                <span className="w-28 shrink-0 font-medium text-slate-700">{k.dept}</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs">
+                  {k.email}
+                  <button onClick={() => void kontaktYaz(k.dept, k.email, true)} disabled={kBusy}
+                          title="sil" className="text-slate-400 hover:text-rose-600">×</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {gorunus === 'vezife' ? (
