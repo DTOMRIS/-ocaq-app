@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Sidebar from '@/components/sidebar'
 import Topbar from '@/components/topbar'
+import MobileNav from '@/components/mobile-nav'
 
 export default function DashboardShell({
   children,
@@ -54,6 +55,11 @@ export default function DashboardShell({
         <Topbar user={user} />
         <main className="dashboard-main">{children}</main>
       </div>
+
+      {!isStaff && (
+        <MobileNav role={user.role} menuOpen={menuOpen}
+                   onMenu={() => setMenuOpen(v => !v)} />
+      )}
     </div>
   )
 }

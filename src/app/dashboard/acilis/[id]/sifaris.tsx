@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { tekrarSetirleri, SIFARIS_KATLAR, SIFARIS_OLCULU, olcuEtiketi,
+import { tekrarSetirleri, SIFARIS_KATLAR, SIFARIS_OLCULU, olcuEtiketi, sifarisAcar,
          type SifarisKat, type Olculer } from '@/lib/acilis/sifaris'
 
 export type SifarisSetriDb = {
@@ -43,6 +43,7 @@ export default function Sifaris(props:
   const [mesaj, setMesaj] = useState<string | null>(null)
   const [acik, setAcik] = useState<SifarisKat | null>(null)
   const [gizle, setGizle] = useState(true)     // «gəldi» olanları gizlə
+  const [ara, setAra] = useState('')
 
   const tekrarlar = useMemo(() => tekrarSetirleri(), [])
   const eksik = setirler.filter(r => r.qty == null && r.status !== 'lazim_deyil')
@@ -77,15 +78,28 @@ export default function Sifaris(props:
     return [...m.values()].sort((a, b) => b.say - a.say)
   }, [setirler])
 
+  /**
+   * AXTARIŞ — 490 sətirlik siyahıda gözlə tapmaq mümkün deyil.
+   * `sifarisAcar` İ/I/ı tələsini və diakritikləri həll edir: «istiot» yazan
+   * «İstiot qabı»nı, «salfet» yazan «Salfet Dispenser»i tapır.
+   * Uyğunluq varsa kateqoriya AVTOMATİK açılır — tapılan sətri görmək üçün
+   * ayrıca toxunuş lazım olmasın.
+   */
+  const axtarilan = useMemo(() => {
+    const q = sifarisAcar(ara.trim())
+    if (!q) return null
+    return new Set(setirler.filter(r => sifarisAcar(r.ad).includes(q)).map(r => r.id))
+  }, [ara, setirler])
+
   const kats = useMemo(() => SIFARIS_KATLAR.map(k => {
-    const rows = setirler.filter(r => r.kat === k)
+    const rows = setirler.filter(r => r.kat === k && (!axtarilan || axtarilan.has(r.id)))
     return {
       k, rows,
       hamisi: rows.length,
       geldi: rows.filter(r => r.status === 'geldi').length,
       lazimsiz: rows.filter(r => r.status === 'lazim_deyil').length,
     }
-  }).filter(x => x.hamisi > 0), [setirler])
+  }).filter(x => x.hamisi > 0), [setirler, axtarilan])
 
   async function yarat() {
     const bos = onizleme.filter(o => o.qty == null)
@@ -274,18 +288,38 @@ export default function Sifaris(props:
             </details>
           )}
 
-          <label className="mt-3 flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-            <input type="checkbox" checked={gizle} className="accent-emerald-600"
-                   onChange={e => setGizle(e.target.checked)} />
-            gələnləri və lazım olmayanları gizlə
-          </label>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[190px]">
+              <input value={ara} onChange={e => setAra(e.target.value)}
+                     placeholder="Məhsul axtar — məs. istiot, salfet, pizza…"
+                     aria-label="Məhsul axtar"
+                     className="w-full rounded-lg border border-slate-300 pl-3 pr-9 py-2 text-sm" />
+              {ara && (
+                <button onClick={() => setAra('')} aria-label="Axtarışı təmizlə"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                  ×
+                </button>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={gizle} className="accent-emerald-600"
+                     onChange={e => setGizle(e.target.checked)} />
+              gələnləri gizlə
+            </label>
+          </div>
+          {axtarilan && (
+            <p className="mt-2 text-sm text-slate-600">
+              «{ara}» üçün <b>{axtarilan.size}</b> sətir tapıldı
+              {axtarilan.size === 0 && ' — başqa söz yazın'}
+            </p>
+          )}
 
           <div className="mt-2 space-y-2">
             {kats.map(({ k, rows, hamisi, geldi, lazimsiz }) => {
               const gorunen = gizle
                 ? rows.filter(r => r.status !== 'geldi' && r.status !== 'lazim_deyil')
                 : rows
-              const acildi = acik === k
+              const acildi = acik === k || (axtarilan != null && rows.length > 0)
               return (
                 <div key={k} className="rounded-lg border border-slate-200">
                   <button onClick={() => setAcik(acildi ? null : k)}

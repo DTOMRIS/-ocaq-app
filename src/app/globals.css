@@ -74,3 +74,38 @@ body {
      və onlar adi qaydadan güclüdür. Yalnız ≤767px — masaüstü görünüş dəyişmir. */
   input, select, textarea { font-size: 16px !important; }
 }
+
+
+/* ─── TELEFONDA ALT HƏRƏKƏT ÇUBUĞU ─────────────────────────────────────────
+   Yalnız ≤767px. Masaüstündə sol sidebar qalır, çubuq görünmür. */
+.ocaq-bottomnav { display: none; }
+
+@media (max-width: 767px) {
+  .ocaq-bottomnav {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+    background: #1a1614; border-top: 1px solid rgba(255,255,255,.08);
+    /* iPhone-da alt «home» zolağının altına düşməmək üçün */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .ocaq-bottomnav-item {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; min-height: 52px; padding: 7px 2px;
+    border: 0; background: transparent; cursor: pointer;
+    color: rgba(255,255,255,.62); text-decoration: none;
+    font-family: inherit; -webkit-tap-highlight-color: transparent;
+  }
+  .ocaq-bottomnav-item.is-active { color: #fff; }
+  .ocaq-bottomnav-item.is-active .ocaq-bottomnav-icon { transform: translateY(-1px); }
+  .ocaq-bottomnav-icon { font-size: 18px; line-height: 1; }
+  .ocaq-bottomnav-label {
+    font-size: 10.5px; font-weight: 600; line-height: 1.15;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Çubuq məzmunun üstünü örtməsin — son sətir oxunmalıdır */
+  .dashboard-main { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  /* Yuxarıdakı ☰ artıq lazım deyil: eyni iş aşağıda, barmağın altındadır */
+  .dashboard-menu-button { display: none; }
+  /* Çekmece çubuğun ÜSTÜNDƏ açılsın */
+  .dashboard-drawer-layer { z-index: 100; }
+}

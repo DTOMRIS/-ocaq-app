@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 
 type NavItem = { href: string; icon: string; label: string; roles: string[] }
@@ -34,8 +35,21 @@ const NAV: NavItem[] = [
 
 export default function Sidebar({ role, onNavigate }: { role: string; onNavigate?: () => void }) {
   const path = usePathname()
+  const [ara, setAra] = useState('')
 
-  const visible = NAV.filter((item) => item.roles.includes(role))
+  /**
+   * AZ hərf tələsi: 'İdarə'.toLowerCase() → 'i'+U+0307, yəni 'idar' ilə
+   * uyğunlaşmır. Əvvəl İ/I/ı → i, sonra kiçildib diakritikləri atırıq ki,
+   * «hedef» yazan da «Satış hədəfi»ni tapsın.
+   */
+  const acar = (v: string) => v.replace(/[İIı]/g, 'i').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+  const rolaUygun = useMemo(() => NAV.filter((item) => item.roles.includes(role)), [role])
+  const visible = useMemo(() => {
+    const q = acar(ara.trim())
+    return q ? rolaUygun.filter((item) => acar(item.label).includes(q)) : rolaUygun
+  }, [rolaUygun, ara])
 
   const isActive = (href: string) => path === href || (href !== '/dashboard' && path.startsWith(href))
 
@@ -62,8 +76,28 @@ export default function Sidebar({ role, onNavigate }: { role: string; onNavigate
       {/* Qızılı xətt */}
       <div style={{ height: '3px', background: '#F2A81D' }} />
 
+      {/* Axtarış — 23 menyu sətrini gözlə taramaq əvəzinə yazıb tapmaq */}
+      <div style={{ padding: '10px 10px 4px' }}>
+        <input
+          value={ara}
+          onChange={(e) => setAra(e.target.value)}
+          placeholder="Menyuda axtar…"
+          aria-label="Menyuda axtar"
+          style={{
+            width: '100%', padding: '7px 10px', borderRadius: 7,
+            border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)',
+            color: '#fff', fontSize: 13, outline: 'none',
+          }}
+        />
+      </div>
+
       {/* Nav */}
-      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 8px' }}>
+      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 8px 12px' }}>
+        {visible.length === 0 && (
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12.5, padding: '10px' }}>
+            «{ara}» üçün menyu tapılmadı.
+          </p>
+        )}
         {visible.map((item) => {
           const active = isActive(item.href)
           return (

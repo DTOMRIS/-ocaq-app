@@ -32,6 +32,8 @@ export default async function AcilisDetayPage({ params }: { params: Promise<{ id
     hasPizza: op.has_pizza, hasDelivery: op.has_delivery, hasGas: op.has_gas,
     hasGenerator: op.has_generator, wasCafe: op.was_cafe, decisionNote: op.decision_note,
     tableCount: op.table_count, counterLenM: op.counter_len_m,
+    hasCoffee: op.has_coffee, multiFloor: op.multi_floor, hasBar: op.has_bar,
+    isMerge: op.is_merge, inPark: op.in_park,
   }
   // Fayllar serverdə oxunur — brauzerdə effekt ilə çəkmək kaskad render yaradır
   // və siyahı bir anlıq boş görünür. Endirmə linki 5 dəqiqəlikdir, səhifə

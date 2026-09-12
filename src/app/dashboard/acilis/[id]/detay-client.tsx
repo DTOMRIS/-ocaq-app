@@ -13,6 +13,7 @@ export type Layihe = {
   hasTerrace: boolean; hasGarden: boolean; hasSeating: boolean; hasPizza: boolean
   hasDelivery: boolean; hasGas: boolean; hasGenerator: boolean; wasCafe: boolean
   decisionNote: string | null; tableCount: number | null; counterLenM: string | null
+  hasCoffee: boolean; multiFloor: boolean; hasBar: boolean; isMerge: boolean; inPark: boolean
 }
 export type Vezife = {
   id: string; gate: string; dept: string; task: string; note: string | null
@@ -80,6 +81,61 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
    * Vəzifə siyahısını cari şablonla uyğunlaşdırır.
    * ƏVVƏL dryRun ilə nə olacağı göstərilir — kor-koranə silmə olmasın.
    */
+  const [redakte, setRedakte] = useState(false)
+
+  /**
+   * PROFİL REDAKTƏSİ.
+   *
+   * NİYƏ VƏZİFƏ SİYAHISI AVTOMATİK YENİLƏNMİR: profil dəyişəndə şablon da
+   * dəyişir, amma üzərində iş görülmüş sətri səssizcə silmək tarixçəni pozar.
+   * Server «şablon yenilənsin» bayrağı qaytarır, biz soruşuruq — qərar insanın.
+   */
+  async function profilYaz(form: HTMLFormElement) {
+    setBusy('profil')
+    try {
+      const fd = new FormData(form)
+      const BAYRAQ = ['has_terrace', 'has_garden', 'has_seating', 'has_pizza', 'has_delivery',
+                      'has_gas', 'has_generator', 'was_cafe', 'has_coffee', 'multi_floor',
+                      'has_bar', 'is_merge', 'in_park']
+      const govde: Record<string, unknown> = {}
+      for (const [k, v] of fd.entries()) if (!BAYRAQ.includes(k)) govde[k] = v
+      for (const k of BAYRAQ) govde[k] = fd.get(k) === 'on'
+
+      const r = await fetch(`/api/dashboard/acilis/${layihe.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(govde),
+      })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error ?? 'Xəta')
+      setRedakte(false)
+      router.refresh()
+      if (j.sablonYenilensin) {
+        alert('Profil dəyişdi. Vəzifə siyahısı AVTOMATİK yenilənmir — dəyişikliyin '
+            + 'siyahıya düşməsi üçün «Şablonla uyğunlaşdır» düyməsini basın.')
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Naməlum xəta')   // xəta udulmur
+    } finally { setBusy(null) }
+  }
+
+  /** Silmə — server yalnız ÜZƏRİNDƏ İŞ GÖRÜLMƏMİŞ açılışı silir. */
+  async function acilisiSil() {
+    if (!confirm(`«${layihe.name}» açılışı silinsin?\n\nÜzərində iş görülübsə server silməyi rədd edəcək.`)) return
+    setBusy('sil')
+    try {
+      const r = await fetch(`/api/dashboard/acilis/${layihe.id}`, { method: 'DELETE' })
+      const j = await r.json()
+      if (!r.ok) {
+        const d = j.detay
+        alert(`${j.error}\n\n${d ? `bağlanmış vəzifə: ${d.vezife} · fayl: ${d.fayl} · sifariş: ${d.sifaris}\n\n` : ''}${j.teklif ?? ''}`)
+        return
+      }
+      router.push('/dashboard/acilis')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Naməlum xəta')
+    } finally { setBusy(null) }
+  }
+
   async function sablonlaUygunlasdir() {
     setBusy('sync')
     try {
@@ -155,8 +211,85 @@ export default function DetayClient({ layihe, vezifeler, fayllar, sifarisler, ca
         <div className="text-right">
           <p className="text-3xl font-bold text-slate-900 tabular-nums">{faiz}%</p>
           <p className="text-xs text-slate-500">{bitdi} / {hamisi} vəzifə</p>
+          {canManage && (
+            <div className="mt-2 flex justify-end gap-2">
+              <button onClick={() => setRedakte(v => !v)}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                {redakte ? 'Bağla' : 'Profili redaktə et'}
+              </button>
+              <button onClick={() => void acilisiSil()} disabled={busy === 'sil'}
+                      className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                Sil
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {redakte && canManage && (
+        <form className="mt-4 rounded-xl border border-slate-200 bg-white p-4"
+              onSubmit={e => { e.preventDefault(); void profilYaz(e.currentTarget) }}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Profil</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Profil vəzifə siyahısını müəyyən edir. Dəyişdikdən sonra siyahını yeniləmək
+            üçün «Şablonla uyğunlaşdır» basılmalıdır — avtomatik olmur ki, görülmüş iş itməsin.
+          </p>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {([
+              ['name', 'Filial adı', layihe.name, 'text'],
+              ['address', 'Ünvan', layihe.address ?? '', 'text'],
+              ['zone', 'Rayon / zona', layihe.zone ?? '', 'text'],
+              ['planned_open_date', 'Planlanan açılış', layihe.plannedOpenDate ?? '', 'date'],
+              ['m2_inside', 'Daxili m²', layihe.m2Inside ?? '', 'number'],
+              ['m2_terrace', 'Teras m²', layihe.m2Terrace ?? '', 'number'],
+              ['m2_garden', 'Bağça m²', layihe.m2Garden ?? '', 'number'],
+            ] as const).map(([ad, etiket, deyer, tip]) => (
+              <label key={ad} className="text-sm">
+                <span className="block text-xs text-slate-500 mb-1">{etiket}</span>
+                <input name={ad} type={tip} defaultValue={String(deyer)} step={tip === 'number' ? '0.1' : undefined}
+                       className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm" />
+              </label>
+            ))}
+            <label className="text-sm">
+              <span className="block text-xs text-slate-500 mb-1">Format</span>
+              <select name="format" defaultValue={layihe.format}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                <option value="kuce">küçə</option><option value="mall">mall</option>
+                <option value="flagship">flagship</option><option value="kiosk">kiosk</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+            {([
+              ['has_seating', 'oturma', layihe.hasSeating], ['has_terrace', 'teras', layihe.hasTerrace],
+              ['has_garden', 'bağça', layihe.hasGarden], ['has_pizza', 'pizza', layihe.hasPizza],
+              ['has_delivery', 'çatdırılma', layihe.hasDelivery], ['has_coffee', 'qəhvə', layihe.hasCoffee],
+              ['has_bar', 'bar', layihe.hasBar], ['has_gas', 'qaz', layihe.hasGas],
+              ['has_generator', 'generator', layihe.hasGenerator], ['multi_floor', 'çox mərtəbə', layihe.multiFloor],
+              ['was_cafe', 'keçmiş kafe', layihe.wasCafe], ['is_merge', 'birləşmə', layihe.isMerge],
+              ['in_park', 'park içi', layihe.inPark],
+            ] as const).map(([ad, etiket, deyer]) => (
+              <label key={ad} className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer">
+                <input type="checkbox" name={ad} defaultChecked={deyer} className="accent-slate-900" />
+                {etiket}
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button type="submit" disabled={busy === 'profil'}
+                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {busy === 'profil' ? 'gözləyin…' : 'Yadda saxla'}
+            </button>
+            <button type="button" onClick={() => setRedakte(false)}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700">
+              İmtina
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* ── Qapılar ── */}
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
