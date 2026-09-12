@@ -55,7 +55,7 @@ export const invitations = pgTable('invitations', {
   invited_by:  uuid('invited_by').references(() => users.id),
   region_id:   uuid('region_id').references(() => regions.id),
   branch_id:   uuid('branch_id').references(() => branches.id),
-  expires_at:  timestamp('expires_at').notNull(),   // +48 saat
+  expires_at:  timestamp('expires_at').notNull(),   // +7 gün (bax `src/lib/invitation-window.ts`)
   accepted_at: timestamp('accepted_at'),
   revoked_at:  timestamp('revoked_at'),
   revoked_by:  uuid('revoked_by').references(() => users.id),

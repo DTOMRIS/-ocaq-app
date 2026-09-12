@@ -569,7 +569,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                 padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a',
                 borderRadius: '7px', marginBottom: '16px', fontSize: '12px', color: '#92400e',
               }}>
-                Dəvət linki 48 saat etibarlıdır. İstifadəçi linkə tıklayıb adını və şifrəsini qoyacaq.
+                Dəvət linki 7 gün etibarlıdır. İstifadəçi linkə tıklayıb adını və şifrəsini qoyacaq.
               </div>
 
               {error && (
@@ -591,7 +591,7 @@ export default function TeamClient({ invitations: rawInv, users: rawUsers, branc
                   </p>
                   <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#78350f', lineHeight: '1.5' }}>
                     <b>{manualLink.email}</b> üçün link aşağıdadır — WhatsApp və ya digər yolla göndərin.
-                    Link <b>48 saat</b> etibarlıdır.
+                    Link <b>7 gün</b> etibarlıdır.
                   </p>
                   <textarea
                     readOnly

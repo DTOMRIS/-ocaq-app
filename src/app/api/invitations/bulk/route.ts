@@ -8,6 +8,7 @@ import { regions } from '@/db/schema/regions'
 import { normalizeFilial } from '@/lib/analytics/filial-map'
 import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 import { sendInvitationEmail } from '@/lib/email'
+import { devetSonu } from '@/lib/invitation-window'
 
 // Toplu dəvət — super_admin Excel atır (Shaurma email siyahısı). dryRun=true → yalnız
 // eşleşme önizləməsi (heç bir e-poçt getmir). dryRun=false → dəvətlər yaradılır + e-poçt.
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     const token = createOneTimeToken()
     const tokenHash = hashOneTimeToken(token)
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
+    const expiresAt = devetSonu()
     try {
       // HAM SQL insert — yalnız orijinal kolonları yazır (drizzle-in insert-i 0005/0008
       // kolonlarını da 'default' ilə yazır → prod-da o kolonlar yoxdur → patlayır)

@@ -42,7 +42,7 @@ export function InvitationEmail({
 
       {/* Müddət */}
       <div style={{ textAlign: 'center' as const, marginBottom: '16px' }}>
-        <span style={styles.expireBadge}>⏱ Bu dəvət 48 saat etibarlıdır</span>
+        <span style={styles.expireBadge}>⏱ Bu dəvət 7 gün etibarlıdır</span>
       </div>
 
       {/* CTA */}

@@ -181,7 +181,7 @@ testlə örtüldü — sorğunun içindəki qərar test edilə bilmirdi.
 | Boşluq | Təsir |
 |---|---|
 | ~~`/admin/**` menyuda yoxdur~~ | **12.09 qərarı: MENYUYA ƏLAVƏ EDİLMİR.** 9 səhifədən yalnız `promosyonlar/yeni` real data oxuyur və o, artıq `/dashboard/promosyonlar`-dan əlçatandır. Qalanı nümunədir (0 fetch, 0 baza) — menyuya qoymaq işləməyən ekranı gözə soxmaq olardı. 5-nə xəbərdarlıq bloku qoyuldu, işləyən ekrana yönləndirir |
-| 6 nümunə ekran (`ekipman`, `kasa`, `haccp`, `fire`, `tahmin`, `menu`) | Baza yoxdur — girilən məlumat itir. Xəbərdarlıq bloku əlavə edildi, modul yazılmayıb |
+| 6 nümunə ekran (`ekipman`, `kasa`, `haccp`, `fire`, `tahmin`, `menu`) | Baza yoxdur. **Middleware onları `/dashboard`-a qaytarır — səhifə AÇILMIR** (`dashboard-access.ts`). Xəbərdarlıq blokları müdafiə qatı kimi qoyuldu, hazırda görünmür. Modul yazılmayıb |
 | ~~Migration jurnalı 0007-də donub~~ | **12.09 qərarı: journal DÜZƏLDİLMİR** (geriyə yazmaq artıq tətbiq olunmuşları yenidən işlətmə riski yaradır). Əvəzinə: qeydiyyat cədvəli şemaya salındı, `npm run db:status` əlavə edildi, intizam 7 testlə qoruma altına alındı |
 | ~~Ölü kod~~ | **12.09 qərarı:** `upload-flow.tsx` SİLİNDİ (yalnız redirect səhifəsinin yanında qalmışdı, heç bir dəyər daşımırdı). Qalan üçü «⚠️ ARXİV» başlığı ilə işarələndi, silinmədi: `api/dashboard/panel` (AGENTS.md route qoruması), `api/dashboard/kasa-banka` (Unibank/ATB HTML parseri BAŞQA YERDƏ YOXDUR), `parse-delivery.ts` (kanal analizi portala gələndə təməl) |
 | ~~Həftəlik xülasə cron-u~~ | **12.09-da quruldu:** `vercel.json` → hər bazar ertəsi 06:00 UTC (Bakı 10:00) `/api/cron/acilis-digest`. **QURAŞDIRMA TƏLƏB ETMİR** — `x-vercel-cron` başlığı ilə işləyir. `CRON_SECRET` istəyə bağlı sərtləşdirmədir |

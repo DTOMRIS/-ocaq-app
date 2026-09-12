@@ -6,6 +6,57 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 12.09.2026 (gecə, 4) — ROL DENETİMİ: ÖLÜ MENYU SƏTRİ TAPILDI
+
+İstifadəçi soruşdu: «rollar tamamdırmı, filial/bölgə müdiri rahat girirmi?»
+Yoxlandı — biri xaric hamısı düzgündür, amma **o biri ciddi idi.**
+
+#### 🔴 PROMOSYONLAR MENYU SƏTRİ HEÇ AÇILMIRDI (hər üç rolda)
+`/dashboard/promosyonlar` `dashboard-access.ts`-dəki **nümunə (mock) route
+siyahısında** idi → middleware onu `/dashboard`-a qaytarırdı.
+
+Halbuki səhifə NÜMUNƏ DEYİL: `page.tsx` bazadan oxuyur (`promotions` cədvəli,
+migration 0024), sidebar-da hər üç rola görünür, API və client hazırdır.
+Yəni modul qurulub, menyuda var, **tıklayanda sakitcə geri atılırdı.**
+
+İkinci tələ: «Yeni promosiya» düyməsi `/admin/promosyonlar/yeni`-yə gedir,
+lakin `LEGACY_ADMIN_REDIRECTS`-dəki `/admin/promosyonlar` girişi PREFİKS
+uyğunluğu ilə onu da tuturdu → form da ölü idi. İndi `exact: true`;
+`/admin/promosyonlar` (2 sətirlik re-export) siyahıya yönləndirilir, `/yeni`
+sərbəst buraxılır.
+
+**Bir daha olmasın deyə test yazıldı:** sidebar faylı oxunur və menyuda görünən
+HƏR sətir üçün HƏR rolda `dashboardRedirectForRole(...) === null` yoxlanılır.
+Menyuya sətir əlavə edib route-u bağlamaq artıq build-i sındırır.
+
+#### Rol uyğunluğu — qalanı təmizdir
+22 menyu sətri × 3 rol yoxlanıldı: sidebar-da görünən hər səhifə həmin rolu
+qəbul edir. `kasa-banka` və `pul-axini` hər iki tərəfdə yalnız super_admin;
+`vardiya-checklist` yalnız filial müdiri; `regions`/`team` yuxarı idarəetmə.
+Uyğunsuzluq yoxdur.
+
+#### Dəvət müddəti 48 saat → 7 gün
+48 saat ofis işçisi üçün normaldır, FİLİAL MÜDİRİ üçün deyil: müdir günün çox
+hissəsini zalda keçirir, e-poçtu həftədə bir-iki dəfə açır. Həftə sonu
+göndərilən dəvət bazar ertəsi artıq ölü olurdu — müdir girə bilmir, kimsə
+yenidən dəvət göndərir, iş 3-4 gün gecikir.
+
+Token BİR DƏFƏLİKDİR və bazada HEŞLƏNMİŞ saxlanılır; uzun pəncərənin yeganə
+riski oğurlanmış poçt qutusudur və orada 48 saat da kifayət etmir.
+7 gün sənaye standartıdır (GitHub 7, Slack 30).
+Müddət indi TƏK YERDƏ: `src/lib/invitation-window.ts` — 5 API faylı, 3 ekran
+mətni və e-poçt şablonu ondan oxuyur (əvvəl 9 yerdə ayrıca yazılmışdı).
+
+#### ⚠️ ÖZ SƏHVİMİN DÜZƏLİŞİ
+Bugünkü əvvəlki qeyddə «6 nümunə ekran CANLIDA, ünvanı bilən girir» yazmışdım.
+**Yanlışdır.** `dashboard-access.ts` onları middleware səviyyəsində bağlayır —
+`haccp · kasa · fire · ekipman · tahmin · menu` AÇILMIR. Denetim agenti
+middleware-i nəzərə almamışdı, mən də yoxlamadan yazdım.
+Həmin səhifələrə qoyduğum xəbərdarlıq blokları zərərsizdir, lakin hazırda
+GÖRÜNMÜR — yönləndirmə qaldırılsa işə düşəcək müdafiə qatıdır.
+
+npm test 330/330 · typecheck təmiz · lint 0 xəta · build keçdi
+
 ### 12.09.2026 (gecə, 3) — MIGRATION İNTİZAMI: jurnal boşluğu bağlandı
 
 **Journal DÜZƏLDİLMƏDİ — bu, qərardır.** `_journal.json` 0007-dədir və 19

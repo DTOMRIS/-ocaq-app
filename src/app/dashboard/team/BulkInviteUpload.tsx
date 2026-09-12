@@ -144,7 +144,7 @@ export default function BulkInviteUpload() {
               </div>
               <textarea readOnly value={done.links.map(l => `${l.target} (${l.email}): ${l.url}`).join('\n')}
                 style={{ width: '100%', minHeight: '120px', fontSize: '11.5px', fontFamily: 'monospace', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '8px', color: '#26221d', background: '#fff', boxSizing: 'border-box' }} />
-              <div style={{ fontSize: '11.5px', color: '#78716c', marginTop: '4px' }}>Hər link 48 saat etibarlıdır. Müdir linkə basıb ad+şifrə qoyacaq.</div>
+              <div style={{ fontSize: '11.5px', color: '#78716c', marginTop: '4px' }}>Hər link 7 gün etibarlıdır. Müdir linkə basıb ad+şifrə qoyacaq.</div>
             </div>
           )}
         </div>

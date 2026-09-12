@@ -9,6 +9,7 @@ import { canManageInvitation } from '../_scope'
 import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 import { isBranchManagerInvitation, managerScopeMatches } from '../_contract'
 import { getRequestOrigin } from '@/lib/request-origin'
+import { devetSonu } from '@/lib/invitation-window'
 
 async function invitationForActor(id: string, tenantId: string) {
   const [invitation] = await db.select().from(invitations)
@@ -62,7 +63,7 @@ export async function PATCH(
 
   const token = createOneTimeToken()
   const tokenHash = hashOneTimeToken(token)
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
+  const expiresAt = devetSonu()
   const rotateConditions: SQL[] = [
     eq(invitations.id, id),
     eq(invitations.tenant_id, session.user.tenant_id),

@@ -23,7 +23,6 @@ test('legacy mock routes never render as active modules', () => {
     '/dashboard/ekipman',
     '/dashboard/tahmin',
     '/dashboard/menu',
-    '/dashboard/promosyonlar',
   ]) {
     assert.equal(isLegacyMockRoute(path), true)
     assert.equal(dashboardRedirectForRole('super_admin', path), '/dashboard')
@@ -38,7 +37,7 @@ test('legacy admin mock pages redirect to canonical dashboard pages', () => {
     ['/admin/ayarlar', '/dashboard/settings'],
     ['/admin/ekipman', '/dashboard'],
     ['/admin/menu/yeni', '/dashboard'],
-    ['/admin/promosyonlar/yeni', '/dashboard'],
+    ['/admin/promosyonlar', '/dashboard/promosyonlar'],
   ])
   for (const [path, destination] of redirects) {
     assert.equal(dashboardRedirectForRole('super_admin', path), destination)
@@ -58,4 +57,41 @@ test('management configuration routes cannot be opened by typing the URL', () =>
   assert.equal(dashboardRedirectForRole('branch_manager', '/dashboard/team'), '/dashboard')
   assert.equal(dashboardRedirectForRole('region_manager', '/dashboard/team'), null)
   assert.equal(dashboardRedirectForRole('super_admin', '/dashboard/settings'), null)
+})
+
+// ── 12.09.2026 — canlı xəta: promosyonlar menyu sətri ölü idi ───────────────
+
+test('PROMOSYONLAR açılır — nümunə siyahısında DEYİL', () => {
+  // `page.tsx` bazadan oxuyur (migration 0024) və sidebar-da hər üç rola
+  // görünür. Siyahıda qaldığı müddətdə menyu sətri tıklananda istifadəçi
+  // sakitcə `/dashboard`-a atılırdı — modul var idi, heç kim aça bilmirdi.
+  assert.equal(isLegacyMockRoute('/dashboard/promosyonlar'), false)
+  for (const rol of ['super_admin', 'region_manager', 'branch_manager']) {
+    assert.equal(dashboardRedirectForRole(rol, '/dashboard/promosyonlar'), null, rol)
+  }
+})
+
+test('«Yeni promosiya» formu bağlanmır (prefiks tələsi)', () => {
+  // `/admin/promosyonlar` re-export-dur → siyahıya yönləndirilir.
+  // `/admin/promosyonlar/yeni` isə ƏSL formdur — prefiks uyğunluğu onu da
+  // tuturdu və düymə ölü idi.
+  assert.equal(dashboardRedirectForRole('super_admin', '/admin/promosyonlar'), '/dashboard/promosyonlar')
+  assert.equal(dashboardRedirectForRole('super_admin', '/admin/promosyonlar/yeni'), null)
+})
+
+test('menyuda görünən HƏR sətir o rol üçün açılır — ölü sətir olmasın', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync('src/components/sidebar.tsx', 'utf8')
+  const re = /\{ href: '([^']+)', icon: '[^']*', label: '([^']+)', roles: \[([^\]]*)\] \}/g
+  let m: RegExpExecArray | null
+  let yoxlanan = 0
+  while ((m = re.exec(src)) !== null) {
+    const [, href, label, rolMetn] = m
+    for (const rol of rolMetn.split(',').map(x => x.trim().replace(/'/g, '')).filter(Boolean)) {
+      assert.equal(dashboardRedirectForRole(rol, href), null,
+        `«${label}» (${href}) ${rol} üçün menyuda görünür, amma yönləndirilir`)
+      yoxlanan++
+    }
+  }
+  assert.ok(yoxlanan > 40, `yalnız ${yoxlanan} yoxlandı — sidebar oxunmadı?`)
 })

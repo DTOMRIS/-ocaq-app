@@ -10,6 +10,7 @@ import { hasOnlyKeys, isUniqueViolation } from '@/lib/branch-lifecycle'
 import { sendInvitationEmail } from '@/lib/email'
 import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 import { inviteRateLimit } from '@/lib/rate-limit'
+import { devetSonu } from '@/lib/invitation-window'
 
 type Context = { params: Promise<{ id: string }> }
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -260,7 +261,7 @@ async function inviteManager({
 
   const token = createOneTimeToken()
   const tokenHash = hashOneTimeToken(token)
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
+  const expiresAt = devetSonu()
   let rows: Record<string, unknown>[]
   try {
     rows = await sqlClient.query(`

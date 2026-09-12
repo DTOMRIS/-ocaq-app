@@ -10,6 +10,7 @@ import {
   normalizeProvisioningEmail,
   normalizeTenantSlug,
 } from '@/lib/dk-provisioning'
+import { devetSonu } from '@/lib/invitation-window'
 
 export async function POST(req: NextRequest) {
   if (!isValidProvisioningSecret(
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
   }
 
   const token = createOneTimeToken()
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
+  const expiresAt = devetSonu()
   let invitationId: string
   if (otherPendingOwner) {
     const [renewed] = await db.update(invitations).set({

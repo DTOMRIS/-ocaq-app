@@ -11,6 +11,7 @@ import { invitationScope, isInvitableRole } from './_scope'
 import { createOneTimeToken, hashOneTimeToken } from '@/lib/one-time-token'
 import { isBranchManagerInvitation } from './_contract'
 import { getRequestOrigin } from '@/lib/request-origin'
+import { devetSonu } from '@/lib/invitation-window'
 
 export async function GET() {
   const session = await auth()
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   const token = createOneTimeToken()
   const tokenHash = hashOneTimeToken(token)
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
+  const expiresAt = devetSonu()
   let invitation: { id: string }
   let auditWritten = false
   if (scope.branchId) {
