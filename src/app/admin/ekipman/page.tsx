@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { EQUIPMENT_CATALOG, EXTERNAL_SERVICES, FREQ_LABEL, type EquipmentType } from "@/data/equipment-catalog";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 interface StoreEquipment {
   catalogId: string;
@@ -64,7 +65,9 @@ export default function AdminEkipmanPage() {
     EQUIPMENT_CATALOG.find((e) => e.id === id);
 
   return (
-    <div>
+    <>
+      <SaxlanmirXeberdarligi qeyd="Avadanlıq kataloqu nümunədir — filial adları da koda yazılıb, real siyahı deyil." evezi="Filiallar" evezUrl="/dashboard/branches" />
+      <div>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Ekipman İdarəetmə</h1>
@@ -243,5 +246,6 @@ export default function AdminEkipmanPage() {
         ))}
       </div>
     </div>
+    </>
   );
 }

@@ -1,0 +1,48 @@
+# ─── CI: hər push və PR-da lint + typecheck + test ──────────────────────────
+#
+# NİYƏ LAZIMDIR: `npm run check` indiyə qədər YALNIZ əl ilə işlədilirdi. Nəticə:
+# 12.09.2026 denetimində lint-də 5 XƏTA tapıldı və onlardan biri (analitika
+# cədvəlində render-in içində komponent) GÖRÜNƏN davranış xətası idi — həftələrlə
+# heç kim görmədi. `docs/NEXT-AGENT-HANDOFF.md` isə hələ «0 error» yazırdı.
+#
+# NİYƏ `build` YOX: `next build` DATABASE_URL, AUTH_SECRET, R2, UPSTASH kimi
+# env dəyişənləri tələb edir. Onları CI-a sirr kimi qoymaq prod açarlarını
+# GitHub-a daşımaqdır. Lint + typecheck + test bazasız işləyir və regressiyanın
+# 90%-ni tutur. Build hər halda Vercel-də hər deploy-da işləyir — yəni ikiqat
+# yoxlanılır, sadəcə fərqli yerdə.
+
+name: yoxlama
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Eyni budağa ardıcıl push olanda köhnə işi dayandır — növbə yığılmasın
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  yoxla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Asılılıqlar
+        run: npm ci
+
+      - name: Lint (XƏTA sıfır olmalıdır)
+        run: npm run lint -- --max-warnings=999
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test

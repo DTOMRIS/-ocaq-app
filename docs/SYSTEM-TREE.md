@@ -166,13 +166,13 @@ testlə örtüldü — sorğunun içindəki qərar test edilə bilmirdi.
 
 | Boşluq | Təsir |
 |---|---|
-| `/admin/**` menyuda yoxdur | 6 səhifəyə yalnız ünvanı bilən çatır |
+| ~~`/admin/**` menyuda yoxdur~~ | **12.09 qərarı: MENYUYA ƏLAVƏ EDİLMİR.** 9 səhifədən yalnız `promosyonlar/yeni` real data oxuyur və o, artıq `/dashboard/promosyonlar`-dan əlçatandır. Qalanı nümunədir (0 fetch, 0 baza) — menyuya qoymaq işləməyən ekranı gözə soxmaq olardı. 5-nə xəbərdarlıq bloku qoyuldu, işləyən ekrana yönləndirir |
 | 6 nümunə ekran (`ekipman`, `kasa`, `haccp`, `fire`, `tahmin`, `menu`) | Baza yoxdur — girilən məlumat itir. Xəbərdarlıq bloku əlavə edildi, modul yazılmayıb |
 | Migration jurnalı 0007-də donub | Tətbiq vəziyyəti kodda izlənmir |
 | Ölü kod | `analitika/yukle` → `upload-flow.tsx`, `api/dashboard/panel`, `api/dashboard/kasa-banka`, `parse-delivery.ts` — heç bir yerdən çağırılmır |
-| Həftəlik xülasə cron-u | `vercel.json`/workflow yoxdur → yalnız əl ilə göndərilir |
+| ~~Həftəlik xülasə cron-u~~ | **12.09-da quruldu:** `vercel.json` → hər bazar ertəsi 06:00 UTC (Bakı 10:00) `/api/cron/acilis-digest`. Vercel-də `CRON_SECRET` env təyin edilməlidir; yoxdursa uc 503 qaytarır (səssiz keçmir) |
 | «Geri al» yalnız departament e-poçtunda | Sifariş sətri, hədəf, şikayət hələ dönüşsüz |
-| CI yoxdur | `npm run check` yalnız əl ilə işləyir |
+| ~~CI yoxdur~~ | **12.09-da quruldu:** `.github/workflows/yoxlama.yml` — hər push/PR-da lint + typecheck + test. `build` CI-da işlədilmir (env sirləri GitHub-a daşınmasın); o, hər halda Vercel deploy-da işləyir |
 
 ## Altın veri kuralı
 

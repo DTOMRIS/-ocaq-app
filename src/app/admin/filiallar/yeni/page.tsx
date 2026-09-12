@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 export default function YeniFilialPage() {
   const [saving, setSaving] = useState(false);
@@ -15,7 +16,9 @@ export default function YeniFilialPage() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <>
+      <SaxlanmirXeberdarligi qeyd="Bu formdan yazılan filial bazaya DÜŞMÜR. Filialı işləyən ekrandan yaradın." evezi="Filiallar" evezUrl="/dashboard/branches" />
+      <div className="max-w-2xl">
       <div className="flex items-center gap-3 mb-6">
         <Link href="/admin/filiallar" className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 text-sm hover:bg-slate-200">←</Link>
         <div>
@@ -70,5 +73,6 @@ export default function YeniFilialPage() {
         </div>
       </form>
     </div>
+    </>
   );
 }

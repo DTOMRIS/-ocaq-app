@@ -6,6 +6,51 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 12.09.2026 (gecə) — BOŞLUQLAR: CI · cron · admin ekranları
+
+Denetimdə sadalanan boşluqlardan üçü bağlandı.
+
+#### CI quruldu — `.github/workflows/yoxlama.yml`
+`npm run check` indiyə qədər YALNIZ əl ilə işlədilirdi. Nəticəsi: denetimdə
+lint-də 5 XƏTA tapıldı və biri (analitika cədvəlində render-in içində komponent
+təyini) GÖRÜNƏN davranış xətası idi — həftələrlə heç kim görmədi. Üstəlik
+`NEXT-AGENT-HANDOFF.md` hələ «0 error» yazırdı.
+
+Hər push və PR-da: lint → typecheck → test.
+`build` CI-da İŞLƏDİLMİR: `next build` DATABASE_URL, AUTH_SECRET, R2, UPSTASH
+tələb edir; onları GitHub-a sirr kimi qoymaq prod açarlarını oraya daşımaqdır.
+Build hər halda Vercel-də hər deploy-da işləyir — ikiqat yoxlanış, fərqli yerdə.
+
+#### Həftəlik xülasə cron-u quruldu
+`vercel.json` → hər bazar ertəsi 06:00 UTC (Bakı 10:00).
+
+Yeni uc lazım oldu: Vercel cron **GET** göndərir və gövdə yollaya bilmir;
+mövcud `/api/dashboard/acilis/digest` isə POST-dur və gövdədə `tenantId`
+gözləyir, onun GET-i tamam başqa iş görür (departament e-poçtlarını qaytarır).
+Köhnəsini cron-a uyğunlaşdırmaq panel düyməsini sındırardı.
+
+Məntiq `lib/acilis/digest.ts`-ə köçürüldü və hər iki uc onu çağırır — iki nüsxə
+ayrı-ayrı köhnəlməsin.
+`CRON_SECRET` yoxdursa uc **503** qaytarır. «İşləyir» sanıb heç nə göndərməmək
+ən pis haldır. Bir tenant sınsa qalanları dayanmır, səbəb hesabatda qalır.
+
+#### `/admin/**` — MENYUYA ƏLAVƏ EDİLMƏDİ (qərar)
+Denetim «9 səhifə menyuda yoxdur» demişdi. Yoxlandı:
+
+| Səhifə | Vəziyyət |
+|---|---|
+| `promosyonlar/yeni` | real (2 fetch) — artıq `/dashboard/promosyonlar`-dan əlçatandır |
+| `menu`, `promosyonlar` | 2 sətirlik re-export |
+| `personel/yeni` | redirect |
+| `ayarlar`, `ekipman`, `filiallar`, `filiallar/yeni`, `menu/yeni` | **nümunə — 0 fetch, 0 baza** |
+
+Yəni menyuya qoymaq işləməyən ekranları gözə soxmaq olardı. Bunun əvəzinə
+5 nümunə səhifəyə xəbərdarlıq bloku qoyuldu və hər biri işləyən ekrana
+yönləndirir (`/dashboard/branches`, `/dashboard/menyu`, `/dashboard/settings`).
+`admin/ekipman`-dakı koda yazılmış filial adları da qeyddə göstərilir.
+
+npm test 320/320 · typecheck təmiz · lint 0 xəta · build keçdi
+
 ### 12.09.2026 (axşam) — İSTİFADƏ və GÖRÜNÜŞ: 8 maddəlik siyahı bağlandı
 
 İstifadəçi iradı: «yap deyirəm yapırsan, amma kullanım kolaylığı, başparmak

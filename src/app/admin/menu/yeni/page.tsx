@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 const CATEGORIES = [
   "Əsas Yeməklər",
@@ -29,7 +30,9 @@ export default function YeniMenuItemPage() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <>
+      <SaxlanmirXeberdarligi qeyd="Bu formdan yazılan məhsul bazaya düşmür. Real menyu və maya məlumatı ayrı ekrandadır." evezi="Menü" evezUrl="/dashboard/menyu" />
+      <div className="max-w-2xl">
       <div className="flex items-center gap-3 mb-6">
         <Link
           href="/dashboard/menu"
@@ -265,5 +268,6 @@ export default function YeniMenuItemPage() {
         </div>
       </form>
     </div>
+    </>
   );
 }

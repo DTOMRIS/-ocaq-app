@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 const BRANCHES = [
   { id: "1", name: "Neftçilər Filialı", address: "28 May küç., 45", phone: "+994 12 555 01 01", manager: "Əhməd Quliyev", staff: 8, status: "active", openTime: "08:00", closeTime: "00:00" },
@@ -8,7 +9,9 @@ const BRANCHES = [
 
 export default function FiliallarPage() {
   return (
-    <div>
+    <>
+      <SaxlanmirXeberdarligi qeyd="Bu ekran filial siyahısını bazadan OXUMUR. Real filial idarəsi ayrı ekrandadır." evezi="Filiallar" evezUrl="/dashboard/branches" />
+      <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Filiallar</h1>
@@ -56,5 +59,6 @@ export default function FiliallarPage() {
         ))}
       </div>
     </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 const REPORT_TYPES = [
   { id: "checklist", label: "Vardiya Checklist", icon: "✅", desc: "Sabah/axşam checklist nəticələri" },
@@ -49,7 +50,9 @@ export default function AyarlarPage() {
   };
 
   return (
-    <div className="max-w-3xl">
+    <>
+      <SaxlanmirXeberdarligi qeyd="Rapor yönləndirmə ayarları hələ bazada saxlanılmır. İşləyən sistem parametrləri ayrı ekrandadır." evezi="Parametrlər" evezUrl="/dashboard/settings" />
+      <div className="max-w-3xl">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Rapor Yönləndirmə Ayarları</h1>
       <p className="text-sm text-slate-500 mb-6">
         Hər &quot;Göndər&quot; butonu raporları hara göndərəcəyini burada təyin edin
@@ -106,5 +109,6 @@ export default function AyarlarPage() {
         {saved ? "✓ Saxlanıldı!" : "Ayarları Saxla"}
       </button>
     </div>
+    </>
   );
 }
