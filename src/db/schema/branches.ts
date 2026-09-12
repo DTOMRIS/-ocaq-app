@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, uniqueIndex, integer } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, boolean, timestamp, date, uniqueIndex, index, integer } from 'drizzle-orm/pg-core'
 import { tenants, users } from './auth'
 import { regions } from './regions'
 
@@ -15,6 +15,17 @@ export const branches = pgTable('branches', {
   iiko_org_id: text('iiko_org_id'),                // POS inteqrasiyası
   open_time:   text('open_time').default('09:00'),
   close_time:  text('close_time').default('23:00'),
+  // ── HƏYAT DÖVRÜ ───────────────────────────────────────────────────────────
+  // `activated_at`/`archived_at` SİSTEMDƏ qeydin yaradılma/arxiv vaxtıdır.
+  // Bunlar isə filialın QAPISININ açıldığı/bağlandığı gündür — böyümə hesabı
+  // bunlara baxır. İkisi qarışdırılmamalıdır.
+  opened_at:   date('opened_at'),
+  closed_at:   date('closed_at'),
+  // İki filial bir-birinə çox yaxındırsa (Səbail 2 ↔ Səbail 3, 140 m) eyni
+  // zonadadır və AYRI müqayisə edilməməlidir — biri «çökdü», digəri «yeni»
+  // görünür, halbuki eyni qonaq kütləsidir.
+  trade_zone:  text('trade_zone'),
+
   is_active:   boolean('is_active').notNull().default(true),
   is_archived: boolean('is_archived').notNull().default(false),
   version:     integer('version').notNull().default(1),
@@ -26,4 +37,5 @@ export const branches = pgTable('branches', {
   updated_at:  timestamp('updated_at').notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('branches_tenant_code_uq').on(table.tenant_id, table.code),
+  index('branches_zone_idx').on(table.tenant_id, table.trade_zone),
 ])

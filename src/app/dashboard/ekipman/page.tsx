@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 type TicketStatus = "open" | "in_progress" | "resolved";
 type TicketPriority = "low" | "medium" | "high";
@@ -74,7 +75,9 @@ export default function EkipmanPage() {
   };
 
   return (
-    <div>
+    <>
+      <SaxlanmirXeberdarligi qeyd="Avadanlıq nasazlıq biletləri hələ bazada saxlanılmır. Təcili nasazlığı indi Növbə liderliyi qeydinə yazın." evezi="Növbə liderliyi" evezUrl="/dashboard/vardiya-liderliyi" />
+      <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Ekipman Yönetimi</h1>
@@ -222,5 +225,6 @@ export default function EkipmanPage() {
         </table>
       </div>
     </div>
+    </>
   );
 }

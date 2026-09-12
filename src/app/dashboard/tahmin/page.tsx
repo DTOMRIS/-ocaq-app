@@ -9,6 +9,7 @@ import {
   calculateWMA,
   calculatePrepAmount,
 } from "@/data/sales-forecast";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 const MONTHS = ["Yanvar","Fevral","Mart","Aprel","May","İyun","İyul","Avqust","Sentyabr","Oktyabr","Noyabr","Dekabr"];
 const DAYS = ["B.e.", "Ç.a.", "Ç.", "C.a.", "C.", "Ş.", "B."];
@@ -68,7 +69,9 @@ export default function TahminPage() {
   const inputClass = "w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30 placeholder:text-slate-400";
 
   return (
-    <div className="max-w-3xl">
+    <>
+      <SaxlanmirXeberdarligi qeyd="Satış təxmini hesablayıcısı işləyir, lakin nəticə saxlanılmır. Təsdiqlənmiş hədəflər ayrı ekrandadır." evezi="Satış hədəfi" evezUrl="/dashboard/sales" />
+      <div className="max-w-3xl">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Satış Təxminləri</h1>
       <p className="text-sm text-slate-500 mb-4">Aylıq faktor sistemi + günlük WMA + ət/toyuq hazırlama miqdarı</p>
 
@@ -346,5 +349,6 @@ export default function TahminPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

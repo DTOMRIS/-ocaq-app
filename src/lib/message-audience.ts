@@ -4,6 +4,7 @@ import { users } from '@/db/schema/auth'
 import { branches } from '@/db/schema/branches'
 import { regions } from '@/db/schema/regions'
 import { OPERATIONAL_ROLES } from '@/lib/operational-roles'
+import { filialEhateUsulu, auditoriyaSeceBiler } from '@/lib/access-policy'
 
 export type AudienceKind = 'all' | 'role' | 'region' | 'branch' | 'selected'
 
@@ -16,9 +17,12 @@ export interface AudienceSelection {
 type Actor = { id: string; tenant_id: string; role: string }
 
 export async function accessibleBranchIds(actor: Actor): Promise<string[]> {
-  if (actor.role === 'staff') return []
+  // ƏVVƏL: tanınmayan rol SON bloka (bölgə müdiri yoluna) DÜŞÜRDÜ. Praktikada
+  // boş qaytarırdı, amma bu təsadüf idi — qərar deyil. İndi açıq rədd edilir.
+  const usul = filialEhateUsulu(actor.role)
+  if (usul === 'yox' || usul === 'kadr') return []
 
-  if (actor.role === 'super_admin') {
+  if (usul === 'hamisi') {
     const rows = await db.select({ id: branches.id }).from(branches).where(and(
       eq(branches.tenant_id, actor.tenant_id),
       eq(branches.is_active, true),
@@ -27,7 +31,7 @@ export async function accessibleBranchIds(actor: Actor): Promise<string[]> {
     return rows.map((row) => row.id)
   }
 
-  if (actor.role === 'branch_manager') {
+  if (usul === 'mudiri') {
     const rows = await db.select({ id: branches.id }).from(branches).where(and(
       eq(branches.tenant_id, actor.tenant_id),
       eq(branches.manager_id, actor.id),
@@ -52,7 +56,7 @@ export async function accessibleBranchIds(actor: Actor): Promise<string[]> {
 }
 
 export async function resolveAudience(actor: Actor, selection: AudienceSelection): Promise<string[]> {
-  if (actor.role === 'staff') throw new Error('FORBIDDEN')
+  if (!auditoriyaSeceBiler(actor.role)) throw new Error('FORBIDDEN')
 
   const activeTenantUsers = await db.select({ id: users.id, role: users.role }).from(users).where(and(
     eq(users.tenant_id, actor.tenant_id),

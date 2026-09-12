@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 type ProteinType = "et" | "toyuq";
 
@@ -63,7 +64,9 @@ export default function FirePage() {
   const inputClass = "w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white text-slate-900 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--ocaq-red)]/30 placeholder:text-slate-300";
 
   return (
-    <div className="max-w-2xl">
+    <>
+      <SaxlanmirXeberdarligi qeyd="Fire/itki qeydi saxlanılmır. Faktiki silinmə rəqəmləri iiko yükləməsindən gəlir." evezi="Silinmə Nəzarəti" evezUrl="/dashboard/silinme" />
+      <div className="max-w-2xl">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Dönər İtki / Fire Hesablama</h1>
       <p className="text-sm text-slate-500 mb-4">Gündəlik ət və toyuq fire nisbəti — sektör benchmark ilə müqayisə</p>
 
@@ -201,5 +204,6 @@ export default function FirePage() {
         Fire Raportunu Göndər
       </button>
     </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 const MENU_ITEMS = [
   { id: "1", name: "Ət Dönər Lavaş 300qr", category: "Əsas Yeməklər", price: 8.5, image: "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=400&q=80", active: true, featured: true },
@@ -13,7 +14,9 @@ const MENU_ITEMS = [
 
 export default function MenuPage() {
   return (
-    <div>
+    <>
+      <SaxlanmirXeberdarligi qeyd="Bu, nümunə menyu şəbləsidir — real məhsul və maya məlumatı deyil." evezi="Menü" evezUrl="/dashboard/menyu" />
+      <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Menyu</h1>
@@ -70,5 +73,6 @@ export default function MenuPage() {
         ))}
       </div>
     </div>
+    </>
   );
 }

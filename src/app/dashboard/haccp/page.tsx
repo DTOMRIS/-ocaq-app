@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { HACCP_SECTIONS } from "@/data/haccp-daily-checklist";
+import SaxlanmirXeberdarligi from "@/components/saxlanmir-xeberdarligi";
 
 type Shift = "sabah" | "axsam";
 
@@ -77,7 +78,9 @@ export default function HaccpPage() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <>
+      <SaxlanmirXeberdarligi qeyd="Qida təhlükəsizliyi qeydləri saxlanılmır. Sanitar yoxlamanı KXT üzərindən doldurun — o, bazaya yazır." evezi="KXT doldur" evezUrl="/dashboard/vardiya-checklist" />
+      <div className="max-w-2xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div>
@@ -230,5 +233,6 @@ export default function HaccpPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

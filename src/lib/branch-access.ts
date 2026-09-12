@@ -4,6 +4,7 @@ import { regions } from '@/db/schema/regions'
 import { staff_profiles } from '@/db/schema/staff'
 import { users } from '@/db/schema/auth'
 import { and, eq, inArray } from 'drizzle-orm'
+import { filialEhateUsulu, bolgeEhateUsulu, ehateyeDaxil } from '@/lib/access-policy'
 
 export type ScopedUser = {
   id: string
@@ -12,13 +13,16 @@ export type ScopedUser = {
 }
 
 export async function accessibleRegionIds(user: ScopedUser): Promise<string[]> {
-  if (user.role === 'super_admin') {
+  const usul = bolgeEhateUsulu(user.role)
+  if (usul === 'yox') return []          // tanınmayan rol → boş (siyasət faylı)
+
+  if (usul === 'hamisi') {
     const rows = await db.select({ id: regions.id }).from(regions)
       .where(eq(regions.tenant_id, user.tenant_id))
     return rows.map(row => row.id)
   }
 
-  if (user.role === 'region_manager') {
+  if (usul === 'ozu') {
     const rows = await db.select({ id: regions.id }).from(regions)
       .where(and(
         eq(regions.tenant_id, user.tenant_id),
@@ -40,7 +44,10 @@ export async function accessibleRegionIds(user: ScopedUser): Promise<string[]> {
 }
 
 export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
-  if (user.role === 'super_admin') {
+  const usul = filialEhateUsulu(user.role)
+  if (usul === 'yox') return []          // tanınmayan rol → boş (siyasət faylı)
+
+  if (usul === 'hamisi') {
     const rows = await db.select({ id: branches.id }).from(branches)
       .where(and(
         eq(branches.tenant_id, user.tenant_id),
@@ -50,7 +57,7 @@ export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
     return rows.map(row => row.id)
   }
 
-  if (user.role === 'region_manager') {
+  if (usul === 'bolge') {
     const regionIds = await accessibleRegionIds(user)
     if (regionIds.length === 0) return []
     const rows = await db.select({ id: branches.id }).from(branches)
@@ -63,7 +70,7 @@ export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
     return rows.map(row => row.id)
   }
 
-  if (user.role === 'branch_manager') {
+  if (usul === 'mudiri') {
     const rows = await db.select({ id: branches.id }).from(branches)
       .where(and(
         eq(branches.tenant_id, user.tenant_id),
@@ -74,7 +81,7 @@ export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
     return rows.map(row => row.id)
   }
 
-  if (user.role === 'staff') {
+  if (usul === 'kadr') {
     const rows = await db.select({ branch_id: staff_profiles.branch_id }).from(staff_profiles)
       .where(and(
         eq(staff_profiles.tenant_id, user.tenant_id),
@@ -89,14 +96,12 @@ export async function accessibleBranchIds(user: ScopedUser): Promise<string[]> {
 
 export async function canAccessBranch(user: ScopedUser, branchId: string | null | undefined) {
   if (!branchId) return false
-  const ids = await accessibleBranchIds(user)
-  return ids.includes(branchId)
+  return ehateyeDaxil(await accessibleBranchIds(user), branchId)
 }
 
 export async function canAccessRegion(user: ScopedUser, regionId: string | null | undefined) {
   if (!regionId) return false
-  const ids = await accessibleRegionIds(user)
-  return ids.includes(regionId)
+  return ehateyeDaxil(await accessibleRegionIds(user), regionId)
 }
 
 export async function canAccessUser(actor: ScopedUser, targetUserId: string) {
