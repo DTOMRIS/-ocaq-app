@@ -180,7 +180,7 @@ Heç bir connection string, parol və token bu sənədə və ya kod bazasına ə
 
 - Checklist testləri: 8/8 keçib
 - TypeScript: keçib
-- ESLint: 0 error; mövcud performans/unused warning-ləri qalır
+- ESLint: 0 error (12.09.2026-da bərpa edildi — aralıqda 5 xəta vardı); mövcud performans/unused warning-ləri qalır
 - Next.js production build: keçib
 - Preview deployment: Ready
 - Preview `/login`: HTTP 200

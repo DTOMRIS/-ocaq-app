@@ -6,6 +6,135 @@ istifadə edir. Girişlər **insan tərəfindən** yazılır (git log-dan avtoma
 
 ## [Unreleased]
 
+### 12.09.2026 (axşam) — İSTİFADƏ və GÖRÜNÜŞ: 8 maddəlik siyahı bağlandı
+
+İstifadəçi iradı: «yap deyirəm yapırsan, amma kullanım kolaylığı, başparmak
+için mobilde yeri, veriyi alma silme — sıfır öneri gəlir səndən. Dünya
+çapında bu işlərin adamı olaraq mənə kod yazmaqdan başqa töhfən yoxdur.»
+İrad haqlı idi. Bu bölmə istənəni yox, İSTİFADƏNİ düzəldir.
+
+#### 1 · Təhlükəsizlik qatı testə alındı (17 test)
+`src/lib/access-policy.ts` — «kim nəyi görür» qərarı SQL `where` şərtlərinin
+İÇİNDƏ gizli idi. Sorğunun içindəki qərar test edilə bilmir; regressiya yalnız
+«səhv müdir səhv filialın datasını gördü» şikayəti ilə üzə çıxır.
+
+**Tapılan xəta:** `message-audience.accessibleBranchIds`-də tanınmayan rol SON
+bloka (bölgə müdiri yoluna) DÜŞÜRDÜ. Praktikada boş qaytarırdı, amma bu təsadüf
+idi — qərar deyil.
+
+Test qoruyur: tanınmayan rol (`trainer`, `auditor`, `*`, boş sətir) → BOŞ
+əhatə · rol adı böyük/kiçik həssasdır · dolu əhatə + null id → FALSE ·
+prefiks açar vermir · şifrələmədə eyni mətn hər dəfə fərqli şifrə (IV) ·
+pozulmuş şifrə AÇILMIR.
+
+#### 2 · 6 nümunə ekran xəbərdarlıqla işarələndi
+`ekipman · kasa · haccp · fire · tahmin · menu` — altısında da sıfır fetch,
+sıfır baza. Müdir sayım girib «yadda saxladım» sanırdı.
+Səhifələr SİLİNMƏDİ (`AGENTS.md` §2 qadağan edir) — yuxarıya
+«NÜMUNƏ EKRAN, məlumat saxlanılmır» bloku qoyuldu və hər biri İŞLƏYƏN ekrana
+yönləndirir (kasa→Kasa/Banka, fire→Silinmə, tahmin→Satış hədəfi, …).
+Xəbərdarlıq tək başına yarım cavabdır.
+
+#### 3–4 · Böyümə ayırıcısı və ticarət zonası
+Migration `0025_branch_lifecycle.sql` — `branches`-ə `opened_at`, `closed_at`,
+`trade_zone`. (`activated_at`/`archived_at` SİSTEMDƏ qeydin vaxtıdır, filialın
+QAPISININ açıldığı gün deyil.)
+
+Panel indiyə qədər tək rəqəm göstərirdi: «Keçən ilə +8%». İçində üç fərqli
+hadisə var:
+
+    eyni filial + yeni filial + bağlanan = xalis fərq    (testlə qorunur)
+
+LFL faizi yalnız hər iki dövrdə işləyən filiallara baxır. Məxrəc 0-dırsa faiz
+YAZILMIR (Masazır «−100%», Səbail 3 «+∞» görünürdü). Hər iki dövrdə satışı
+sıfır olan filial qırmızı xəbərdarlıqla çıxır.
+
+Zona: Səbail 2 + Səbail 3 = 197 402 ₼ → 284 758 ₼ (**+87 356 ₼**). Filial-filial
+baxan «Səbail 2 çökdü, bağlayaq» deyir; zonaya baxan «140 m aralıqdır, köçürmə
+olub» deyir. İkincisi doğrudur.
+
+#### 5 · Proyekt PDF-indən ölçü oxunur
+06.09-dakı «program pdf okusun» istəyi bağlandı. Hər PDF-in yanında «Ölçüləri
+oxu»: masa · oturacaq · banko · daxili m² · teras m² üçün TƏKLİF verilir və hər
+təklifin altında onu tapdığı CÜMLƏ yazılır.
+
+HEÇ NƏ AVTOMATİK YAZILMIR — «24 masa» yazısı «24 masa ləğv edildi» də ola
+bilər. Bir sahə üçün iki rəqəm tapılıbsa hər ikisi «yoxlayın» damğası ilə çıxır.
+
+OCR İŞLƏDİLMİR: skan edilmiş çizimdə OCR bəzən «24»-ü «21» oxuyur və SƏHVİ HEÇ
+KİM GÖRMÜR. Mətn qatı yoxdursa açıq deyilir. Xarici kitabxana yox — Node-un öz
+`zlib`-i. 25 MB hədd.
+
+#### 6 · Redaktə və silmə
+Açılış profili YALNIZ yaradılışda girilirdi — ad səhv yazılsa geri dönüş yox
+idi. `PATCH /api/dashboard/acilis/[id]` əlavə edildi (ad, ünvan, zona, format,
+tarix, 3 m², 13 bayraq).
+
+Vəzifə siyahısı AVTOMATİK yenilənmir: üzərində iş görülmüş sətri səssizcə
+silmək tarixçəni pozar. Server `sablonYenilensin` qaytarır, UI soruşur.
+
+`DELETE` ŞƏRTLİDİR: vəzifəsi bağlanmış, faylı yüklənmiş və ya sifarişi verilmiş
+açılış TARİXÇƏDİR — silmə rədd edilir, səbəb sayılarla göstərilir və
+«Dayandırıldı» təklif olunur.
+
+**«Geri al»**: departament e-poçtu təsdiqsiz, dönüşsüz silinirdi. İndi dərhal
+silinir, 7 saniyə «Geri al» zolağı çıxır. NİYƏ TƏSDİQ PƏNCƏRƏSİ DEYİL:
+«Əminsiniz?» oxunmadan keçilir, yəni qorumur.
+
+#### 7 · Mobil
+Menyu yalnız yuxarı soldakı ☰-də idi — telefonu bir əllə tutan baş barmağı ilə
+ora ÇATMIR. Ən çox işlənən 4 ekran aşağıya alındı (4+1 yuva; 5-dən çox element
+360px-də 60px-dən dar düşür). Siyahı ROLA GÖRƏ dəyişir.
+
+Cədvəllər ≤640px-də KARTA çevrilir (`.kart-cedvel` + `data-label`): hər sətir
+bir kart, hər xana «etiket → dəyər». Başlıq sətri DOM-da qalır (ekran oxuyucu).
+Dəyəri boş olan xana gizlənir.
+
+#### 8 · Axtarış və filtr
+Menyuda 23 sətir gözlə taranırdı → axtarış qutusu.
+Sifariş siyahısında 490 sətir var idi və AXTARIŞ YOX İDİ (bunu mən qurmuşdum,
+özüm buraxmışdım) → məhsul axtarışı; uyğunluq tapılan kateqoriya avtomatik
+açılır. İkisi də `İ/I/ı` tələsini həll edir.
+Panel filtrləri ünvanda saxlanılır (`?bolge=&ara=&dusen=`) — link paylaşıla
+bilir, geri düyməsi işləyir, F5 seçimi pozmur.
+
+#### Görünüş
+**Kök səbəb: şrift heç vaxt SEÇİLMƏMİŞDİ** — `globals.css`-də
+`font-family: Arial, Helvetica` yazılıydı. Plus Jakarta Sans + JetBrains Mono
+(`next/font`, öz serverimizdən). Gövdəyə `tabular-nums` — maliyyə cədvəlində
+sütunlar artıq sürüşmür.
+
+Səth tokenləri (`--ocaq-gold/ink/cream/line` + iki qatlı kölgə). Kölgə QARA
+deyil, mürəkkəb rəngindədir — krem fonda boz kölgə çirkli görünür.
+
+**Alt çubuq iOS tab bar üslubuna keçdi:** emoji → 8 SVG ikon (seçilməmiş
+KONTUR, seçilmiş DOLU — iOS qaydası); qara panel → işıqlı şüşə
+(`backdrop-filter`); ayırıcı hairline (yarım piksel); aktiv yuvanın üstündəki
+qızılı zolaq SİLİNDİ (o, Material üslubudur). Üst başlıq da eyni materiala
+keçdi, `themeColor` #1A1614 → #FCFAF6.
+
+Sidebar və tez keçidlərdəki 35 emoji də SVG-yə çevrildi (`menyu-ikonlari.tsx`,
+22 ikon). Emoji hər cihazda BAŞQA rəsmdir və rəngi dəyişdirilə bilmir.
+
+Fokus halqası əlavə edildi — klaviatura ilə gəzən istifadəçi fokusu görmürdü
+(WCAG pozuntusu).
+
+#### Yanaşı düzəldilənlər
+· `0024_promotions.sql` — cədvəl şemada var idi, migration-ı YOX İDİ; yalnız
+  qoruma qatından KƏNAR ad-hoc skriptlə qurulurdu.
+· `npm run lint` 5 XƏTA → 0. `analitika-client.tsx`-də `SortTh` render-in
+  İÇİNDƏ təyin edilmişdi → hər render-də yeni komponent tipi → cədvəldə
+  sıralama tıklananda fokus və sürüşmə itirdi. Bu, lint qaydası deyil, GÖRÜNƏN
+  davranış xətası idi.
+· Departament e-poçtları üçün EKRAN YOX İDİ — API yazılmışdı, heç bir səhifə
+  çağırmırdı; `opening_dept_contacts` yalnız əl ilə bazadan doldurula bilirdi.
+  Bu, həm həftəlik xülasəni, həm sifariş göndərişini bloklayırdı.
+
+**320 test (əvvəl 278) · typecheck təmiz · lint 0 xəta · build keçir**
+`docs/SYSTEM-TREE.md` koddan yenidən quruldu (route, migration, lib, boşluq
+siyahısı).
+
+
 ### 12.09.2026 — DENETİM: 4 agent taraması + tapılan xətaların bağlanması
 
 **Düzəldildi:**
