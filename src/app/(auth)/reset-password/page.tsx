@@ -31,6 +31,7 @@ function ResetPasswordContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [yeniden, setYeniden] = useState(false)   // müddəti bitmiş link → yeni istəmək
   const [success, setSuccess] = useState(false)
   const [step, setStep] = useState<'request' | 'reset'>(token ? 'reset' : 'request')
 
@@ -49,6 +50,7 @@ function ResetPasswordContent() {
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Xəta baş verdi')
+        if (data.yeniden) setYeniden(true)
         return
       }
       setSuccess(true)
@@ -83,6 +85,7 @@ function ResetPasswordContent() {
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Xəta baş verdi')
+        if (data.yeniden) setYeniden(true)
         return
       }
       setSuccess(true)
@@ -147,8 +150,18 @@ function ResetPasswordContent() {
               <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
               </svg>
-              {error}
+              <span className="flex-1">{error}</span>
             </div>
+          )}
+
+          {/* Müddəti bitmiş link — «indi nə edim?» sualı cavabsız qalmasın */}
+          {yeniden && (
+            <button type="button"
+                    onClick={() => { setYeniden(false); setError(''); setStep('request') }}
+                    className="mb-6 w-full rounded-lg px-4 py-3 text-sm font-semibold"
+                    style={{ background: '#C8102E', color: '#fff' }}>
+              Yeni sıfırlama linki istə
+            </button>
           )}
 
           {/* Request Reset Form */}

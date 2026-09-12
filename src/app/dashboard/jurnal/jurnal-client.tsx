@@ -30,6 +30,8 @@ const HADISE: Record<string, string> = {
   'user.create.direct': 'istifadəçi yaratdı',
   'user.role.change': 'rol dəyişdi',
   'user.password.reset_by_admin': 'şifrəni admin sıfırladı',
+  'user.password.reset.request': 'şifrəmi unutdum — link istədi',
+  'user.password.reset.done': 'şifrəsini yenilədi',
   'branch.activate': 'filialı aktivləşdirdi', 'branch.deactivate': 'filialı dayandırdı',
   'branch.archive': 'filialı arxivlədi', 'branch.restore': 'filialı bərpa etdi',
   'branch.update': 'filialı yenilədi',

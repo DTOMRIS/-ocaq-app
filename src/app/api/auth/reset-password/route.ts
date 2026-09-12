@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
-import { password_reset_tokens, users } from '@/db/schema/auth'
+import { password_reset_tokens, users, audit_logs } from '@/db/schema/auth'
 import { eq, and, gt, inArray, isNull } from 'drizzle-orm'
 import { resetRateLimit } from '@/lib/rate-limit'
 import { sendPasswordResetEmail } from '@/lib/email'
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   // İstifadəçini tap
   const [user] = await db
-    .select({ id: users.id, role: users.role, is_active: users.is_active })
+    .select({ id: users.id, role: users.role, is_active: users.is_active, tenant_id: users.tenant_id })
     .from(users)
     .where(eq(users.email, email))
     .limit(1)
@@ -56,6 +56,17 @@ export async function POST(req: NextRequest) {
     : userAgent.includes('Safari') ? 'Safari'
     : userAgent.includes('Edge') ? 'Edge'
     : 'Bilinmir'
+
+  // Jurnala yaz: «şifrəmi unutdum» sorğusu təhlükəsizlik hadisəsidir. Kiminsə
+  // hesabına təkrar-təkrar sıfırlama sorğusu gəlirsə bunu görmək lazımdır.
+  // Xəta sıfırlamanı BLOKLAMIR (bax `auth.ts`-dəki eyni qayda).
+  try {
+    await db.insert(audit_logs).values({
+      tenant_id: user.tenant_id, user_id: user.id,
+      action: 'user.password.reset.request', entity: 'user', entity_id: user.id,
+      metadata: JSON.stringify({ device }), ip,
+    })
+  } catch (e) { console.error('[reset] jurnal qeydi yazılmadı:', e) }
 
   const delivery = await sendPasswordResetEmail({ email, token, ip, device })
   if (delivery.error) {
@@ -94,7 +105,11 @@ export async function PUT(req: NextRequest) {
 
   if (!record) {
     return NextResponse.json(
-      { error: 'Link etibarsızdır və ya müddəti bitib' },
+      {
+        error: 'Bu link artıq işləmir — ya istifadə olunub, ya da 1 saatlıq '
+             + 'müddəti bitib. Aşağıdan yenidən sıfırlama istəyin, yeni link göndəriləcək.',
+        yeniden: true,
+      },
       { status: 404 }
     )
   }
@@ -103,9 +118,23 @@ export async function PUT(req: NextRequest) {
   const password_hash = await bcrypt.hash(password, 12)
 
   try {
+    // `must_change_password` DA TƏMİZLƏNİR.
+    // Əvvəl belə idi: admin şifrəni sıfırlayır → bayraq `true` olur → istifadəçi
+    // müvəqqəti şifrə əvəzinə «şifrəmi unutdum» ilə ÖZ şifrəsini qoyur → bayraq
+    // hələ `true` qalır → sistem onu yenidən «şifrəni dəyiş» ekranına atırdı.
+    // İnsan öz şifrəsini indicə seçdi; bir daha soruşmaq mənasızdır.
     await db.update(users)
-      .set({ password_hash, updated_at: new Date() })
+      .set({ password_hash, must_change_password: false, updated_at: new Date() })
       .where(eq(users.id, record.user_id))
+
+    try {
+      const [u] = await db.select({ tenant_id: users.tenant_id }).from(users)
+        .where(eq(users.id, record.user_id)).limit(1)
+      await db.insert(audit_logs).values({
+        tenant_id: u?.tenant_id ?? null, user_id: record.user_id,
+        action: 'user.password.reset.done', entity: 'user', entity_id: record.user_id,
+      })
+    } catch (e) { console.error('[reset] jurnal qeydi yazılmadı:', e) }
   } catch (error) {
     await db.update(password_reset_tokens).set({ used_at: null })
       .where(and(eq(password_reset_tokens.id, record.id), eq(password_reset_tokens.used_at, record.used_at!)))
