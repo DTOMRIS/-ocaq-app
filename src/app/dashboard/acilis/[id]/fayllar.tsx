@@ -15,12 +15,39 @@ const KIND_ADI: Record<string, string> = {
 const olcu = (n: number | null) =>
   n == null ? '' : n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`
 
+type Teklif = { sahe: string; deyer: number; kontekst: string; guven: string }
+const SAHE_ADI: Record<string, string> = {
+  masa: 'Masa sayı', oturacaq: 'Oturacaq sayı', banko: 'Banko uzunluğu (m)',
+  m2_ici: 'Daxili m²', m2_teras: 'Teras m²',
+}
+
 export default function Fayllar({ openingId, fayllar, canManage }:
   { openingId: string; fayllar: Fayl[]; canManage: boolean }) {
   const router = useRouter()
   const [yuk, setYuk] = useState(false)
   const [kind, setKind] = useState('proyekt')
   const [err, setErr] = useState<string | null>(null)
+  const [oxu, setOxu] = useState<string | null>(null)
+  const [netice, setNetice] = useState<{ teklifler: Teklif[]; qeyd: string; fayl: string } | null>(null)
+
+  /**
+   * Proyekt PDF-ini oxuyub ölçü TƏKLİFİ alır. Heç nə yazmır — rəqəmlər
+   * tapıldığı cümlə ilə birlikdə göstərilir, insan özü köçürür.
+   */
+  async function pdfOxu(fileId: string, fayl: string) {
+    setOxu(fileId); setErr(null); setNetice(null)
+    try {
+      const r = await fetch(`/api/dashboard/acilis/${openingId}/pdf-oxu`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId }),
+      })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error ?? 'Xəta')
+      setNetice({ teklifler: j.teklifler ?? [], qeyd: j.qeyd ?? '', fayl })
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Naməlum xəta')   // xəta udulmur
+    } finally { setOxu(null) }
+  }
   const [faiz, setFaiz] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -92,6 +119,40 @@ export default function Fayllar({ openingId, fayllar, canManage }:
       )}
       {err && <p className="mb-3 text-sm text-rose-600">{err}</p>}
 
+      {netice && (
+        <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3.5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold text-sky-900">
+              «{netice.fayl}» oxundu
+            </p>
+            <button onClick={() => setNetice(null)} aria-label="Bağla"
+                    className="text-sky-700/60 hover:text-sky-900">×</button>
+          </div>
+          <p className="mt-1 text-xs leading-6 text-sky-900/80">{netice.qeyd}</p>
+          {netice.teklifler.length > 0 && (
+            <ul className="mt-2.5 space-y-2">
+              {netice.teklifler.map((t, i) => (
+                <li key={`${t.sahe}-${t.deyer}-${i}`} className="rounded-lg bg-white/70 px-3 py-2">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <b className="text-sm text-slate-900">{SAHE_ADI[t.sahe] ?? t.sahe}</b>
+                    <span className="font-mono text-base font-bold text-slate-900 tabular-nums">{t.deyer}</span>
+                    {t.guven === 'orta' && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                        birdən çox namizəd — yoxlayın
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs italic leading-5 text-slate-500">{t.kontekst}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2.5 text-xs text-sky-900/70">
+            Rəqəmlər avtomatik yazılmır — Sifariş blokundakı ölçü sahələrinə özünüz köçürün.
+          </p>
+        </div>
+      )}
+
       {fayllar.length === 0 ? (
         <p className="text-sm text-slate-400">Hələ fayl yoxdur.</p>
       ) : (
@@ -108,6 +169,13 @@ export default function Fayllar({ openingId, fayllar, canManage }:
               <span className="text-xs text-slate-400 whitespace-nowrap">
                 {new Date(f.createdAt).toLocaleDateString('az-AZ')}
               </span>
+              {/^application\/pdf$/.test(f.mime ?? '') || /\.pdf$/i.test(f.fileName) ? (
+                <button onClick={() => void pdfOxu(f.id, f.fileName)} disabled={oxu === f.id}
+                        title="PDF-in mətn qatından masa/oturacaq/m² təklifi çıxarır"
+                        className="whitespace-nowrap rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                  {oxu === f.id ? 'oxunur…' : 'Ölçüləri oxu'}
+                </button>
+              ) : null}
               {canManage && (
                 <button onClick={() => sil(f.id, f.fileName)}
                         className="text-xs text-slate-400 hover:text-rose-600">sil</button>
