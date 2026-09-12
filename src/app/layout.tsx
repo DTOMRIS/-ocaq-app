@@ -43,7 +43,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#1A1614",
+  // Üst başlıq artıq işıqlı şüşədir → status zolağı da ona uyğun olmalıdır,
+  // yoxsa iPhone-da saat/batareya qara zolağın üstündə qalır.
+  themeColor: "#FCFAF6",
 };
 
 export default function RootLayout({

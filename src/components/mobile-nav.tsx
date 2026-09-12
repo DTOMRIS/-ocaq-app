@@ -2,6 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import {
+  IkonPanel, IkonQrafik, IkonSutun, IkonBina,
+  IkonSiyahi, IkonHedef, IkonSikayet, IkonHamisi,
+} from '@/components/nav-ikonlar'
 
 /**
  * TELEFONDA ALT HƏRƏKƏT ÇUBUĞU — baş barmaq bölgəsi.
@@ -19,26 +23,27 @@ import { usePathname } from 'next/navigation'
  * hər dəfə iki toxunuş uzağa atır.
  */
 
-type Yuva = { href: string; icon: string; label: string }
+type Ikon = (p: { aktiv?: boolean }) => React.ReactElement
+type Yuva = { href: string; Ikon: Ikon; label: string }
 
 const YUVALAR: Record<string, Yuva[]> = {
   super_admin: [
-    { href: '/dashboard',           icon: '◈',  label: 'Panel' },
-    { href: '/dashboard/panel',     icon: '📈', label: 'Günlük' },
-    { href: '/dashboard/analitika', icon: '📊', label: 'Analitika' },
-    { href: '/dashboard/acilis',    icon: '🏗', label: 'Açılış' },
+    { href: '/dashboard',           Ikon: IkonPanel,  label: 'Panel' },
+    { href: '/dashboard/panel',     Ikon: IkonQrafik, label: 'Günlük' },
+    { href: '/dashboard/analitika', Ikon: IkonSutun,  label: 'Analitika' },
+    { href: '/dashboard/acilis',    Ikon: IkonBina,   label: 'Açılış' },
   ],
   region_manager: [
-    { href: '/dashboard',            icon: '◈',  label: 'Panel' },
-    { href: '/dashboard/panel',      icon: '📈', label: 'Günlük' },
-    { href: '/dashboard/checklists', icon: '📋', label: 'KXT' },
-    { href: '/dashboard/complaints', icon: '🚨', label: 'Şikayət' },
+    { href: '/dashboard',            Ikon: IkonPanel,   label: 'Panel' },
+    { href: '/dashboard/panel',      Ikon: IkonQrafik,  label: 'Günlük' },
+    { href: '/dashboard/checklists', Ikon: IkonSiyahi,  label: 'KXT' },
+    { href: '/dashboard/complaints', Ikon: IkonSikayet, label: 'Şikayət' },
   ],
   branch_manager: [
-    { href: '/dashboard',                   icon: '◈',  label: 'Panel' },
-    { href: '/dashboard/vardiya-checklist', icon: '✓',  label: 'KXT doldur' },
-    { href: '/dashboard/sales',             icon: '₼',  label: 'Hədəf' },
-    { href: '/dashboard/complaints',        icon: '🚨', label: 'Şikayət' },
+    { href: '/dashboard',                   Ikon: IkonPanel,   label: 'Panel' },
+    { href: '/dashboard/vardiya-checklist', Ikon: IkonSiyahi,  label: 'KXT' },
+    { href: '/dashboard/sales',             Ikon: IkonHedef,   label: 'Hədəf' },
+    { href: '/dashboard/complaints', Ikon: IkonSikayet, label: 'Şikayət' },
   ],
 }
 
@@ -54,17 +59,20 @@ export default function MobileNav({ role, menuOpen, onMenu }: {
 
   return (
     <nav className="ocaq-bottomnav" aria-label="Əsas naviqasiya">
-      {yuvalar.map(y => (
-        <Link key={y.href} href={y.href}
-              className={`ocaq-bottomnav-item${aktiv(y.href) ? ' is-active' : ''}`}
-              aria-current={aktiv(y.href) ? 'page' : undefined}>
-          <span className="ocaq-bottomnav-icon" aria-hidden>{y.icon}</span>
-          <span className="ocaq-bottomnav-label">{y.label}</span>
-        </Link>
-      ))}
+      {yuvalar.map(y => {
+        const a = aktiv(y.href)
+        return (
+          <Link key={y.href} href={y.href}
+                className={`ocaq-bottomnav-item${a ? ' is-active' : ''}`}
+                aria-current={a ? 'page' : undefined}>
+            <span className="ocaq-bottomnav-icon"><y.Ikon aktiv={a} /></span>
+            <span className="ocaq-bottomnav-label">{y.label}</span>
+          </Link>
+        )
+      })}
       <button type="button" onClick={onMenu} aria-expanded={menuOpen}
               className={`ocaq-bottomnav-item${menuOpen ? ' is-active' : ''}`}>
-        <span className="ocaq-bottomnav-icon" aria-hidden>☰</span>
+        <span className="ocaq-bottomnav-icon"><IkonHamisi aktiv={menuOpen} /></span>
         <span className="ocaq-bottomnav-label">Hamısı</span>
       </button>
     </nav>

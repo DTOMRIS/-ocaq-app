@@ -78,7 +78,31 @@ h1, h2, h3 { letter-spacing: -.02em; text-wrap: balance; }
 
 @media (max-width: 767px) {
   .dashboard-sidebar-desktop { display: none; }
-  .dashboard-mobile-header { display: flex; height: 48px; align-items: center; gap: 12px; padding: 0 16px; color: #fff; background: #1a1614; font-weight: 700; }
+  /* Üst başlıq da alt çubuqla EYNİ materialdır — biri qara, digəri şüşə olsa
+     ekran iki fərqli tətbiq kimi görünür. iOS-da hər ikisi eyni işıqlı şüşədir. */
+  .dashboard-mobile-header {
+    display: flex; height: 47px; align-items: center; gap: 10px;
+    padding: 0 16px; padding-top: env(safe-area-inset-top);
+    height: calc(47px + env(safe-area-inset-top));
+    position: sticky; top: 0; z-index: 80;
+    color: var(--ocaq-ink); font-weight: 700; font-size: 16px; letter-spacing: -.02em;
+    background: rgba(252, 250, 246, .78);
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    backdrop-filter: saturate(180%) blur(22px);
+  }
+  .dashboard-mobile-header::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+    background: rgba(38, 34, 29, .16);
+    transform: scaleY(.5); transform-origin: bottom;
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .dashboard-mobile-header { background: #fcfaf6; }
+  }
+  /* Marka nöqtəsi — loqo yerinə, başlıqda */
+  .dashboard-mobile-header > span::before {
+    content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 2px;
+    background: var(--ocaq-red); margin-right: 7px; vertical-align: 2px;
+  }
   .dashboard-menu-button { width: 36px; height: 36px; border: 0; border-radius: 8px; color: #fff; background: rgba(255,255,255,.1); font-size: 20px; cursor: pointer; }
   .dashboard-drawer-layer { display: block; position: fixed; inset: 0; z-index: 100; }
   .dashboard-drawer-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(0,0,0,.5); }
@@ -120,38 +144,56 @@ h1, h2, h3 { letter-spacing: -.02em; text-wrap: balance; }
 .ocaq-bottomnav { display: none; }
 
 @media (max-width: 767px) {
+  /* ── iOS tab bar materialı ──────────────────────────────────────────────
+     Apple tab çubuğu QARA panel deyil — səhifənin arxasından keçən İŞIQLI
+     şüşədir. Məzmun altından sürüşəndə çubuq onu bulanıq göstərir; bu,
+     «çubuq məzmunun ÜSTÜNDƏ üzür» hissini yaradır.
+
+     Ayırıcı 1px sərhəd yox, HƏR HƏSSAS PİKSEL yarım pikseldir (hairline).
+     Qalın xətt çubuğu səhifədən qoparır. */
   .ocaq-bottomnav {
     display: grid; grid-template-columns: repeat(5, 1fr);
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
-    background: rgba(26,22,20,.94); backdrop-filter: saturate(160%) blur(12px);
-    border-top: 1px solid rgba(255,255,255,.08);
-    box-shadow: 0 -6px 24px rgba(38,34,29,.18);
-    /* iPhone-da alt «home» zolağının altına düşməmək üçün */
+    background: rgba(252, 250, 246, .78);
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    backdrop-filter: saturate(180%) blur(22px);
     padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Hairline — 1px yerinə cihazın ən incə xətti */
+  .ocaq-bottomnav::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: rgba(38, 34, 29, .16);
+    transform: scaleY(.5); transform-origin: top;
+  }
+  /* Blur dəstəklənmirsə (köhnə Android WebView) şəffaflıq oxunmanı pozar */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .ocaq-bottomnav { background: #fcfaf6; }
   }
   .ocaq-bottomnav-item {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; min-height: 52px; padding: 7px 2px;
+    gap: 3px; min-height: 49px; padding: 6px 2px 5px;
     border: 0; background: transparent; cursor: pointer;
-    color: rgba(255,255,255,.62); text-decoration: none;
+    color: #8b8378; text-decoration: none;
     font-family: inherit; -webkit-tap-highlight-color: transparent;
+    transition: color .18s ease;
   }
-  .ocaq-bottomnav-item { position: relative; transition: color .15s; }
-  .ocaq-bottomnav-item.is-active { color: #fff; }
-  /* Aktiv ekran yuxarıdan qızılı zolaqla işarələnir — rəng fərqi tək başına
-     kiçik ekranda zəif oxunur. */
-  .ocaq-bottomnav-item.is-active::before {
-    content: ''; position: absolute; top: 0; left: 22%; right: 22%; height: 2.5px;
-    border-radius: 0 0 3px 3px; background: #F2A81D;
-  }
-  .ocaq-bottomnav-item.is-active .ocaq-bottomnav-icon { transform: translateY(-1px); }
-  .ocaq-bottomnav-icon { font-size: 18px; line-height: 1; }
+  /* iOS-da seçili yuva RƏNGLƏNİR — üstündə zolaq OLMUR (o, Android üslubudur).
+     Ona görə ikonun özü dolur, etiket qalınlaşır. */
+  .ocaq-bottomnav-item.is-active { color: var(--ocaq-red); }
+  .ocaq-bottomnav-item.is-active .ocaq-bottomnav-label { font-weight: 600; }
+  .ocaq-bottomnav-item:active { opacity: .55; }
+  .ocaq-bottomnav-icon { display: block; line-height: 0; }
+  .ocaq-bottomnav-icon svg { width: 25px; height: 25px; display: block; }
   .ocaq-bottomnav-label {
-    font-size: 10.5px; font-weight: 600; line-height: 1.15;
+    font-size: 10px; font-weight: 500; line-height: 1.1; letter-spacing: -.01em;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  @media (prefers-reduced-motion: reduce) {
+    .ocaq-bottomnav-item { transition: none; }
+  }
+
   /* Çubuq məzmunun üstünü örtməsin — son sətir oxunmalıdır */
-  .dashboard-main { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  .dashboard-main { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
   /* Yuxarıdakı ☰ artıq lazım deyil: eyni iş aşağıda, barmağın altındadır */
   .dashboard-menu-button { display: none; }
   /* Çekmece çubuğun ÜSTÜNDƏ açılsın */
@@ -233,7 +275,7 @@ h1, h2, h3 { letter-spacing: -.02em; text-wrap: balance; }
 }
 @media (max-width: 767px) {
   /* alt çubuq 52px + təhlükəsiz sahə → zolaq onun üstündə qalsın */
-  .ocaq-toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .ocaq-toast { bottom: calc(61px + env(safe-area-inset-bottom)); }
 }
 
 
