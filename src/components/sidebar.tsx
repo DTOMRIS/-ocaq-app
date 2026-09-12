@@ -31,6 +31,7 @@ const NAV: NavItem[] = [
   { href: '/dashboard/bildirisler', icon: 'zeng', label: 'Bildirişlər', roles: ['super_admin', 'region_manager', 'branch_manager'] },
   { href: '/dashboard/branches', icon: 'magaza', label: 'Filiallar', roles: ['super_admin', 'region_manager'] },
   { href: '/dashboard/regions', icon: 'bolge', label: 'Bölgələr', roles: ['super_admin', 'region_manager'] },
+  { href: '/dashboard/jurnal', icon: 'jurnal', label: 'Jurnal', roles: ['super_admin'] },
   { href: '/dashboard/settings', icon: 'ayar', label: 'Parametrlər', roles: ['super_admin'] },
 ]
 

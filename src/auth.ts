@@ -1,10 +1,29 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { db } from '@/db'
-import { users } from '@/db/schema/auth'
+import { users, audit_logs } from '@/db/schema/auth'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { isOperationalRole } from '@/lib/operational-roles'
+
+/**
+ * Jurnal qeydi — giriş və uğursuz cəhd.
+ *
+ * NİYƏ XƏTA UDULUR (istisna olaraq): jurnal yaza bilməmək GİRİŞİ
+ * BLOKLAMAMALIDIR. Baza bir anlıq cavab verməsə bütün şəbəkə sistemə girə
+ * bilməzdi. Səbəb server loguna yazılır — səssiz itmir.
+ */
+async function qeydEt(tenantId: string, userId: string, action: string, rol?: string) {
+  try {
+    await db.insert(audit_logs).values({
+      tenant_id: tenantId, user_id: userId, action,
+      entity: 'user', entity_id: userId,
+      metadata: rol ? JSON.stringify({ role: rol }) : null,
+    })
+  } catch (e) {
+    console.error('[auth] jurnal qeydi yazılmadı:', action, e)
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: 'jwt' },
@@ -39,13 +58,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           credentials.password as string,
           user.password_hash
         )
-        if (!valid) return null
+        if (!valid) {
+          // Uğursuz cəhd də yazılır: «hesabım açılmır» şikayətində səbəbi
+          // göstərən yeganə iz budur (səhv şifrə? başqa e-poçt? brute force?).
+          await qeydEt(user.tenant_id, user.id, 'user.login.failed')
+          return null
+        }
 
-        // Audit: son giriş vaxtını yenilə
+        // Audit: son giriş vaxtı + jurnal qeydi
         await db
           .update(users)
           .set({ last_login_at: new Date() })
           .where(eq(users.id, user.id))
+        await qeydEt(user.tenant_id, user.id, 'user.login', user.role)
 
         return {
           id:        user.id,
